@@ -9,3 +9,5 @@ export * from './permissions';
 export * from './profiles';
 export * from './api';
 export * from './totp';
+export * from './stock';
+export * from './productImport';
