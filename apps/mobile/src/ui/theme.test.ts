@@ -16,7 +16,7 @@ describe('themes', () => {
     expect(t.primary['600']).toBe('#0F4CC7');
     expect(t.primary['500']).toBe('#0866FF');
     expect(t.primary['900']).toBe('#0B1F4D');
-    expect(t.paper.DEFAULT).toBe('#F8F9FC');
+    expect(t.paper.DEFAULT).toBe('#EEF2F8');
     expect(t.ink.DEFAULT).toBe('#101828');
   });
   it('building a theme never mutates the palette constants', () => {

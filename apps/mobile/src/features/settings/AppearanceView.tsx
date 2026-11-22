@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native';
 import { fonts } from '../../ui/fonts';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
-import { Screen, Text, SectionTitle, Icon, PALETTES, FONT_FAMILIES, preloadAllFonts, buildTheme, colors, shadow, type PaletteId, type Appearance, type FontId } from '../../ui';
+import { Screen, Text, SectionTitle, Icon, Chip, PALETTES, FONT_FAMILIES, preloadAllFonts, buildTheme, colors, shadow, type PaletteId, type Appearance, type FontId, type TextSize } from '../../ui';
 
 const MODES: { id: Appearance; icon: 'globe' | 'shield' | 'book' | 'refresh' }[] = [
   { id: 'light', icon: 'globe' },
@@ -35,6 +35,8 @@ export function AppearanceView({
   palette,
   appearance,
   font,
+  textSize = 'md',
+  onTextSize,
   onPalette,
   onAppearance,
   onFont,
@@ -43,6 +45,8 @@ export function AppearanceView({
   palette: PaletteId;
   appearance: Appearance;
   font: FontId;
+  textSize?: TextSize;
+  onTextSize?: (z: TextSize) => void;
   onPalette: (p: PaletteId) => void;
   onAppearance: (a: Appearance) => void;
   onFont: (f: FontId) => void;
@@ -121,6 +125,13 @@ export function AppearanceView({
         })}
       </View>
 
+      <SectionTitle>{t('appearance.textSize')}</SectionTitle>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        {(['sm', 'md', 'lg'] as const).map((z) => (
+          <Chip key={z} testID={`size-${z}`} label={t(`appearance.size.${z}`)} selected={textSize === z} onPress={() => onTextSize?.(z)} />
+        ))}
+      </View>
+
       <SectionTitle>{t('appearance.font')}</SectionTitle>
       <View style={{ gap: 10 }}>
         {FONT_FAMILIES.map((f) => {
@@ -143,7 +154,7 @@ export function AppearanceView({
                   </View>
                 ) : null}
               </View>
-              <Text style={{ fontFamily: fontsReady ? f.set.bold : undefined, fontSize: 20, lineHeight: 32, color: colors.ink.DEFAULT }}>{t('appearance.fontSample')}</Text>
+              <Text style={{ fontFamily: fontsReady ? f.set.bold : undefined, fontSize: 18, lineHeight: 28, color: colors.ink.DEFAULT }}>{t('appearance.fontSample')}</Text>
               <Text style={{ fontFamily: fontsReady ? f.set.regular : undefined, fontSize: 14, lineHeight: 22, color: colors.ink.soft }}>{t('home.safeBody')}</Text>
             </Pressable>
           );

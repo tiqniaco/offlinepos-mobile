@@ -81,6 +81,7 @@ export async function countItem(ctx: InvCtx, docId: string, productId: string, q
 }
 
 export async function removeCountItem(ctx: InvCtx, docId: string, productId: string): Promise<void> {
+  requirePermission(ctx.user, 'stock.adjust');
   await withTx(ctx.db, async (tx) => {
     const doc = (await tx.select().from(inventoryDocs).where(eq(inventoryDocs.id, docId)).limit(1))[0];
     if (!doc || doc.status !== 'DRAFT') throw new InventoryError('not_found');
@@ -152,6 +153,7 @@ export async function postCount(ctx: InvCtx, docId: string): Promise<{ number: s
 }
 
 export async function discardCount(ctx: InvCtx, docId: string): Promise<void> {
+  requirePermission(ctx.user, 'stock.adjust');
   await withTx(ctx.db, async (tx) => {
     const doc = (await tx.select().from(inventoryDocs).where(eq(inventoryDocs.id, docId)).limit(1))[0];
     if (!doc || doc.status !== 'DRAFT') throw new InventoryError('not_found');

@@ -74,6 +74,15 @@ export const FONT_FAMILIES: FontFamilyDef[] = [
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 export const fonts: FontSet = { ...FONT_FAMILIES[0]!.set };
+
+export type TextSize = 'sm' | 'md' | 'lg';
+export const TEXT_SIZES: Record<TextSize, number> = { sm: 0.92, md: 1, lg: 1.1 };
+/** Live type settings: `scale` = user's text size; `legacy` shrinks hard-coded sizes to the compact scale. */
+export const type = { scale: 1, legacy: 0.88, size: 'md' as TextSize };
+export function applyTextSize(size: TextSize) {
+  type.size = TEXT_SIZES[size] ? size : 'md';
+  type.scale = TEXT_SIZES[type.size];
+}
 export let currentFont: FontId = 'readex';
 
 /** Load (if needed) and activate a font family. Falls back to Readex Pro. */

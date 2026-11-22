@@ -420,6 +420,7 @@ export async function loadDraft(db: Db, id: string): Promise<SaleDraft> {
 }
 
 export async function deleteDraft(ctx: SalesCtx, id: string): Promise<void> {
+  requirePermission(ctx.user, 'sales.create');
   await withTx(ctx.db, async (tx) => {
     const doc = (await tx.select().from(salesDocs).where(eq(salesDocs.id, id)).limit(1))[0];
     if (!doc || !['PARKED', 'DRAFT'].includes(doc.status)) throw new SalesError('not_found');

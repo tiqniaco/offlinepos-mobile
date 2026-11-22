@@ -99,8 +99,8 @@ const SEMANTIC = {
 };
 
 const NEUTRALS = {
-  cool: { paper: { DEFAULT: '#F8F9FC', card: '#FFFFFF', sunk: '#F2F4F7', line: '#EAECF0' }, ink: { DEFAULT: '#101828', soft: '#475467', mute: '#667085', faint: '#98A2B3' } },
-  warm: { paper: { DEFAULT: '#F6F2EA', card: '#FFFDF8', sunk: '#EFE8DA', line: '#E4DAC6' }, ink: { DEFAULT: '#1F2A2E', soft: '#4A5A60', mute: '#7C8A8F', faint: '#A9B3B6' } },
+  cool: { paper: { DEFAULT: '#EEF2F8', card: '#FFFFFF', sunk: '#E7ECF4', line: '#DFE5EE' }, ink: { DEFAULT: '#101828', soft: '#475467', mute: '#667085', faint: '#98A2B3' } },
+  warm: { paper: { DEFAULT: '#F1ECE2', card: '#FFFDF8', sunk: '#EAE2D3', line: '#E0D5C0' }, ink: { DEFAULT: '#1F2A2E', soft: '#4A5A60', mute: '#7C8A8F', faint: '#A9B3B6' } },
   dark: { paper: { DEFAULT: '#0B1220', card: '#141D2E', sunk: '#1B2538', line: '#26324A' }, ink: { DEFAULT: '#F2F4F7', soft: '#C3CBD8', mute: '#8F9AAD', faint: '#5F6B80' } },
   // "Comfort" (مريح للعين): warm paper, softer contrast, less blue light.
   comfort: { paper: { DEFAULT: '#F3EAD8', card: '#FAF3E6', sunk: '#EADFC9', line: '#DCCDB0' }, ink: { DEFAULT: '#3A3124', soft: '#5C5141', mute: '#857963', faint: '#AEA38C' } },

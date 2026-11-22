@@ -31,10 +31,10 @@ export function ListRow({
 }) {
   return (
     <Pressable testID={testID} accessibilityRole="button" onPress={onPress} style={({ pressed }) => ({ backgroundColor: pressed ? colors.paper.sunk : 'transparent' })}>
-      <View className="min-h-[64px] flex-row items-center gap-3 px-4 py-3">
-        {leading ?? (icon ? <IconBadge name={icon} hue={tone === 'danger' ? 'rose' : hue} size={40} /> : null)}
+      <View className="min-h-[54px] flex-row items-center gap-3 px-3.5 py-2.5">
+        {leading ?? (icon ? <IconBadge name={icon} hue={tone === 'danger' ? 'rose' : hue} size={34} /> : null)}
         <View className="flex-1">
-          <Text style={{ fontFamily: fonts.semibold, fontSize: 16, lineHeight: 24, color: tone === 'danger' ? colors.rose[700] : colors.ink.DEFAULT }}>{title}</Text>
+          <Text style={{ fontFamily: fonts.semibold, fontSize: 16, lineHeight: 23, color: tone === 'danger' ? colors.rose[700] : colors.ink.DEFAULT }}>{title}</Text>
           {subtitle ? <Text variant="caption">{subtitle}</Text> : null}
         </View>
         {value ? (
@@ -44,16 +44,16 @@ export function ListRow({
             </Text>
           </View>
         ) : null}
-        {onPress ? <Icon name="chevron" size={18} color={colors.ink.faint} /> : null}
+        {onPress ? <Icon name="chevron" size={16} color={colors.ink.faint} /> : null}
       </View>
-      {!last ? <View style={{ height: 1, backgroundColor: colors.paper.line, opacity: 0.6, marginStart: 68 }} /> : null}
+      {!last ? <View style={{ height: 1, backgroundColor: colors.paper.line, opacity: 0.6, marginStart: 60 }} /> : null}
     </Pressable>
   );
 }
 
 export function ListGroup({ children }: { children: React.ReactNode }) {
   return (
-    <View style={[{ borderRadius: 20, backgroundColor: colors.paper.card, overflow: 'hidden' }, shadow.soft]}>
+    <View style={[{ borderRadius: 16, backgroundColor: colors.paper.card, overflow: 'hidden' }, shadow.soft]}>
       {children}
     </View>
   );

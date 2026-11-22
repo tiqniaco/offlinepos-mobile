@@ -7,10 +7,11 @@ import { settings } from '../../db/schema';
 import { appendAudit } from '../audit/audit';
 import { assertCanWrite } from '../licence/guard';
 
-export type SettingKey = keyof BusinessSettings | 'language' | 'palette' | 'appearance' | 'font' | 'printer' | 'receipt' | 'cashRoundingMinor';
+export type SettingKey = keyof BusinessSettings | 'language' | 'palette' | 'appearance' | 'font' | 'textSize' | 'printer' | 'receipt' | 'cashRoundingMinor';
 /** palette/appearance are personal display settings (src/ui/theme.ts). */
 export type AppSettings = BusinessSettings & { language: 'ar' | 'en'; palette: 'tiqnia' | 'teal' | 'emerald' | 'sunset' | 'graphite'; appearance: 'light' | 'dark' | 'comfort' | 'system';
   font: 'readex' | 'alexandria' | 'almarai' | 'plex';
+  textSize: 'sm' | 'md' | 'lg';
   /** This phone's default printer (PLAN.md §10). */
   printer: import('../../features/printing/types').PrinterConfig | null;
   receipt: ReceiptTemplate;
@@ -46,7 +47,7 @@ export async function changeSetting<K extends SettingKey>(
   value: AppSettings[K],
   ctx: { userId: string; deviceId: string },
 ): Promise<void> {
-  const personal = key === 'language' || key === 'autoLockMinutes' || key === 'palette' || key === 'appearance' || key === 'font' || key === 'printer';
+  const personal = key === 'language' || key === 'autoLockMinutes' || key === 'palette' || key === 'appearance' || key === 'font' || key === 'textSize' || key === 'printer';
   if (!personal) assertCanWrite();
   const now = Date.now();
   await withTx(db, async (tx) => {

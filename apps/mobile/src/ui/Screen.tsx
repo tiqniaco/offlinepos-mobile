@@ -17,7 +17,7 @@ function BackButton({ light = false }: { light?: boolean }) {
       hitSlop={10}
       onPress={() => router.back()}
       style={({ pressed }) => [
-        { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 },
+        { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 },
         light ? { backgroundColor: 'rgba(255,255,255,0.16)' } : { backgroundColor: colors.paper.card, ...(shadow.soft as object) },
       ]}
     >
@@ -28,7 +28,7 @@ function BackButton({ light = false }: { light?: boolean }) {
 
 function Footer({ children }: { children: React.ReactNode }) {
   const insets = useSafeAreaInsets();
-  return <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 12) + 4, backgroundColor: colors.paper.DEFAULT, gap: 8 }}>{children}</View>;
+  return <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 12) + 4, backgroundColor: colors.paper.DEFAULT, gap: 8 }}>{children}</View>;
 }
 
 /** Standard screen: large title header, optional back, scrollable content, sticky footer. */
@@ -56,7 +56,7 @@ export function Screen({
     <SafeAreaView className="flex-1 bg-paper" edges={['top']}>
       <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {title || back ? (
-          <View className="gap-3 px-5 pb-3 pt-3">
+          <View className="gap-2 px-4 pb-2 pt-2">
             {back || right ? (
               <View className="flex-row items-center justify-between">
                 {back ? <BackButton /> : <View />}
@@ -76,8 +76,8 @@ export function Screen({
         <Body
           className="flex-1"
           {...(scroll
-            ? { contentContainerClassName: `px-5 pb-8 gap-4 ${className}`, keyboardShouldPersistTaps: 'handled' as const, showsVerticalScrollIndicator: false }
-            : { className: `flex-1 px-5 ${className}` })}
+            ? { contentContainerClassName: `px-4 pb-8 gap-3 ${className}`, keyboardShouldPersistTaps: 'handled' as const, showsVerticalScrollIndicator: false }
+            : { className: `flex-1 px-4 ${className}` })}
         >
           {children}
         </Body>

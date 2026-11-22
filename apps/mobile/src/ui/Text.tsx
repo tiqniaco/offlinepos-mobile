@@ -1,20 +1,41 @@
-import { Text as RNText, type TextProps } from 'react-native';
-import { fonts } from './fonts';
+import { StyleSheet, Text as RNText, type TextProps, type TextStyle } from 'react-native';
+import { fonts, type } from './fonts';
 
 type Variant = 'display' | 'title' | 'subtitle' | 'body' | 'label' | 'caption' | 'money';
 
-const VARIANTS: Record<Variant, { cls: string; font: keyof typeof fonts }> = {
-  display: { cls: 'text-display text-ink', font: 'bold' },
-  title: { cls: 'text-title text-ink', font: 'bold' },
-  subtitle: { cls: 'text-[17px] leading-[26px] text-ink', font: 'semibold' },
-  body: { cls: 'text-body text-ink-soft', font: 'regular' },
-  label: { cls: 'text-[14px] leading-[22px] text-ink-soft', font: 'medium' },
-  caption: { cls: 'text-tiny text-ink-mute', font: 'regular' },
-  money: { cls: 'text-title text-ink', font: 'bold' },
+/** Compact, calm type scale (sizes at text size "medium"; المظهر → حجم الخط scales everything). */
+const VARIANTS: Record<Variant, { cls: string; font: keyof typeof fonts; size: number; line: number }> = {
+  display: { cls: 'text-ink', font: 'bold', size: 22, line: 32 },
+  title: { cls: 'text-ink', font: 'bold', size: 17, line: 26 },
+  subtitle: { cls: 'text-ink', font: 'semibold', size: 14.5, line: 22 },
+  body: { cls: 'text-ink-soft', font: 'regular', size: 13.5, line: 21 },
+  label: { cls: 'text-ink-soft', font: 'medium', size: 12.5, line: 19 },
+  caption: { cls: 'text-ink-mute', font: 'regular', size: 11.5, line: 17 },
+  money: { cls: 'text-ink', font: 'bold', size: 17, line: 26 },
 };
 
-/** All text goes through this component: active font (المظهر), RTL-aware alignment, consistent scale. */
+/**
+ * All text goes through this component: active font, RTL-aware alignment, one consistent scale.
+ * Explicit `fontSize`/`lineHeight` in `style` are scaled by `type.legacy × type.scale`, so older screens
+ * follow the same compact scale and the user's text-size choice.
+ */
 export function Text({ variant = 'body', className = '', style, ...rest }: TextProps & { variant?: Variant; className?: string }) {
   const v = VARIANTS[variant];
-  return <RNText className={`${v.cls} text-start ${className}`} style={[{ fontFamily: fonts[v.font] }, style]} {...rest} />;
+  const flat = (StyleSheet.flatten(style) ?? {}) as TextStyle;
+  const k = type.scale * type.legacy;
+  const sized: { -readonly [K in keyof TextStyle]: TextStyle[K] } = {
+    fontFamily: fonts[v.font],
+    fontSize: v.size * type.scale,
+    lineHeight: v.line * type.scale,
+    ...flat,
+  };
+  if (flat.fontSize) sized.fontSize = flat.fontSize * k;
+  if (flat.lineHeight) sized.lineHeight = flat.lineHeight * k;
+  else if (flat.fontSize) sized.lineHeight = flat.fontSize * k * 1.45;
+  return <RNText className={`${v.cls} text-start ${className}`} style={sized} {...rest} />;
+}
+
+/** Scale a raw size for components that render TextInput etc. directly. */
+export function fs(n: number): number {
+  return n * type.scale * type.legacy;
 }

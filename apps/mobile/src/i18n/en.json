@@ -504,7 +504,13 @@
     "sample": "Invoice INV-A-000123",
     "default": "Default",
     "font": "Font",
-    "fontSample": "Al Nour Market — 1,256.50"
+    "fontSample": "Al Nour Market — 1,256.50",
+    "textSize": "Text size",
+    "size": {
+      "sm": "Small",
+      "md": "Medium",
+      "lg": "Large"
+    }
   },
   "pos": {
     "title": "New sale",

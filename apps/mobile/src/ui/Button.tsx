@@ -32,13 +32,13 @@ export function Button({
 }) {
   const FG: Record<Kind, string> = { primary: '#FFFFFF', secondary: colors.primary[700], ghost: colors.primary[700], danger: colors.rose[700], light: colors.grad[1] };
   const off = disabled || loading;
-  const h = compact ? 44 : 56;
+  const h = compact ? 40 : 50;
   const content = loading ? (
     <ActivityIndicator color={FG[kind]} />
   ) : (
     <View className="flex-row items-center justify-center gap-2">
-      <Text style={{ color: FG[kind], fontFamily: fonts.bold, fontSize: compact ? 15 : 17, lineHeight: compact ? 22 : 26 }}>{title}</Text>
-      {icon ? <Icon name={icon} size={compact ? 18 : 20} color={FG[kind]} tint="transparent" /> : null}
+      <Text style={{ color: FG[kind], fontFamily: fonts.bold, fontSize: compact ? 15 : 16.5, lineHeight: compact ? 22 : 24 }}>{title}</Text>
+      {icon ? <Icon name={icon} size={compact ? 16 : 18} color={FG[kind]} tint="transparent" /> : null}
     </View>
   );
   return (
@@ -49,7 +49,7 @@ export function Button({
       onPress={off ? undefined : onPress}
       className={`${className}`}
       style={({ pressed }) => [
-        { borderRadius: 16, opacity: off ? 0.45 : 1, transform: [{ scale: pressed && !off ? 0.985 : 1 }] },
+        { borderRadius: 14, opacity: off ? 0.45 : 1, transform: [{ scale: pressed && !off ? 0.985 : 1 }] },
         kind === 'primary' && !off ? shadow.lifted : null,
       ]}
     >
@@ -58,7 +58,7 @@ export function Button({
           colors={colors.grad}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={{ height: h, borderRadius: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 }}
+          style={{ height: h, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 }}
         >
           {content}
         </LinearGradient>
@@ -66,7 +66,7 @@ export function Button({
         <View
           style={{
             height: h,
-            borderRadius: 16,
+            borderRadius: 14,
             alignItems: 'center',
             justifyContent: 'center',
             paddingHorizontal: compact ? 14 : 20,

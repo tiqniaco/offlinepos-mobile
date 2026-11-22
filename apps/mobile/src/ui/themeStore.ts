@@ -2,12 +2,13 @@ import { create } from 'zustand';
 import colors from './colors';
 import { shadow } from './shadow';
 import { buildTheme, cssVars, type Appearance, type PaletteId } from './theme';
-import { currentFont, loadFontFamily, type FontId } from './fonts';
+import { applyTextSize, currentFont, loadFontFamily, type as typeState, type FontId, type TextSize } from './fonts';
 
 interface ThemeState {
   palette: PaletteId;
   appearance: Appearance;
   font: FontId;
+  textSize: TextSize;
   /** Increments on every change; the root layout uses it as a key to repaint everything. */
   version: number;
   vars: Record<string, string>;
@@ -20,6 +21,7 @@ export const useTheme = create<ThemeState>(() => ({
   palette: 'tiqnia',
   appearance: 'light',
   font: 'readex',
+  textSize: 'md',
   version: 0,
   vars: cssVars(colors),
   isDark: false,
@@ -50,4 +52,12 @@ export async function applyFont(id: FontId): Promise<void> {
   const s = useTheme.getState();
   if (s.font === currentFont && s.version > 0) return;
   useTheme.setState({ font: currentFont, version: s.version + 1 });
+}
+
+/** Change text size (صغير / متوسط / كبير) and repaint. */
+export function setTextSize(size: TextSize) {
+  applyTextSize(size);
+  const s = useTheme.getState();
+  if (s.textSize === typeState.size && s.version > 0) return;
+  useTheme.setState({ textSize: typeState.size, version: s.version + 1 });
 }

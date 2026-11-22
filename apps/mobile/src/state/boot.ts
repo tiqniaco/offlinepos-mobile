@@ -3,7 +3,7 @@
  * The daily check-in runs in the background afterwards and never blocks start-up.
  */
 import { Appearance, Platform } from 'react-native';
-import { applyFont, applyTheme } from '../ui/themeStore';
+import { applyFont, applyTheme, setTextSize } from '../ui/themeStore';
 import { getDb, openDatabase, DbNotEncryptedError } from '../db/client';
 import { business } from '../db/schema';
 import { getCurrentDevice } from '../domain/device';
@@ -41,6 +41,7 @@ export async function boot(): Promise<void> {
     subscribed = true;
   }
   const settings = await loadSettings(db);
+  setTextSize(settings.textSize ?? 'md');
   await applyFont(settings.font ?? 'readex').catch(() => applyFont('readex'));
   applyTheme(settings.palette ?? 'tiqnia', settings.appearance ?? 'light', Appearance.getColorScheme() === 'dark');
   const lang = settings.language ?? 'ar';

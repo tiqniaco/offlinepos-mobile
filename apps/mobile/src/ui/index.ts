@@ -1,4 +1,4 @@
-export { Text } from './Text';
+export { Text, fs } from './Text';
 export { Button } from './Button';
 export { TextField } from './TextField';
 export { Card } from './Card';
@@ -23,6 +23,6 @@ export { MoneyField, QtyField } from './NumberField';
 export { ToastHost } from './Toast';
 export { Fab } from './Fab';
 export { EmptyState } from './EmptyState';
-export { useTheme, applyTheme, applyFont } from './themeStore';
-export { fonts, FONT_FAMILIES, loadFontFamily, preloadAllFonts, type FontId } from './fonts';
+export { useTheme, applyTheme, applyFont, setTextSize } from './themeStore';
+export { fonts, FONT_FAMILIES, loadFontFamily, preloadAllFonts, applyTextSize, TEXT_SIZES, type FontId, type TextSize } from './fonts';
 export { PALETTES, buildTheme, type PaletteId, type Appearance } from './theme';

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { fonts } from './fonts';
 import { Platform, TextInput, View, type TextInputProps } from 'react-native';
 import { normalizeDigits } from '@daftarak/shared';
-import { Text } from './Text';
+import { Text, fs } from './Text';
 import { Icon, type IconName } from './Icon';
 import colors from './colors';
 
@@ -27,16 +27,16 @@ export function TextField({ label, error, hint, icon, onChangeText, latinDigits 
         style={{
           flexDirection: 'row',
           alignItems: 'center',
-          height: 56,
-          borderRadius: 16,
-          borderWidth: 2,
+          height: 48,
+          borderRadius: 14,
+          borderWidth: 1.5,
           paddingHorizontal: 14,
           gap: 10,
           backgroundColor: colors.paper.card,
           borderColor: error ? colors.rose[500] : focus ? colors.primary[500] : colors.paper.line,
         }}
       >
-        {icon ? <Icon name={icon} size={22} color={focus ? colors.primary[600] : colors.ink.faint} /> : null}
+        {icon ? <Icon name={icon} size={19} color={focus ? colors.primary[600] : colors.ink.faint} /> : null}
         <TextInput
           placeholderTextColor={colors.ink.faint}
           onFocus={(e) => {
@@ -48,7 +48,7 @@ export function TextField({ label, error, hint, icon, onChangeText, latinDigits 
             rest.onBlur?.(e);
           }}
           style={[
-            { flex: 1, minWidth: 0, height: '100%', fontSize: 17, fontFamily: fonts.medium, color: colors.ink.DEFAULT, textAlign: ltr ? 'left' : 'auto' },
+            { flex: 1, minWidth: 0, height: '100%', fontSize: fs(16.5), fontFamily: fonts.medium, color: colors.ink.DEFAULT, textAlign: ltr ? 'left' : 'auto' },
             ltr ? { writingDirection: 'ltr' } : null,
             Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null,
             style,

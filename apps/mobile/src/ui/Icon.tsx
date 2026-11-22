@@ -12,7 +12,7 @@ export type IconName = 'home' | 'more' | 'phone' | 'shield' | 'users' | 'lock' |
 
 const MIRRORED: IconName[] = ['chevron', 'back'];
 
-export function Icon({ name, size = 24, color = colors.primary[600], tint }: { name: IconName; size?: number; color?: string; tint?: string }) {
+export function Icon({ name, size = 22, color = colors.primary[600], tint }: { name: IconName; size?: number; color?: string; tint?: string }) {
   const fill = tint ?? color + '26'; // ~15% alpha of the stroke colour
   const sw = 1.8;
   const p = { stroke: color, strokeWidth: sw, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, fill: 'none' };
