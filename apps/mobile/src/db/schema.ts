@@ -348,3 +348,211 @@ export const inventoryLines = sqliteTable(
   },
   (t) => [index('inventory_lines_doc').on(t.docId), index('inventory_lines_product').on(t.productId)],
 );
+
+// ───────────────────────────── Phase 3: sales, payments, journal, integrity ─────────────────────────────
+
+/** Minimal customer record (full forms, statements and limits UI in Phase 4). */
+export const customers = sqliteTable(
+  'customers',
+  {
+    ...base,
+    ...master,
+    name: text('name').notNull(),
+    mobile: text('mobile'),
+    address: text('address'),
+    email: text('email'),
+    taxNumber: text('tax_number'),
+    creditLimitMinor: integer('credit_limit_minor'),
+    priceTier: text('price_tier', { enum: ['retail', 'wholesale'] }).notNull().default('retail'),
+    notes: text('notes'),
+  },
+  (t) => [index('customers_name').on(t.name), index('customers_mobile').on(t.mobile)],
+);
+
+/**
+ * Sales documents: INVOICE, RETURN, QUOTATION. Status: DRAFT (editable), PARKED (held cart), POSTED,
+ * VOIDED, CONVERTED (quotation turned into an invoice). Posted/voided rows are immutable (triggers),
+ * except print counters and the POSTED→VOIDED flip.
+ */
+export const salesDocs = sqliteTable(
+  'sales_docs',
+  {
+    ...base,
+    type: text('type', { enum: ['INVOICE', 'RETURN', 'QUOTATION'] }).notNull(),
+    status: text('status', { enum: ['DRAFT', 'PARKED', 'POSTED', 'VOIDED', 'CONVERTED'] }).notNull(),
+    number: text('number'),
+    customerId: text('customer_id'),
+    customerName: text('customer_name'),
+    priceTier: text('price_tier', { enum: ['retail', 'wholesale'] }).notNull().default('retail'),
+    originalDocId: text('original_doc_id'),
+    shiftId: text('shift_id'),
+    cashierId: text('cashier_id'),
+    issuedAt: integer('issued_at'),
+    businessDay: integer('business_day'),
+    pricesIncludeVat: integer('prices_include_vat', { mode: 'boolean' }).notNull(),
+    invoiceDiscountJson: text('invoice_discount_json'),
+    grossMinor: integer('gross_minor').notNull().default(0),
+    lineDiscountMinor: integer('line_discount_minor').notNull().default(0),
+    invoiceDiscountMinor: integer('invoice_discount_minor').notNull().default(0),
+    netMinor: integer('net_minor').notNull().default(0),
+    taxMinor: integer('tax_minor').notNull().default(0),
+    roundingMinor: integer('rounding_minor').notNull().default(0),
+    totalMinor: integer('total_minor').notNull().default(0),
+    paidMinor: integer('paid_minor').notNull().default(0),
+    creditMinor: integer('credit_minor').notNull().default(0),
+    changeMinor: integer('change_minor').notNull().default(0),
+    cashTenderedMinor: integer('cash_tendered_minor').notNull().default(0),
+    note: text('note'),
+    approvedBy: text('approved_by'),
+    hash: text('hash'),
+    prevHash: text('prev_hash'),
+    chainSeq: integer('chain_seq'),
+    postedAt: integer('posted_at'),
+    voidReason: text('void_reason'),
+    voidedBy: text('voided_by'),
+    voidedAt: integer('voided_at'),
+    printCount: integer('print_count').notNull().default(0),
+    lastPrintedAt: integer('last_printed_at'),
+  },
+  (t) => [
+    index('sales_docs_type_status_day').on(t.type, t.status, t.businessDay),
+    index('sales_docs_customer_day').on(t.customerId, t.businessDay),
+    index('sales_docs_original').on(t.originalDocId),
+    index('sales_docs_posted').on(t.postedAt),
+  ],
+);
+
+export const salesLines = sqliteTable(
+  'sales_lines',
+  {
+    ...base,
+    docId: text('doc_id')
+      .notNull()
+      .references(() => salesDocs.id),
+    lineNo: integer('line_no').notNull(),
+    productId: text('product_id').notNull(),
+    productUnitId: text('product_unit_id').notNull(),
+    nameSnapshot: text('name_snapshot').notNull(),
+    unitNameSnapshot: text('unit_name_snapshot').notNull(),
+    qtyMilli: integer('qty_milli').notNull(),
+    factorMilli: integer('factor_milli').notNull(),
+    baseQtyMilli: integer('base_qty_milli').notNull(),
+    unitPriceMinor: integer('unit_price_minor').notNull(),
+    catalogPriceMinor: integer('catalog_price_minor').notNull(),
+    discountJson: text('discount_json'),
+    grossMinor: integer('gross_minor').notNull(),
+    lineDiscountMinor: integer('line_discount_minor').notNull(),
+    invoiceDiscountMinor: integer('invoice_discount_minor').notNull(),
+    taxRateBp: integer('tax_rate_bp').notNull(),
+    netMinor: integer('net_minor').notNull(),
+    taxMinor: integer('tax_minor').notNull(),
+    totalMinor: integer('total_minor').notNull(),
+    /** Cost per BASE unit at posting time (moving average) — for profit reports. */
+    unitCostMinor: integer('unit_cost_minor'),
+    originalLineId: text('original_line_id'),
+    businessDay: integer('business_day'),
+  },
+  (t) => [index('sales_lines_doc').on(t.docId), index('sales_lines_product_day').on(t.productId, t.businessDay), index('sales_lines_day').on(t.businessDay), index('sales_lines_original').on(t.originalLineId)],
+);
+
+/** Money in/out. Sale payments reference their invoice; on-account receipts arrive in Phase 4. */
+export const payments = sqliteTable(
+  'payments',
+  {
+    ...base,
+    kind: text('kind', { enum: ['SALE', 'REFUND', 'RECEIPT', 'PURCHASE', 'SUPPLIER_PAYMENT', 'SUPPLIER_REFUND', 'EXPENSE', 'CASH_IN', 'CASH_OUT'] }).notNull(),
+    direction: text('direction', { enum: ['IN', 'OUT'] }).notNull(),
+    method: text('method', { enum: ['cash', 'card', 'wallet', 'bank', 'credit'] }).notNull(),
+    label: text('label'),
+    amountMinor: integer('amount_minor').notNull(),
+    partyType: text('party_type', { enum: ['C', 'S'] }),
+    partyId: text('party_id'),
+    docType: text('doc_type'),
+    docId: text('doc_id'),
+    shiftId: text('shift_id'),
+    businessDay: integer('business_day').notNull(),
+    postedAt: integer('posted_at').notNull(),
+    voided: integer('voided', { mode: 'boolean' }).notNull().default(false),
+  },
+  (t) => [index('payments_day_method').on(t.businessDay, t.method), index('payments_doc').on(t.docType, t.docId), index('payments_party').on(t.partyType, t.partyId, t.businessDay), index('payments_shift').on(t.shiftId)],
+);
+
+/** Customer/supplier sub-ledger (append-only). Balance = Σ debit − Σ credit. */
+export const partyLedger = sqliteTable(
+  'party_ledger',
+  {
+    ...base,
+    partyType: text('party_type', { enum: ['C', 'S'] }).notNull(),
+    partyId: text('party_id').notNull(),
+    sourceType: text('source_type').notNull(),
+    sourceId: text('source_id').notNull(),
+    debitMinor: integer('debit_minor').notNull(),
+    creditMinor: integer('credit_minor').notNull(),
+    businessDay: integer('business_day').notNull(),
+    dueDay: integer('due_day'),
+  },
+  (t) => [index('party_ledger_party_day').on(t.partyType, t.partyId, t.businessDay)],
+);
+
+export const partyBalances = sqliteTable(
+  'party_balances',
+  {
+    partyType: text('party_type').notNull(),
+    partyId: text('party_id').notNull(),
+    balanceMinor: integer('balance_minor').notNull(),
+    lastActivityAt: integer('last_activity_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.partyType, t.partyId] })],
+);
+
+/** Background double-entry journal (SPEC §4). Not an accounting UI — reports read it. */
+export const accounts = sqliteTable('accounts', {
+  ...base,
+  code: text('code').notNull(),
+  systemKey: text('system_key'),
+  nameAr: text('name_ar').notNull(),
+  nameEn: text('name_en').notNull(),
+  type: text('type', { enum: ['ASSET', 'LIABILITY', 'EQUITY', 'INCOME', 'EXPENSE'] }).notNull(),
+});
+
+export const journalEntries = sqliteTable(
+  'journal_entries',
+  {
+    ...base,
+    sourceType: text('source_type').notNull(),
+    sourceId: text('source_id').notNull(),
+    businessDay: integer('business_day').notNull(),
+    memo: text('memo'),
+  },
+  (t) => [index('journal_entries_source').on(t.sourceType, t.sourceId), index('journal_entries_day').on(t.businessDay)],
+);
+
+export const journalLines = sqliteTable(
+  'journal_lines',
+  {
+    ...base,
+    entryId: text('entry_id').notNull(),
+    accountId: text('account_id').notNull(),
+    debitMinor: integer('debit_minor').notNull(),
+    creditMinor: integer('credit_minor').notNull(),
+    partyType: text('party_type'),
+    partyId: text('party_id'),
+    businessDay: integer('business_day').notNull(),
+  },
+  (t) => [index('journal_lines_account_day').on(t.accountId, t.businessDay), index('journal_lines_entry').on(t.entryId)],
+);
+
+/** Per-device hash chain of every posted document (PLAN.md §7.3). Append-only. */
+export const integrityChain = sqliteTable(
+  'integrity_chain',
+  {
+    deviceId: text('device_id').notNull(),
+    chainSeq: integer('chain_seq').notNull(),
+    docType: text('doc_type').notNull(),
+    docId: text('doc_id').notNull(),
+    hash: text('hash').notNull(),
+    prevHash: text('prev_hash').notNull(),
+    postedAt: integer('posted_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.deviceId, t.chainSeq] }), index('integrity_chain_doc').on(t.docId)],
+);

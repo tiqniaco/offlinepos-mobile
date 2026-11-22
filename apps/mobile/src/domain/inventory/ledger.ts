@@ -3,14 +3,14 @@
  * Movements are appended and the cached level is updated in the caller's transaction.
  */
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
-import { applyMovement, businessDay, EMPTY_LEVEL, uuidv7, type MovementType, type StockLevel } from '@daftarak/shared';
+import { applyMovement, businessDay, EMPTY_LEVEL, mulDivRound, uuidv7, type MovementType, type StockLevel } from '@daftarak/shared';
 import { products, stockLevels, stockMovements, warehouses } from '../../db/schema';
 import type { Db } from '../../db/types';
 import { withTx } from '../../db/tx';
 import { InventoryError, nowOf, type InvCtx } from './context';
 
 /** Movement types that carry their own unit cost (everything else is valued at the moving average). */
-export const COST_CARRYING: readonly MovementType[] = ['OPENING', 'PURCHASE', 'SALE_RETURN'];
+export const COST_CARRYING: readonly MovementType[] = ['OPENING', 'PURCHASE', 'SALE_RETURN', 'VOID_REVERSAL'];
 
 export interface NewMovement {
   productId: string;
@@ -40,9 +40,18 @@ export async function getLevel(db: Db, productId: string, warehouseId: string): 
  * Append movements and update cached levels. Must run inside withTx (the caller's transaction).
  * Negative stock: 'warn' lets it through (the UI warned before), 'block' throws negative_blocked.
  */
-export async function postMovements(tx: Db, ctx: Pick<InvCtx, 'device' | 'user' | 'timezone' | 'negativeStock' | 'now'>, warehouseId: string, movements: NewMovement[]): Promise<void> {
+export interface PostedMovement {
+  productId: string;
+  qtyMilli: number;
+  unitCostMinor: number;
+  /** qty × unit cost, signed, minor units. */
+  valueMinor: number;
+}
+
+export async function postMovements(tx: Db, ctx: Pick<InvCtx, 'device' | 'user' | 'timezone' | 'negativeStock' | 'now'>, warehouseId: string, movements: NewMovement[]): Promise<PostedMovement[]> {
   const now = nowOf(ctx);
   const day = businessDay(now, ctx.timezone);
+  const posted: PostedMovement[] = [];
   for (const m of movements) {
     if (!Number.isSafeInteger(m.qtyMilli) || m.qtyMilli === 0) throw new InventoryError('invalid_qty');
     const carries = COST_CARRYING.includes(m.type);
@@ -80,7 +89,9 @@ export async function postMovements(tx: Db, ctx: Pick<InvCtx, 'device' | 'user' 
         target: [stockLevels.productId, stockLevels.warehouseId],
         set: { qtyMilli: level.qtyMilli, avgCostMinor: level.avgCostMinor, valueMinor: level.valueMinor, lastMovementAt: now },
       });
+    posted.push({ productId: m.productId, qtyMilli: m.qtyMilli, unitCostMinor, valueMinor: mulDivRound(m.qtyMilli, unitCostMinor, 1000) });
   }
+  return posted;
 }
 
 export interface RebuildDiff {

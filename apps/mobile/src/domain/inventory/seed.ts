@@ -2,6 +2,7 @@
 import { HybridLogicalClock, uuidv7 } from '@daftarak/shared';
 import { units, warehouses } from '../../db/schema';
 import type { Db } from '../../db/types';
+import { ensureAccounts } from '../accounting/journal';
 
 const STANDARD_UNITS: { ar: string; en: string; fraction: boolean }[] = [
   { ar: 'قطعة', en: 'Piece', fraction: false },
@@ -17,6 +18,7 @@ const STANDARD_UNITS: { ar: string; en: string; fraction: boolean }[] = [
 ];
 
 export async function ensureInventorySeed(db: Db, device: { id: string; code: string }, now = Date.now()) {
+  await ensureAccounts(db, device.id, now);
   const hlc = new HybridLogicalClock(device.code, () => now);
   const wh = await db.select({ id: warehouses.id }).from(warehouses).limit(1);
   if (wh.length === 0) {

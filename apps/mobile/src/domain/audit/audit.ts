@@ -31,7 +31,14 @@ export type AuditAction =
   | 'category.change'
   | 'stock.adjust'
   | 'stock.count'
-  | 'stock.rebuild';
+  | 'stock.rebuild'
+  | 'customer.create'
+  | 'sale.post'
+  | 'sale.return'
+  | 'sale.void'
+  | 'sale.discount_override'
+  | 'sale.price_override'
+  | 'quotation.save';
 
 export interface AuditInput {
   action: AuditAction;

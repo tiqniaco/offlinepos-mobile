@@ -3,7 +3,7 @@
  * All writes: permission check → licence guard → one transaction → audit entry.
  */
 import { and, asc, count, desc, eq, gt, inArray, isNull, lte, or, sql, sum } from 'drizzle-orm';
-import { applyBp, businessDay, divRound, HybridLogicalClock, normalizeBarcode, uuidv7 } from '@daftarak/shared';
+import { applyBp, divRound, HybridLogicalClock, normalizeBarcode, uuidv7 } from '@daftarak/shared';
 import { barcodes, categories, inventoryDocs, inventoryLines, productGroups, productUnits, products, stockLevels, stockMovements, units } from '../../db/schema';
 import type { Db } from '../../db/types';
 import { withTx } from '../../db/tx';
@@ -12,7 +12,7 @@ import { requirePermission } from '../auth/users';
 import { assertCanWrite, assertWithinLimit } from '../licence/guard';
 import { InventoryError, nowOf, type InvCtx } from './context';
 import { defaultWarehouseId, postMovements } from './ledger';
-import { nextDocNumber } from './numbering';
+import { finalizeInventoryDoc } from './postDoc';
 import { refreshProductSearch, ftsQuery, insertProductSearch } from './search';
 
 export interface LargerUnitInput {
@@ -145,13 +145,14 @@ export async function postOpeningStock(tx: Db, ctx: InvCtx, lines: { productId: 
   const docId = uuidv7(now);
   const base = { createdAt: now, updatedAt: now, createdBy: ctx.user.id, deviceId: ctx.device.id };
   await tx.insert(inventoryDocs).values({ id: docId, ...base, type: 'OPENING', status: 'DRAFT', warehouseId, note: note ?? null });
+  let value = 0;
   for (const l of real) {
     const lineId = uuidv7(now);
     await tx.insert(inventoryLines).values({ id: lineId, ...base, docId, productId: l.productId, deltaMilli: l.qtyMilli, unitCostMinor: l.unitCostMinor });
-    await postMovements(tx, ctx, warehouseId, [{ productId: l.productId, qtyMilli: l.qtyMilli, type: 'OPENING', unitCostMinor: l.unitCostMinor, sourceType: 'inventory_doc', sourceId: docId, sourceLineId: lineId }]);
+    const [mv] = await postMovements(tx, ctx, warehouseId, [{ productId: l.productId, qtyMilli: l.qtyMilli, type: 'OPENING', unitCostMinor: l.unitCostMinor, sourceType: 'inventory_doc', sourceId: docId, sourceLineId: lineId }]);
+    value += mv!.valueMinor;
   }
-  const number = await nextDocNumber(tx, ctx.device, 'INVENTORY', 'STK');
-  await tx.update(inventoryDocs).set({ status: 'POSTED', number, postedAt: now, businessDay: businessDay(now, ctx.timezone), updatedAt: now }).where(eq(inventoryDocs.id, docId));
+  await finalizeInventoryDoc(tx, ctx, docId, now, value);
   return docId;
 }
 

@@ -1,6 +1,6 @@
 /** Stock adjustments (with reason) and scan-driven stock counts (SPEC §5). */
 import { and, asc, desc, eq, isNull } from 'drizzle-orm';
-import { businessDay, uuidv7 } from '@daftarak/shared';
+import { uuidv7 } from '@daftarak/shared';
 import { inventoryDocs, inventoryLines, products, stockLevels, units } from '../../db/schema';
 import type { Db } from '../../db/types';
 import { withTx } from '../../db/tx';
@@ -9,7 +9,7 @@ import { requirePermission } from '../auth/users';
 import { assertCanWrite } from '../licence/guard';
 import { InventoryError, nowOf, type InvCtx } from './context';
 import { defaultWarehouseId, getLevel, postMovements } from './ledger';
-import { nextDocNumber } from './numbering';
+import { finalizeInventoryDoc } from './postDoc';
 
 export const ADJUST_REASONS = ['damaged', 'expired', 'lost', 'gift', 'own_use', 'found', 'correction', 'other'] as const;
 export type AdjustReason = (typeof ADJUST_REASONS)[number];
@@ -30,9 +30,9 @@ export async function postAdjustment(ctx: InvCtx, input: { productId: string; de
     await tx.insert(inventoryDocs).values({ id: docId, ...base, type: 'ADJUST', status: 'DRAFT', warehouseId, reason: input.reason, note: input.note ?? null });
     const lineId = uuidv7(now);
     await tx.insert(inventoryLines).values({ id: lineId, ...base, docId, productId: input.productId, expectedMilli: before.qtyMilli, countedMilli: before.qtyMilli + input.deltaMilli, deltaMilli: input.deltaMilli });
-    await postMovements(tx, ctx, warehouseId, [{ productId: input.productId, qtyMilli: input.deltaMilli, type: 'ADJUST', sourceType: 'inventory_doc', sourceId: docId, sourceLineId: lineId, reason: input.reason }]);
-    const number = await nextDocNumber(tx, ctx.device, 'INVENTORY', 'STK');
-    await tx.update(inventoryDocs).set({ status: 'POSTED', number, postedAt: now, businessDay: businessDay(now, ctx.timezone), updatedAt: now }).where(eq(inventoryDocs.id, docId));
+    const [mv] = await postMovements(tx, ctx, warehouseId, [{ productId: input.productId, qtyMilli: input.deltaMilli, type: 'ADJUST', sourceType: 'inventory_doc', sourceId: docId, sourceLineId: lineId, reason: input.reason }]);
+    await tx.update(inventoryLines).set({ unitCostMinor: mv!.unitCostMinor }).where(eq(inventoryLines.id, lineId));
+    await finalizeInventoryDoc(tx, ctx, docId, now, mv!.valueMinor);
     await appendAudit(tx, {
       action: 'stock.adjust',
       entity: 'inventory_docs',
@@ -133,6 +133,7 @@ export async function postCount(ctx: InvCtx, docId: string): Promise<{ number: s
     const lines = await tx.select().from(inventoryLines).where(eq(inventoryLines.docId, docId)).orderBy(asc(inventoryLines.createdAt));
     if (!lines.length) throw new InventoryError('empty_count');
     let changed = 0;
+    let value = 0;
     for (const l of lines) {
       const level = await getLevel(tx, l.productId, doc.warehouseId);
       const delta = (l.countedMilli ?? 0) - level.qtyMilli;
@@ -140,11 +141,11 @@ export async function postCount(ctx: InvCtx, docId: string): Promise<{ number: s
       if (delta !== 0) {
         changed++;
         // COUNT differences never block on negative policy: the shelf is the truth.
-        await postMovements(tx, { ...ctx, negativeStock: 'warn' }, doc.warehouseId, [{ productId: l.productId, qtyMilli: delta, type: 'COUNT', sourceType: 'inventory_doc', sourceId: docId, sourceLineId: l.id, reason: 'count' }]);
+        const [mv] = await postMovements(tx, { ...ctx, negativeStock: 'warn' }, doc.warehouseId, [{ productId: l.productId, qtyMilli: delta, type: 'COUNT', sourceType: 'inventory_doc', sourceId: docId, sourceLineId: l.id, reason: 'count' }]);
+        value += mv!.valueMinor;
       }
     }
-    const number = await nextDocNumber(tx, ctx.device, 'INVENTORY', 'STK');
-    await tx.update(inventoryDocs).set({ status: 'POSTED', number, postedAt: now, businessDay: businessDay(now, ctx.timezone), updatedAt: now }).where(eq(inventoryDocs.id, docId));
+    const number = await finalizeInventoryDoc(tx, ctx, docId, now, value);
     await appendAudit(tx, { action: 'stock.count', entity: 'inventory_docs', entityId: docId, after: { number, lines: lines.length, changed }, userId: ctx.user.id, deviceId: ctx.device.id, at: now });
     return { number, changed };
   });

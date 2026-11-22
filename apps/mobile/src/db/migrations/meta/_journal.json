@@ -29,6 +29,20 @@
       "when": 1795371681428,
       "tag": "0003_inventory_triggers_fts",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1795374156538,
+      "tag": "0004_sales",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1795374157117,
+      "tag": "0005_sales_triggers",
+      "breakpoints": true
     }
   ]
 }
