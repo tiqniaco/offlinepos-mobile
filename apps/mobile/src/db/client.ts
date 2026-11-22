@@ -48,3 +48,10 @@ export function getSqlite(): SQLite.SQLiteDatabase {
   if (!sqlite) throw new Error('database not opened');
   return sqlite;
 }
+
+/** Close the live database (restore replaces the file, then openDatabase() is called again). */
+export function closeDatabase() {
+  sqlite?.closeSync();
+  sqlite = null;
+  db = null;
+}

@@ -770,3 +770,19 @@ export const salesRollup = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.dim, t.key, t.month] }), index('sales_rollup_month').on(t.dim, t.month)],
 );
+
+/** Server-signed receipts of our chain heads (daily anchors, PLAN.md §7.5). Proof that history up to here existed. */
+export const anchorReceipts = sqliteTable(
+  'anchor_receipts',
+  {
+    id: text('id').primaryKey(),
+    deviceId: text('device_id').notNull(),
+    chainSeq: integer('chain_seq').notNull(),
+    chainHead: text('chain_head').notNull(),
+    auditSeq: integer('audit_seq').notNull(),
+    auditHead: text('audit_head').notNull(),
+    serverTime: integer('server_time').notNull(),
+    sig: text('sig').notNull(),
+  },
+  (t) => [index('anchor_receipts_device').on(t.deviceId, t.chainSeq)],
+);

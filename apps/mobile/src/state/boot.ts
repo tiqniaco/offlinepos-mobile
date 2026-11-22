@@ -10,7 +10,16 @@ import { getCurrentDevice } from '../domain/device';
 import { ensureInventorySeed } from '../domain/inventory/seed';
 import { ensureExpenseCategories } from '../domain/vouchers/vouchers';
 import { loadSettings } from '../domain/settings/settings';
-import { checkinDue, refreshLicenceState, runCheckin } from '../domain/licence/service';
+import { checkinDue, hooks, refreshLicenceState, runCheckin } from '../domain/licence/service';
+import { finishAutoBackup, markCommitted, pendingBackupId, prepareAutoBackup } from '../features/backup/service';
+
+// Daily automatic backup rides on the check-in (features/backup/service.ts).
+hooks.prepareBackup = prepareAutoBackup;
+hooks.pendingBackupId = pendingBackupId;
+hooks.afterCheckin = async (put, committed) => {
+  await markCommitted(committed);
+  void finishAutoBackup(put);
+};
 import { subscribeLicence } from '../domain/licence/guard';
 import { ensureDirection, initI18n } from '../i18n';
 import { useApp } from './app';

@@ -11,6 +11,15 @@ import { api, ApiError } from '../../api/client';
 import { APP_VERSION } from '../../config/env';
 import { getCurrentDevice } from '../device';
 import { evaluateLicence, setLicenceState } from './guard';
+import { currentAnchor, saveReceipt } from '../integrity/anchors';
+import { useAccessToken, withRefreshLock } from '../../lib/session';
+
+/** Backup hooks (set by the app layer; the domain stays free of file-system code). */
+export const hooks: {
+  prepareBackup?: () => Promise<{ size: number; sha256: string; counts: Record<string, number>; schemaVersion: number } | undefined>;
+  pendingBackupId?: () => Promise<string | undefined>;
+  afterCheckin?: (put: { backupId: string; url: string; headers: Record<string, string> } | null, committed: boolean | undefined) => Promise<void>;
+} = {};
 
 const ROW_ID = 1;
 
@@ -71,9 +80,20 @@ export async function runCheckin(db: AppDb): Promise<{ outcome: CheckinOutcome; 
   const refreshToken = await getSecret(SECURE_KEYS.refreshToken);
   if (!device || !refreshToken) return { outcome: device ? 'signed_out' : 'not_registered', state: await refreshLicenceState(db), notices: [] };
   try {
-    const r = await api.checkin({ refreshToken, deviceId: device.id, appVersion: APP_VERSION, deviceTime: Date.now() });
-    await setSecret(SECURE_KEYS.refreshToken, r.refreshToken);
+    // Anchor today's chain heads + carry the automatic backup on the SAME request (budget: 1 call/day).
+    const anchor = await currentAnchor(db, device.id);
+    const backupMeta = hooks.prepareBackup ? await hooks.prepareBackup() : undefined;
+    const committedBackupId = hooks.pendingBackupId ? await hooks.pendingBackupId() : undefined;
+    const r = await withRefreshLock(async () => {
+      const token = (await getSecret(SECURE_KEYS.refreshToken)) ?? refreshToken;
+      const res = await api.checkin({ refreshToken: token, deviceId: device.id, appVersion: APP_VERSION, deviceTime: Date.now(), anchor, backupMeta, committedBackupId });
+      await setSecret(SECURE_KEYS.refreshToken, res.refreshToken);
+      return res;
+    });
+    useAccessToken(r.accessToken, r.accessExpiresAt);
     await storeLicence(db, r.licence, r.serverTime);
+    if (r.anchorReceipt) await saveReceipt(db, device.id, r.anchorReceipt);
+    await hooks.afterCheckin?.(r.backupPut ?? null, r.backupCommitted);
     return { outcome: 'ok', state: await refreshLicenceState(db), notices: r.notices };
   } catch (e) {
     if (e instanceof ApiError && (e.code === 'session_revoked' || e.code === 'unauthorized')) {

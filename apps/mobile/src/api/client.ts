@@ -9,6 +9,8 @@ import {
   checkinResponseSchema,
   createBusinessResponseSchema,
   type ApiErrorCode,
+  type BackupMeta,
+  backupPutSchema,
   type DeviceInfo,
 } from '@daftarak/shared';
 import { API_URL } from '../config/env';
@@ -55,6 +57,24 @@ export const api = {
   ) => request('/v1/businesses', createBusinessResponseSchema, { body: b, token }),
   attachDevice: (token: string, businessId: string, device: DeviceInfo) =>
     request('/v1/devices/attach', createBusinessResponseSchema, { body: { businessId, device }, token }),
-  checkin: (b: { refreshToken: string; deviceId: string; appVersion: string; deviceTime: number }) =>
+  checkin: (b: { refreshToken: string; deviceId: string; appVersion: string; deviceTime: number; anchor?: { chainSeq: number; chainHead: string; auditSeq: number; auditHead: string }; backupMeta?: BackupMeta; committedBackupId?: string }) =>
     request('/v1/checkin', checkinResponseSchema, { body: b }),
+  refresh: (refreshToken: string) => request('/v1/auth/refresh', z.object({ accessToken: z.string(), refreshToken: z.string(), accessExpiresAt: z.number() }), { body: { refreshToken } }),
+  stepUpRequest: (token: string) => request('/v1/auth/step-up/request', z.object({ phone: z.string(), resendAfterMs: z.number(), expiresInMs: z.number() }), { body: {}, token }),
+  stepUpVerify: (token: string, code: string) => request('/v1/auth/step-up/verify', z.object({ stepUpUntil: z.number() }), { body: { code }, token }),
+  backupUploadUrl: (token: string, b: { businessId: string; deviceId: string; meta: BackupMeta; kind: 'auto' | 'manual' }) => request('/v1/backups/upload-url', backupPutSchema, { body: b, token }),
+  backupCommit: (token: string, id: string, businessId: string) => request(`/v1/backups/${id}/commit`, z.object({ ok: z.boolean() }), { body: { businessId }, token }),
+  listBackups: (token: string, businessId: string) =>
+    request(
+      `/v1/backups?businessId=${encodeURIComponent(businessId)}`,
+      z.object({ backups: z.array(z.object({ id: z.string(), size: z.number(), counts: z.record(z.string(), z.number().nullable()), schemaVersion: z.number(), kind: z.string(), at: z.number(), deviceCode: z.string().nullable(), model: z.string().nullable() })) }),
+      { token },
+    ),
+  backupDownloadUrl: (token: string, id: string) => request(`/v1/backups/${id}/download-url`, z.object({ url: z.string(), sha256: z.string(), size: z.number() }), { body: {}, token }),
+  backupKey: (token: string, businessId: string) => request('/v1/backups/key', z.object({ backupKey: z.string() }), { body: { businessId }, token }),
+  activateDevice: (token: string, businessId: string, device: DeviceInfo, backupId?: string) => request('/v1/devices/activate', createBusinessResponseSchema, { body: { businessId, device, backupId }, token }),
+  redeemCode: (token: string, businessId: string, code: string) => request('/v1/licence/activation-code', z.object({ plan: z.string(), expiresAt: z.number() }), { body: { businessId, code }, token }),
+  sessions: (token: string) =>
+    request('/v1/sessions', z.object({ sessions: z.array(z.object({ id: z.string(), created_at: z.number(), last_used_at: z.number().nullable(), platform: z.string().nullable(), model: z.string().nullable(), app_version: z.string().nullable(), current: z.boolean() })) }), { token }),
+  revokeSession: (token: string, id: string) => request(`/v1/sessions/${id}`, z.object({ ok: z.boolean() }), { method: 'DELETE', token }),
 };
