@@ -44,7 +44,9 @@ export function ReportView({ d, dots }: { d: ReportDoc; dots: number }) {
           <Rule />
           {d.rows.map((r, i) => (
             <View key={i} style={{ paddingVertical: 4, borderBottomWidth: 1, borderColor: '#000', borderStyle: 'dotted', opacity: r.muted ? 0.5 : 1 }}>
-              <T s={21} b>{cols.filter((c) => !c.num).map((c) => r.cells[c.key]).filter(Boolean).join('  ')}</T>
+              {cols.filter((c) => !c.num && r.cells[c.key]).map((c, j) => (
+                <T key={c.key} s={j === 0 && cols.filter((x) => !x.num).length > 1 ? 18 : 21} b={j > 0 || cols.filter((x) => !x.num).length === 1}>{r.cells[c.key]}</T>
+              ))}
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', columnGap: 10 }}>
                 {cols.filter((c) => c.num && r.cells[c.key]).map((c) => (
                   <T key={c.key} s={19}>{`${c.label}: `}<T s={19} b style={{ writingDirection: 'ltr' }}>{r.cells[c.key]}</T></T>

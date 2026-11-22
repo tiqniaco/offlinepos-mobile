@@ -21,6 +21,8 @@ Legend: ✅ done & tested · 🟡 done, needs on-device verification · ⏳ late
 - ✅ Document hash chain (sales, returns, voids, inventory docs) + verification screen; tamper test with triggers removed
 - ✅ Posted documents, payments, journal, ledgers immutable / append-only (triggers)
 - ✅ Discounts/prices above role limits need a manager PIN, audited
+- ✅ Purchases, vouchers and closed shifts immutable + chained; tamper test covers them
+- ✅ Daily background chain check with a home-screen alert (owner/manager)
 - ⏳ Server anchors of the chain head (Phase 6) · screenshot block on sensitive screens (Phase 7)
 - ⏳ Play Integrity / App Attest (Phase 7)
 

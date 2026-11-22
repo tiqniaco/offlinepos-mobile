@@ -738,6 +738,12 @@ D1 load at 10,000 businesses ≈ 10k check-ins/day (≈ 0.12 req/s) — far insi
 | D-38 | Inventory documents (opening/adjust/count) join the hash chain and journal from Phase 3 | §7.1 lists them | they existed before the chain; now chained going forward |
 | D-39 | Printer + receipt template stored in `settings` (per phone) instead of a `printers` table | §4.3 `printers` table | one default printer per phone in v1; simpler, same data |
 | D-40 | Classic SPP via `react-native-bluetooth-classic` (current release is an RC) behind the driver interface; QR via `qrcode` (SVG) | §10 | fallback = small local Expo module if it doesn't build (R-03) |
+| D-41 | Statement rows show sales/purchases with full total and paid-on-the-spot (net = ledger effect); fully paid documents of the party appear with net 0 | statement = ledger rows only | reads like the customer's own papers; balances unchanged |
+| D-42 | Expenses, cash in/out and shifts need plan feature `expenses_shifts` (Basic/Pro) | §17.1 plans | matches the plan table; free plan shows an upgrade note |
+| D-43 | "Require open shift to sell" is a business setting (default off); void window = while the document's shift is open, else same business day | Q-05 | many small shops don't run shifts |
+| D-44 | Purchase return leaves stock at the moving average; difference to the invoice value → Stock adjustments; non-stock items → Expenses | §6 | keeps inventory account == stock valuation |
+| D-45 | AdMob SDK + UMP wired in Phase 4 (test IDs, policy tested); store forms & real IDs in Phase 6/7 | Phase 6 | owner asked to be fully prepared now |
+| D-46 | Text size setting (small/medium/large) and compact type scale delivered in Phase 4 | Phase 7 font size | owner asked for smaller text now |
 | D-19 | Phase 1 is delivered in **three commits groups** (1a app foundation, 1b server/auth/licence, 1c onboarding + admin) inside one phase | one phase | it's the largest phase; you can review progress mid-way. Acceptance is still checked once at the end |
 
 No other deviations. The full stack in SPEC §2 is otherwise used as specified (Expo + Router + dev builds,

@@ -14,7 +14,8 @@ Read in this order if you are new:
 10. [import-format.md](import-format.md) — Excel/CSV product import & export
 11. [posting.md](posting.md) — sales posting, returns, void, hash chain, journal
 12. [printing.md](printing.md) — thermal raster printing, printers, PDF/WhatsApp
-13. [theming.md](theming.md) — palettes (TIQNIA default) and light / dark / comfort modes
-14. [phases/](phases/) — phase-1, phase-2, phase-3 — acceptance checklist per phase
+13. [theming.md](theming.md)
+15. [ads.md](ads.md) — AdMob rules and setup (free plan) — palettes (TIQNIA default) and light / dark / comfort modes
+14. [phases/](phases/) — phase-1 … phase-4 — acceptance checklist per phase
 
 Not written yet (later phases): backup/restore & server anchors (Phase 6), store release (Phase 7).

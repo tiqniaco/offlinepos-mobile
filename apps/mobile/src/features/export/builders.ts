@@ -57,8 +57,9 @@ export function statementDoc(s: Statement, b: BizHeader, detailed: boolean): Rep
     date: Date.now(),
     period,
     ...b,
-    partyLine: `${s.party.name}${s.party.mobile ? ` — +${s.party.mobile}` : ''}`,
+    partyLine: s.party.name,
     summary: [
+      ...(s.party.mobile ? [{ label: t('parties.mobile'), value: s.party.mobile }] : []),
       { label: t('report.opening'), value: balanceWords(s.partyType, s.openingMinor, c) },
       { label: t('report.closing'), value: closing, strong: true },
     ],

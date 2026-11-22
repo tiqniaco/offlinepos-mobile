@@ -69,3 +69,14 @@ Drizzle's sync driver — the same execution model as expo-sqlite) and exercises
 | `accounts`, `journal_entries`, `journal_lines` | background double-entry journal |
 | `integrity_chain` | per-device hash chain of posted documents |
 Triggers: `0005_sales_triggers.sql` (see posting.md).
+
+## Phase 4 tables
+| Table | Purpose |
+|---|---|
+| `suppliers` (+ `suppliers_fts`) | same fields as customers (minimal + more) |
+| `purchase_docs` / `purchase_lines` | PURCHASE / PURCHASE_RETURN; immutable when posted; line keeps net base-unit cost for the stock ledger |
+| `vouchers` | receipts, payments, refunds, expenses, cash in/out, opening balances; immutable, chained |
+| `expense_categories` | expense types (seeded) |
+| `shifts` | cash shifts; closed shift immutable and chained |
+New system accounts: `OWNER` (3200), `CASH_OVER_SHORT` (6200). Triggers: `0007_phase4_triggers.sql`.
+Sales documents and payments now carry `shift_id`; the sales chain payload includes it only when set (old hashes stay valid).

@@ -90,7 +90,7 @@ export function HomeView({
               <Card key={st.key} onPress={st.onPress} style={{ flex: 1 }}>
                 <View style={{ gap: 8 }}>
                   <IconBadge name={st.icon} hue={st.hue} size={32} />
-                  <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontFamily: fonts.bold, fontSize: 18, lineHeight: 26, color: colors.ink.DEFAULT }}>{st.value}</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={{ fontFamily: fonts.bold, fontSize: 16, lineHeight: 23, color: colors.ink.DEFAULT }}>{st.value}</Text>
                   <Text variant="caption" numberOfLines={1}>{st.label}</Text>
                 </View>
               </Card>

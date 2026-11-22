@@ -58,6 +58,31 @@ const SAMPLE_RECEIPT = {
 import { dateLabel } from '../lib/format';
 import { ProductsListView } from '../features/inventory/ProductsListView';
 import { ProductDetailView } from '../features/inventory/ProductDetailView';
+import { PartiesListView } from '../features/parties/PartiesListView';
+import { StatementTable } from '../features/parties/StatementTable';
+import { ReportView } from '../features/export/ReportView';
+import { statementDoc, balanceWords } from '../features/export/builders';
+import { ExportBar } from '../features/common/ExportBar';
+import { Screen, Card, Text as UText, colors as C, fonts as F } from '../ui';
+import { Segmented } from '../features/common/Segmented';
+import type { Statement } from '../domain/parties/statement';
+
+const SAMPLE_STATEMENT: Statement = {
+  partyType: 'C',
+  party: { id: 'c1', name: 'محمود علي', mobile: '201012345678', address: 'المعادي' },
+  from: 20261101,
+  to: 20261122,
+  openingMinor: 25_000,
+  closingMinor: 48_960,
+  totalDebitMinor: 78_960,
+  totalCreditMinor: 55_000,
+  rows: [
+    { key: '1', day: 20261103, at: 1, kind: 'invoice', number: 'INV-A-000041', docId: 'x', debitMinor: 31_920, creditMinor: 10_000, balanceMinor: 46_920, docTotalMinor: 31_920, paidNowMinor: 10_000, items: [{ name: 'زيت عافية 800 مل', qtyMilli: 4000, unit: 'زجاجة', priceMinor: 7980, totalMinor: 31_920 }] },
+    { key: '2', day: 20261108, at: 2, kind: 'receipt', number: 'RCV-A-000007', docId: 'y', debitMinor: 0, creditMinor: 30_000, balanceMinor: 16_920, method: 'cash' },
+    { key: '3', day: 20261115, at: 3, kind: 'invoice', number: 'INV-A-000058', docId: 'z', debitMinor: 47_040, creditMinor: 15_000, balanceMinor: 48_960, docTotalMinor: 47_040, paidNowMinor: 15_000, items: [{ name: 'شاي العروسة 250 جم', qtyMilli: 12000, unit: 'قطعة', priceMinor: 2200, totalMinor: 26_400 }, { name: 'أرز الضحى 1 كيلو', qtyMilli: 6000, unit: 'كيلو', priceMinor: 3440, totalMinor: 20_640 }] },
+  ],
+};
+const SAMPLE_BIZ = { businessName: 'سوبر ماركت النور', address: 'القاهرة — المعادي', phones: ['201001234567'], vatNumber: null, currency: 'EGP' as const };
 
 const SAMPLE_PRODUCTS = [
   { id: 'a', name: 'شاي العروسة 250 جم', variantLabel: null, retailPriceMinor: 2200, trackStock: true, lowStockMilli: 12000, imagePath: null, qtyMilli: 48000, unitName: 'قطعة', categoryColor: '#18A999' },
@@ -208,6 +233,63 @@ export default function DevGallery() {
         onDelete={noop}
       />
     );
+  if (view === 'parties' || view === 'suppliers')
+    return (
+      <PartiesListView
+        topInset={0}
+        type={view === 'parties' ? 'C' : 'S'}
+        rows={
+          view === 'parties'
+            ? [
+                { id: 'c1', name: 'محمود علي', mobile: '201012345678', owedMinor: 48_960, lateDays: null },
+                { id: 'c2', name: 'سوبر ماركت الهدى', mobile: '201112223334', owedMinor: 125_000 },
+                { id: 'c3', name: 'أم كريم', mobile: null, owedMinor: 0 },
+                { id: 'c4', name: 'مطعم الشيف', mobile: '201234567890', owedMinor: -5_000 },
+              ]
+            : [
+                { id: 's1', name: 'شركة النيل للتوريدات', mobile: '201000000001', owedMinor: 340_000 },
+                { id: 's2', name: 'مخازن الأمل', mobile: null, owedMinor: 0 },
+              ]
+        }
+        totalOwedMinor={view === 'parties' ? 173_960 : 340_000}
+        count={view === 'parties' ? 4 : 2}
+        search=""
+        filter="all"
+        currency="EGP"
+        lang="ar"
+        canAdd
+        onType={noop}
+        onSearch={noop}
+        onFilter={noop}
+        onOpen={noop}
+        onAdd={noop}
+        onRemind={noop}
+      />
+    );
+  if (view === 'statement')
+    return (
+      <Screen back title="كشف حساب عميل" subtitle="محمود علي">
+        <Segmented value="detailed" onChange={noop} options={[{ value: 'summary', label: 'مختصر' }, { value: 'detailed', label: 'مفصّل بالأصناف' }]} />
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Card style={{ flex: 1 }}>
+            <UText variant="caption">رصيد أول المدة</UText>
+            <UText style={{ fontFamily: F.bold, fontSize: 15, lineHeight: 22, color: C.ink.DEFAULT }}>{balanceWords('C', 25_000, 'EGP')}</UText>
+          </Card>
+          <Card style={{ flex: 1, backgroundColor: C.primary[50] }}>
+            <UText variant="caption">الرصيد الحالي</UText>
+            <UText style={{ fontFamily: F.bold, fontSize: 15, lineHeight: 22, color: C.primary[800] }}>{balanceWords('C', 48_960, 'EGP')}</UText>
+          </Card>
+        </View>
+        <ExportBar build={() => statementDoc(SAMPLE_STATEMENT, SAMPLE_BIZ, true)} />
+        <StatementTable st={SAMPLE_STATEMENT} />
+      </Screen>
+    );
+  if (view === 'statement58')
+    return (
+      <View style={{ padding: 16, backgroundColor: '#ddd', alignItems: 'center' }}>
+        <ReportView d={statementDoc(SAMPLE_STATEMENT, SAMPLE_BIZ, true)} dots={384} />
+      </View>
+    );
   if (view === 'more')
     return (
       <MoreView
@@ -215,6 +297,12 @@ export default function DevGallery() {
         userColor="#18A999"
         roleName="المالك"
         businessName="سوبر ماركت النور"
+        money={[
+          { key: 'p', icon: 'cart', hue: 'primary', title: 'المشتريات', onPress: noop },
+          { key: 'v', icon: 'receipt', hue: 'leaf', title: 'سندات القبض والصرف', onPress: noop },
+          { key: 'e', icon: 'wallet', hue: 'rose', title: 'المصروفات', onPress: noop },
+          { key: 'sh', icon: 'clock', hue: 'ink', title: 'الوردية والخزنة', onPress: noop },
+        ]}
         account={[
           { key: 'u', icon: 'users', hue: 'amber', title: 'المستخدمين والصلاحيات', onPress: noop },
           { key: 's', icon: 'card', hue: 'primary', title: 'الاشتراك', value: 'احترافي', onPress: noop },
@@ -244,6 +332,23 @@ export default function DevGallery() {
         { key: 'p', title: 'أضف منتجاتك', icon: 'list', hue: 'rose', done: false, soon: true },
       ]}
       onLock={noop}
+      onSell={noop}
+      stats={[
+        { key: 's', label: '23 فاتورة النهارده', value: '4,860.50 ج.م', icon: 'card', hue: 'primary' },
+        { key: 'c', label: 'فلوسك برا', value: '1,739.60 ج.م', icon: 'users', hue: 'rose' },
+        { key: 'l', label: 'ناقص في المخزن', value: '7', icon: 'warning', hue: 'amber' },
+      ]}
+      alerts={<Banner tone="warn" text="3 عميل متأخرين في الدفع — ابعتلهم تذكير" />}
+      quick={[
+        { key: 'collect', icon: 'arrowIn', hue: 'leaf', label: 'تحصيل', onPress: noop },
+        { key: 'purchase', icon: 'cart', hue: 'primary', label: 'فاتورة شراء', onPress: noop },
+        { key: 'pay', icon: 'arrowOut', hue: 'amber', label: 'دفع لمورد', onPress: noop },
+        { key: 'expense', icon: 'wallet', hue: 'rose', label: 'مصروف', onPress: noop },
+        { key: 'statement', icon: 'receipt', hue: 'sky', label: 'كشف حساب', onPress: noop },
+        { key: 'customer', icon: 'users', hue: 'primary', label: 'عميل جديد', onPress: noop },
+        { key: 'product', icon: 'box', hue: 'amber', label: 'منتج جديد', onPress: noop },
+        { key: 'shift', icon: 'clock', hue: 'ink', label: 'الوردية', onPress: noop },
+      ]}
     />
   );
 }
