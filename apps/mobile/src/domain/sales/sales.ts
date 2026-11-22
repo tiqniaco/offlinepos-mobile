@@ -31,12 +31,16 @@ import { nextDocNumber } from '../inventory/numbering';
 import { appendChain, chainHead, salesPayload, voidPayload } from '../integrity/chain';
 import { METHOD_ACCOUNT, postJournal, type JournalLineInput } from '../accounting/journal';
 import { postPartyLedger } from '../parties/customers';
+import { shiftIdFor } from '../shifts/shifts';
+import { assertVoidWindow } from '../vouchers/vouchers';
 
 export interface SalesSettings {
   pricesIncludeVat: boolean;
   vatRegistered: boolean;
   vatRateBp: number;
   cashRoundingMinor?: number;
+  /** Selling needs an open cash shift (setting الورديات). */
+  requireShift?: boolean;
 }
 
 export interface SalesCtx extends InvCtx {
@@ -169,6 +173,7 @@ export async function postSale(ctx: SalesCtx, draft: SaleDraft, pays: PaymentInp
     if (t < head.postedAt) throw new SalesError('clock_behind');
     const day = businessDay(t, ctx.timezone);
     await assertInvoiceLimit(tx, day);
+    const shiftId = await shiftIdFor(tx, ctx.device.id, !!ctx.settings.requireShift);
     const number = await nextDocNumber(tx, ctx.device, 'SALES_INVOICE', 'INV');
     const docId = uuidv7(t);
     const base = { createdAt: t, updatedAt: t, createdBy: ctx.user.id, deviceId: ctx.device.id };
@@ -202,6 +207,7 @@ export async function postSale(ctx: SalesCtx, draft: SaleDraft, pays: PaymentInp
       customerName: draft.customerName ?? null,
       priceTier: draft.priceTier,
       cashierId: ctx.user.id,
+      shiftId,
       approvedBy: approver && (need.priceChanges.length || need.violations.length) ? approver.id : null,
       issuedAt: t,
       businessDay: day,
@@ -262,6 +268,7 @@ export async function postSale(ctx: SalesCtx, draft: SaleDraft, pays: PaymentInp
         partyId: draft.customerId ?? null,
         docType: 'sales_doc',
         docId,
+        shiftId,
         businessDay: day,
         postedAt: t,
       });
@@ -554,6 +561,7 @@ export async function postReturn(ctx: SalesCtx, invoiceId: string, items: { line
     if (refunds.some((r) => r.method === 'credit' && r.amountMinor > 0) && !inv.customerId) throw new SalesError('credit_refund_without_customer');
 
     const day = businessDay(t, ctx.timezone);
+    const shiftId = await shiftIdFor(tx, ctx.device.id, !!ctx.settings.requireShift && refunds.some((r) => r.method === 'cash' && r.amountMinor > 0));
     const number = await nextDocNumber(tx, ctx.device, 'SALES_RETURN', 'RET');
     const docId = uuidv7(t);
     const base = { createdAt: t, updatedAt: t, createdBy: ctx.user.id, deviceId: ctx.device.id };
@@ -578,6 +586,7 @@ export async function postReturn(ctx: SalesCtx, invoiceId: string, items: { line
       priceTier: inv.priceTier,
       originalDocId: inv.id,
       cashierId: ctx.user.id,
+      shiftId,
       issuedAt: t,
       businessDay: day,
       pricesIncludeVat: inv.pricesIncludeVat,
@@ -618,7 +627,7 @@ export async function postReturn(ctx: SalesCtx, invoiceId: string, items: { line
       });
     }
     for (const r of refunds.filter((x) => x.amountMinor > 0)) {
-      await tx.insert(payments).values({ id: uuidv7(t), ...base, kind: 'REFUND', direction: 'OUT', method: r.method, label: r.label ?? null, amountMinor: r.amountMinor, partyType: inv.customerId ? 'C' : null, partyId: inv.customerId, docType: 'sales_doc', docId, businessDay: day, postedAt: t });
+      await tx.insert(payments).values({ id: uuidv7(t), ...base, kind: 'REFUND', direction: 'OUT', method: r.method, label: r.label ?? null, amountMinor: r.amountMinor, partyType: inv.customerId ? 'C' : null, partyId: inv.customerId, docType: 'sales_doc', docId, shiftId, businessDay: day, postedAt: t });
     }
     if (credit > 0) await postPartyLedger(tx, ctx, { partyType: 'C', partyId: inv.customerId!, sourceType: 'sales_doc', sourceId: docId, debitMinor: 0, creditMinor: credit, businessDay: day, at: t });
     const jl: JournalLineInput[] = [{ account: 'SALES_RETURNS', debit: net }, { account: 'VAT_OUT', debit: tax }];
@@ -634,8 +643,8 @@ export async function postReturn(ctx: SalesCtx, invoiceId: string, items: { line
 // ─────────────────────────── void ───────────────────────────
 
 /**
- * Void with reason (Manager/Owner, `doc.void`). Allowed on the same business day and only when the
- * invoice has no posted returns (Q-05; becomes "while the shift is open" when shifts arrive in Phase 4).
+ * Void with reason (Manager/Owner, `doc.void`). Allowed while the invoice's cash shift is still open
+ * (without shifts: the same business day) and only when the invoice has no posted returns (Q-05).
  * Everything is reversed by new entries; the original rows stay untouched (only status flips).
  */
 export async function voidSale(ctx: SalesCtx, docId: string, reason: string): Promise<void> {
@@ -647,7 +656,11 @@ export async function voidSale(ctx: SalesCtx, docId: string, reason: string): Pr
     const doc = (await tx.select().from(salesDocs).where(eq(salesDocs.id, docId)).limit(1))[0];
     if (!doc || doc.type !== 'INVOICE' || doc.status !== 'POSTED') throw new SalesError('not_voidable');
     const day = businessDay(t, ctx.timezone);
-    if (doc.businessDay !== day) throw new SalesError('not_voidable', { why: 'other_day' });
+    try {
+      await assertVoidWindow(tx, doc.shiftId, doc.businessDay, t, ctx.timezone);
+    } catch {
+      throw new SalesError('not_voidable', { why: doc.shiftId ? 'shift_closed' : 'other_day' });
+    }
     const rets = await tx.select({ id: salesDocs.id }).from(salesDocs).where(and(eq(salesDocs.originalDocId, docId), eq(salesDocs.type, 'RETURN'), eq(salesDocs.status, 'POSTED')));
     if (rets.length) throw new SalesError('has_returns');
 

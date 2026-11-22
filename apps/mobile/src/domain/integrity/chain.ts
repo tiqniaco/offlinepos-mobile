@@ -6,10 +6,10 @@
  */
 import { and, asc, desc, eq } from 'drizzle-orm';
 import { chainHash, GENESIS_HASH } from '@daftarak/shared';
-import { integrityChain, inventoryDocs, inventoryLines, payments, salesDocs, salesLines } from '../../db/schema';
+import { integrityChain, inventoryDocs, inventoryLines, payments, purchaseDocs, purchaseLines, salesDocs, salesLines, shifts, vouchers } from '../../db/schema';
 import type { Db } from '../../db/types';
 
-export type ChainDocType = 'SALES_INVOICE' | 'SALES_RETURN' | 'VOID' | 'INVENTORY';
+export type ChainDocType = 'SALES_INVOICE' | 'SALES_RETURN' | 'VOID' | 'INVENTORY' | 'PURCHASE' | 'PURCHASE_RETURN' | 'VOUCHER' | 'SHIFT';
 
 type SalesDoc = typeof salesDocs.$inferSelect;
 type SalesLine = typeof salesLines.$inferSelect;
@@ -77,6 +77,8 @@ export function salesPayload(doc: SalesDoc, lines: SalesLine[], pays: Payment[])
     payments: [...pays]
       .sort((a, b) => (a.id < b.id ? -1 : 1))
       .map((p) => ({ id: p.id, kind: p.kind, dir: p.direction, method: p.method, label: p.label, amount: p.amountMinor, party: p.partyId })),
+    // Added in Phase 4; omitted when null so documents posted before shifts keep their hash.
+    ...(doc.shiftId ? { shift: doc.shiftId } : {}),
   };
 }
 
@@ -95,6 +97,74 @@ export function inventoryPayload(doc: typeof inventoryDocs.$inferSelect, lines: 
     lines: [...lines]
       .sort((a, b) => (a.id < b.id ? -1 : 1))
       .map((l) => ({ id: l.id, product: l.productId, batch: l.batchId, expected: l.expectedMilli, counted: l.countedMilli, delta: l.deltaMilli, cost: l.unitCostMinor })),
+  };
+}
+
+const byId = <T extends { id: string }>(a: T[]) => [...a].sort((x, y) => (x.id < y.id ? -1 : 1));
+
+export function purchasePayload(doc: typeof purchaseDocs.$inferSelect, lines: (typeof purchaseLines.$inferSelect)[], pays: Payment[]) {
+  return {
+    v: 1,
+    id: doc.id,
+    type: doc.type,
+    number: doc.number,
+    device: doc.deviceId,
+    by: doc.createdBy,
+    supplier: doc.supplierId,
+    supplierName: doc.supplierName,
+    supplierRef: doc.supplierRef,
+    original: doc.originalDocId,
+    issuedAt: doc.issuedAt,
+    businessDay: doc.businessDay,
+    dueDay: doc.dueDay,
+    incl: doc.pricesIncludeVat,
+    totals: [doc.grossMinor, doc.discountMinor, doc.netMinor, doc.taxMinor, doc.totalMinor, doc.paidMinor, doc.creditMinor],
+    note: doc.note,
+    shift: doc.shiftId,
+    postedAt: doc.postedAt,
+    lines: byId(lines).map((l) => [l.id, l.lineNo, l.productId, l.productUnitId, l.nameSnapshot, l.qtyMilli, l.factorMilli, l.baseQtyMilli, l.unitCostMinor, l.discountMinor, l.taxRateBp, l.netMinor, l.taxMinor, l.totalMinor, l.baseUnitCostMinor, l.originalLineId]),
+    pays: byId(pays).map((p) => [p.id, p.kind, p.direction, p.method, p.label, p.amountMinor, p.partyId]),
+  };
+}
+
+export function voucherPayload(v: typeof vouchers.$inferSelect, pays: Payment[]) {
+  return {
+    v: 1,
+    id: v.id,
+    type: v.type,
+    number: v.number,
+    device: v.deviceId,
+    by: v.createdBy,
+    party: [v.partyType, v.partyId, v.partyName],
+    category: [v.categoryId, v.categoryName],
+    method: v.method,
+    label: v.label,
+    amount: v.amountMinor,
+    sign: v.sign,
+    note: v.note,
+    businessDay: v.businessDay,
+    shift: v.shiftId,
+    postedAt: v.postedAt,
+    pays: byId(pays).map((p) => [p.id, p.kind, p.direction, p.method, p.amountMinor]),
+  };
+}
+
+export function shiftPayload(s: typeof shifts.$inferSelect) {
+  return {
+    v: 1,
+    id: s.id,
+    number: s.number,
+    device: s.deviceId,
+    user: s.userId,
+    openedAt: s.openedAt,
+    float: s.openingFloatMinor,
+    closedAt: s.closedAt,
+    closedBy: s.closedBy,
+    expected: s.expectedCashMinor,
+    counted: s.countedCashMinor,
+    diff: s.differenceMinor,
+    summary: s.summaryJson,
+    note: s.note,
   };
 }
 
@@ -138,7 +208,34 @@ async function payloadFor(db: Db, docType: string, docId: string, seq: number): 
     const lines = await db.select().from(inventoryLines).where(eq(inventoryLines.docId, docId));
     return { payload: inventoryPayload(doc, lines), number: doc.number, storedDocHash: doc.hash };
   }
+  if (docType === 'PURCHASE' || docType === 'PURCHASE_RETURN') {
+    const doc = (await db.select().from(purchaseDocs).where(eq(purchaseDocs.id, docId)).limit(1))[0];
+    if (!doc) return null;
+    const lines = await db.select().from(purchaseLines).where(eq(purchaseLines.docId, docId));
+    const pays = await db.select().from(payments).where(eq(payments.docId, docId));
+    return { payload: purchasePayload(doc, lines, pays), number: doc.number, storedDocHash: doc.hash };
+  }
+  if (docType === 'VOUCHER') {
+    const v = (await db.select().from(vouchers).where(eq(vouchers.id, docId)).limit(1))[0];
+    if (!v) return null;
+    const pays = await db.select().from(payments).where(eq(payments.docId, docId));
+    return { payload: voucherPayload(v, pays), number: v.number, storedDocHash: v.hash };
+  }
+  if (docType === 'SHIFT') {
+    const sh = (await db.select().from(shifts).where(eq(shifts.id, docId)).limit(1))[0];
+    if (!sh) return null;
+    return { payload: shiftPayload(sh), number: sh.number, storedDocHash: sh.hash };
+  }
   return null; // VOID entries are verified through the stored payload fields below
+}
+
+/** A voided document of any kind (sales, purchases, vouchers) with its void fields. */
+async function voidedDoc(db: Db, id: string) {
+  const s = (await db.select({ id: salesDocs.id, number: salesDocs.number, status: salesDocs.status, voidReason: salesDocs.voidReason, voidedBy: salesDocs.voidedBy, voidedAt: salesDocs.voidedAt }).from(salesDocs).where(eq(salesDocs.id, id)).limit(1))[0];
+  if (s) return s;
+  const p = (await db.select({ id: purchaseDocs.id, number: purchaseDocs.number, status: purchaseDocs.status, voidReason: purchaseDocs.voidReason, voidedBy: purchaseDocs.voidedBy, voidedAt: purchaseDocs.voidedAt }).from(purchaseDocs).where(eq(purchaseDocs.id, id)).limit(1))[0];
+  if (p) return p;
+  return (await db.select({ id: vouchers.id, number: vouchers.number, status: vouchers.status, voidReason: vouchers.voidReason, voidedBy: vouchers.voidedBy, voidedAt: vouchers.voidedAt }).from(vouchers).where(eq(vouchers.id, id)).limit(1))[0] ?? null;
 }
 
 /** Recompute the whole chain of a device and report the first break (integrity screen + tests). */
@@ -156,7 +253,7 @@ export async function verifyChain(db: Db, deviceId: string): Promise<ChainReport
     if (e.chainSeq !== expected) return brk('gap');
     if (e.prevHash !== prev) return brk('link');
     if (e.docType === 'VOID') {
-      const doc = (await db.select().from(salesDocs).where(eq(salesDocs.id, e.docId)).limit(1))[0];
+      const doc = await voidedDoc(db, e.docId);
       if (!doc || doc.status !== 'VOIDED' || !doc.voidReason || !doc.voidedBy || !doc.voidedAt) return brk('missing_doc', doc?.number ?? null);
       const h = chainHash(voidPayload({ docId: doc.id, number: doc.number, reason: doc.voidReason, by: doc.voidedBy, at: doc.voidedAt }), prev);
       if (h !== e.hash) return brk('hash_mismatch', doc.number);

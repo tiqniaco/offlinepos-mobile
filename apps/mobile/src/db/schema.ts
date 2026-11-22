@@ -556,3 +556,157 @@ export const integrityChain = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.deviceId, t.chainSeq] }), index('integrity_chain_doc').on(t.docId)],
 );
+
+// ─────────────────────────── Phase 4: suppliers, purchases, vouchers, expenses, shifts ───────────────────────────
+
+export const suppliers = sqliteTable(
+  'suppliers',
+  {
+    ...base,
+    ...master,
+    name: text('name').notNull(),
+    mobile: text('mobile'),
+    address: text('address'),
+    email: text('email'),
+    taxNumber: text('tax_number'),
+    notes: text('notes'),
+  },
+  (t) => [index('suppliers_name').on(t.name), index('suppliers_mobile').on(t.mobile)],
+);
+
+/**
+ * Purchase invoices and purchase returns. Default: unpaid (credit with the supplier). Posted rows are
+ * immutable (triggers) except the POSTED → VOIDED flip.
+ */
+export const purchaseDocs = sqliteTable(
+  'purchase_docs',
+  {
+    ...base,
+    type: text('type', { enum: ['PURCHASE', 'PURCHASE_RETURN'] }).notNull(),
+    status: text('status', { enum: ['DRAFT', 'POSTED', 'VOIDED'] }).notNull(),
+    number: text('number'),
+    supplierId: text('supplier_id'),
+    supplierName: text('supplier_name'),
+    supplierRef: text('supplier_ref'),
+    originalDocId: text('original_doc_id'),
+    issuedAt: integer('issued_at'),
+    businessDay: integer('business_day'),
+    dueDay: integer('due_day'),
+    pricesIncludeVat: integer('prices_include_vat', { mode: 'boolean' }).notNull(),
+    grossMinor: integer('gross_minor').notNull().default(0),
+    discountMinor: integer('discount_minor').notNull().default(0),
+    netMinor: integer('net_minor').notNull().default(0),
+    taxMinor: integer('tax_minor').notNull().default(0),
+    totalMinor: integer('total_minor').notNull().default(0),
+    paidMinor: integer('paid_minor').notNull().default(0),
+    creditMinor: integer('credit_minor').notNull().default(0),
+    note: text('note'),
+    shiftId: text('shift_id'),
+    hash: text('hash'),
+    prevHash: text('prev_hash'),
+    chainSeq: integer('chain_seq'),
+    postedAt: integer('posted_at'),
+    voidReason: text('void_reason'),
+    voidedBy: text('voided_by'),
+    voidedAt: integer('voided_at'),
+  },
+  (t) => [index('purchase_docs_type_status_day').on(t.type, t.status, t.businessDay), index('purchase_docs_supplier_day').on(t.supplierId, t.businessDay), index('purchase_docs_original').on(t.originalDocId)],
+);
+
+export const purchaseLines = sqliteTable(
+  'purchase_lines',
+  {
+    ...base,
+    docId: text('doc_id')
+      .notNull()
+      .references(() => purchaseDocs.id),
+    lineNo: integer('line_no').notNull(),
+    productId: text('product_id').notNull(),
+    productUnitId: text('product_unit_id').notNull(),
+    nameSnapshot: text('name_snapshot').notNull(),
+    unitNameSnapshot: text('unit_name_snapshot').notNull(),
+    qtyMilli: integer('qty_milli').notNull(),
+    factorMilli: integer('factor_milli').notNull(),
+    baseQtyMilli: integer('base_qty_milli').notNull(),
+    /** Price per purchase unit as entered (incl./excl. VAT per the document flag). */
+    unitCostMinor: integer('unit_cost_minor').notNull(),
+    discountMinor: integer('discount_minor').notNull().default(0),
+    taxRateBp: integer('tax_rate_bp').notNull(),
+    netMinor: integer('net_minor').notNull(),
+    taxMinor: integer('tax_minor').notNull(),
+    totalMinor: integer('total_minor').notNull(),
+    /** Net cost per ONE base unit (excl. recoverable VAT) — what goes into the stock ledger. */
+    baseUnitCostMinor: integer('base_unit_cost_minor').notNull(),
+    originalLineId: text('original_line_id'),
+    businessDay: integer('business_day'),
+  },
+  (t) => [index('purchase_lines_doc').on(t.docId), index('purchase_lines_product').on(t.productId, t.businessDay), index('purchase_lines_original').on(t.originalLineId)],
+);
+
+export const expenseCategories = sqliteTable('expense_categories', {
+  ...base,
+  ...master,
+  name: text('name').notNull(),
+  color: text('color'),
+});
+
+/**
+ * Money documents (سندات): customer receipts, supplier payments, refunds, expenses, cash in/out of the
+ * drawer, and party opening balances. Immutable once posted (only the POSTED → VOIDED flip).
+ */
+export const vouchers = sqliteTable(
+  'vouchers',
+  {
+    ...base,
+    type: text('type', { enum: ['RECEIPT', 'PAYMENT', 'CUSTOMER_REFUND', 'SUPPLIER_REFUND', 'EXPENSE', 'CASH_IN', 'CASH_OUT', 'OPENING_BALANCE'] }).notNull(),
+    status: text('status', { enum: ['POSTED', 'VOIDED'] }).notNull(),
+    number: text('number').notNull(),
+    partyType: text('party_type', { enum: ['C', 'S'] }),
+    partyId: text('party_id'),
+    partyName: text('party_name'),
+    categoryId: text('category_id'),
+    categoryName: text('category_name'),
+    method: text('method', { enum: ['cash', 'card', 'wallet', 'bank', 'credit'] }).notNull(),
+    label: text('label'),
+    amountMinor: integer('amount_minor').notNull(),
+    /** OPENING_BALANCE only: +1 = party owes us / we owe the supplier (normal side), −1 = the other way. */
+    sign: integer('sign').notNull().default(1),
+    note: text('note'),
+    businessDay: integer('business_day').notNull(),
+    shiftId: text('shift_id'),
+    postedAt: integer('posted_at').notNull(),
+    hash: text('hash'),
+    prevHash: text('prev_hash'),
+    chainSeq: integer('chain_seq'),
+    voidReason: text('void_reason'),
+    voidedBy: text('voided_by'),
+    voidedAt: integer('voided_at'),
+  },
+  (t) => [index('vouchers_type_day').on(t.type, t.businessDay), index('vouchers_party').on(t.partyType, t.partyId, t.businessDay), index('vouchers_shift').on(t.shiftId), uniqueIndex('vouchers_number').on(t.number)],
+);
+
+/** Cash shifts (ورديات): open with a float, close with the counted cash; difference → over/short. */
+export const shifts = sqliteTable(
+  'shifts',
+  {
+    ...base,
+    number: text('number').notNull(),
+    status: text('status', { enum: ['OPEN', 'CLOSED'] }).notNull(),
+    userId: text('user_id').notNull(),
+    userName: text('user_name').notNull(),
+    openedAt: integer('opened_at').notNull(),
+    openingFloatMinor: integer('opening_float_minor').notNull(),
+    closedAt: integer('closed_at'),
+    closedBy: text('closed_by'),
+    expectedCashMinor: integer('expected_cash_minor'),
+    countedCashMinor: integer('counted_cash_minor'),
+    differenceMinor: integer('difference_minor'),
+    summaryJson: text('summary_json'),
+    note: text('note'),
+    businessDay: integer('business_day').notNull(),
+    hash: text('hash'),
+    prevHash: text('prev_hash'),
+    chainSeq: integer('chain_seq'),
+  },
+  (t) => [index('shifts_status').on(t.status, t.deviceId), uniqueIndex('shifts_number').on(t.number)],
+);

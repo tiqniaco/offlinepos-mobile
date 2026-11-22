@@ -38,7 +38,18 @@ export type AuditAction =
   | 'sale.void'
   | 'sale.discount_override'
   | 'sale.price_override'
-  | 'quotation.save';
+  | 'quotation.save'
+  | 'party.create'
+  | 'party.update'
+  | 'party.delete'
+  | 'purchase.post'
+  | 'purchase.return'
+  | 'purchase.void'
+  | 'voucher.post'
+  | 'voucher.void'
+  | 'expense_category.change'
+  | 'shift.open'
+  | 'shift.close';
 
 export interface AuditInput {
   action: AuditAction;

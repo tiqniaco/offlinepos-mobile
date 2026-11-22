@@ -18,12 +18,14 @@ export const SYSTEM_ACCOUNTS = [
   { key: 'AP', code: '2100', ar: 'الموردين (دائنون)', en: 'Accounts payable', type: 'LIABILITY' },
   { key: 'VAT_OUT', code: '2200', ar: 'ضريبة مخرجات', en: 'VAT output', type: 'LIABILITY' },
   { key: 'OPENING_EQUITY', code: '3100', ar: 'أرصدة افتتاحية', en: 'Opening balances', type: 'EQUITY' },
+  { key: 'OWNER', code: '3200', ar: 'جاري المالك', en: "Owner's current account", type: 'EQUITY' },
   { key: 'SALES', code: '4100', ar: 'المبيعات', en: 'Sales', type: 'INCOME' },
   { key: 'SALES_RETURNS', code: '4200', ar: 'مردودات المبيعات', en: 'Sales returns', type: 'INCOME' },
   { key: 'ROUNDING', code: '4900', ar: 'فروق التقريب', en: 'Rounding', type: 'INCOME' },
   { key: 'COGS', code: '5100', ar: 'تكلفة البضاعة المباعة', en: 'Cost of goods sold', type: 'EXPENSE' },
   { key: 'STOCK_ADJ', code: '5200', ar: 'فروق المخزون', en: 'Stock adjustments', type: 'EXPENSE' },
   { key: 'EXPENSES', code: '6100', ar: 'مصروفات', en: 'Expenses', type: 'EXPENSE' },
+  { key: 'CASH_OVER_SHORT', code: '6200', ar: 'عجز وزيادة الخزنة', en: 'Cash over/short', type: 'EXPENSE' },
 ] as const;
 export type AccountKey = (typeof SYSTEM_ACCOUNTS)[number]['key'];
 

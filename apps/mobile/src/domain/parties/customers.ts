@@ -11,6 +11,7 @@ import { appendAudit } from '../audit/audit';
 import { requirePermission, type SessionUser } from '../auth/users';
 import { assertWithinLimit } from '../licence/guard';
 import { ftsQuery } from '../inventory/search';
+import { saveParty } from './parties';
 
 let hlc: HybridLogicalClock | null = null;
 
@@ -28,21 +29,9 @@ export async function refreshCustomerSearch(tx: Db, id: string) {
   await tx.run(sql`INSERT INTO customers_fts (customer_id, body) VALUES (${id}, ${normalizeArabicForSearch([c.name, c.mobile].filter(Boolean).join(' '))})`);
 }
 
+/** Quick add from the POS — same rules as the full form (parties.ts). */
 export async function createCustomer(ctx: PartyCtx, input: { name: string; mobile?: string | null; priceTier?: 'retail' | 'wholesale' }): Promise<string> {
-  requirePermission(ctx.user, 'parties.manage');
-  const n = (await ctx.db.select({ n: sql<number>`count(*)` }).from(customers).where(isNull(customers.deletedAt)))[0]?.n ?? 0;
-  assertWithinLimit('parties', Number(n));
-  const name = input.name.trim();
-  if (!name) throw new Error('name_required');
-  const now = ctx.now?.() ?? Date.now();
-  const id = uuidv7(now);
-  const mobile = input.mobile ? (normalizePhone(input.mobile) ?? input.mobile.trim()) : null;
-  await withTx(ctx.db, async (tx) => {
-    await tx.insert(customers).values({ id, name, mobile, priceTier: input.priceTier ?? 'retail', createdAt: now, updatedAt: now, createdBy: ctx.user.id, deviceId: ctx.device.id, hlc: (hlc ??= new HybridLogicalClock(ctx.device.code)).tick() });
-    await refreshCustomerSearch(tx, id);
-    await appendAudit(tx, { action: 'customer.create', entity: 'customers', entityId: id, after: { name, mobile }, userId: ctx.user.id, deviceId: ctx.device.id, at: now });
-  });
-  return id;
+  return saveParty(ctx, 'C', input);
 }
 
 export async function searchCustomers(db: Db, q: string, limit = 30) {
