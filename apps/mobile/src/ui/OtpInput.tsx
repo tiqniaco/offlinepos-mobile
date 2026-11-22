@@ -1,4 +1,5 @@
 import { useRef, useState, type ComponentRef } from 'react';
+import { fonts } from './fonts';
 import { Platform, Pressable, TextInput, View } from 'react-native';
 import { digitsOnly } from '@daftarak/shared';
 import { Text } from './Text';
@@ -32,7 +33,7 @@ export function OtpInput({ value, onChange, length = 6, error, testID }: { value
                 borderColor: error ? colors.rose[500] : active ? colors.primary[500] : ch ? colors.primary[200] : colors.paper.line,
               }}
             >
-              <Text style={{ fontSize: 26, lineHeight: 34, fontFamily: 'IBMPlexSansArabic_700Bold', color: colors.ink.DEFAULT }}>{ch}</Text>
+              <Text style={{ fontSize: 26, lineHeight: 34, fontFamily: fonts.bold, color: colors.ink.DEFAULT }}>{ch}</Text>
             </View>
           );
         })}

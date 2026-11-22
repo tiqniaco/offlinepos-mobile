@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { fonts } from './fonts';
 import { Platform, TextInput, View } from 'react-native';
 import { normalizeDigits } from '@daftarak/shared';
 import { Text } from './Text';
@@ -45,7 +46,7 @@ export function PhoneField({ value, onChangeText, error, onSubmitEditing, testID
           textContentType="telephoneNumber"
           onSubmitEditing={onSubmitEditing}
           autoFocus
-          style={[{ flex: 1, minWidth: 0, fontSize: 20, letterSpacing: 1, fontFamily: 'IBMPlexSansArabic_600SemiBold', color: colors.ink.DEFAULT, textAlign: 'left', writingDirection: 'ltr', height: '100%' }, Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null]}
+          style={[{ flex: 1, minWidth: 0, fontSize: 20, letterSpacing: 1, fontFamily: fonts.semibold, color: colors.ink.DEFAULT, textAlign: 'left', writingDirection: 'ltr', height: '100%' }, Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null]}
         />
         <Icon name="phone" color={colors.ink.faint} size={22} />
       </View>

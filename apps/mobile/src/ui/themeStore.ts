@@ -2,10 +2,12 @@ import { create } from 'zustand';
 import colors from './colors';
 import { shadow } from './shadow';
 import { buildTheme, cssVars, type Appearance, type PaletteId } from './theme';
+import { currentFont, loadFontFamily, type FontId } from './fonts';
 
 interface ThemeState {
   palette: PaletteId;
   appearance: Appearance;
+  font: FontId;
   /** Increments on every change; the root layout uses it as a key to repaint everything. */
   version: number;
   vars: Record<string, string>;
@@ -17,6 +19,7 @@ interface ThemeState {
 export const useTheme = create<ThemeState>(() => ({
   palette: 'tiqnia',
   appearance: 'light',
+  font: 'readex',
   version: 0,
   vars: cssVars(colors),
   isDark: false,
@@ -39,4 +42,12 @@ export function applyTheme(palette: PaletteId, appearance: Appearance, systemDar
   const s = useTheme.getState();
   if (s.palette === palette && s.appearance === appearance && s.isDark === t.isDark && s.version > 0 && JSON.stringify(s.vars) === JSON.stringify(cssVars(t))) return;
   useTheme.setState({ palette, appearance, isDark: t.isDark, vars: cssVars(t), version: s.version + 1 });
+}
+
+/** Switch font family (loads its files first), then repaint like a theme change. */
+export async function applyFont(id: FontId): Promise<void> {
+  await loadFontFamily(id);
+  const s = useTheme.getState();
+  if (s.font === currentFont && s.version > 0) return;
+  useTheme.setState({ font: currentFont, version: s.version + 1 });
 }

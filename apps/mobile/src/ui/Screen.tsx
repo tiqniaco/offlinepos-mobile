@@ -1,4 +1,5 @@
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
+import { fonts } from './fonts';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Text } from './Text';
@@ -122,8 +123,8 @@ export function OnboardingScreen({
                 </View>
               </View>
               <View className="gap-1 pb-2">
-                <Text style={{ color: '#FFFFFF', fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 28, lineHeight: 40 }}>{title}</Text>
-                {subtitle ? <Text style={{ color: 'rgba(255,255,255,0.88)', fontSize: 15, lineHeight: 24, fontFamily: 'IBMPlexSansArabic_400Regular' }}>{subtitle}</Text> : null}
+                <Text style={{ color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 28, lineHeight: 40 }}>{title}</Text>
+                {subtitle ? <Text style={{ color: 'rgba(255,255,255,0.88)', fontSize: 15, lineHeight: 24, fontFamily: fonts.regular }}>{subtitle}</Text> : null}
               </View>
             </View>
           </Hero>
@@ -138,7 +139,7 @@ export function OnboardingScreen({
 export function SectionTitle({ children, action }: { children: string; action?: React.ReactNode }) {
   return (
     <View className="mt-2 flex-row items-center justify-between">
-      <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 15, lineHeight: 22, color: colors.ink.soft }}>{children}</Text>
+      <Text style={{ fontFamily: fonts.bold, fontSize: 15, lineHeight: 22, color: colors.ink.soft }}>{children}</Text>
       {action}
     </View>
   );

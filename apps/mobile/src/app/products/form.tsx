@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { fonts } from '../../ui/fonts';
 import { Image, Pressable, Switch, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -239,7 +240,7 @@ export default function ProductForm() {
           </View>
           {canCost && margin != null ? (
             <View style={{ alignSelf: 'flex-start', backgroundColor: margin >= 0 ? colors.leaf[50] : colors.rose[50], borderRadius: 99, paddingHorizontal: 12, paddingVertical: 4 }}>
-              <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 13, lineHeight: 20, color: margin >= 0 ? colors.leaf[700] : colors.rose[700] }}>{t('productForm.margin', { p: margin })}</Text>
+              <Text style={{ fontFamily: fonts.bold, fontSize: 13, lineHeight: 20, color: margin >= 0 ? colors.leaf[700] : colors.rose[700] }}>{t('productForm.margin', { p: margin })}</Text>
             </View>
           ) : null}
         </View>

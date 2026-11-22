@@ -1,4 +1,5 @@
 import { Pressable, View } from 'react-native';
+import { fonts } from './fonts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useToast } from '../state/toast';
 import { Text } from './Text';
@@ -18,7 +19,7 @@ export function ToastHost() {
     <View pointerEvents="box-none" style={{ position: 'absolute', left: 16, right: 16, bottom: insets.bottom + 84 }}>
       <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: bg, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12 }, shadow.lifted]}>
         <Icon name={t.tone === 'error' ? 'warning' : 'check'} color={t.tone === 'success' ? '#3FB561' : fg} tint="transparent" size={20} />
-        <Text style={{ flex: 1, color: fg, fontFamily: 'IBMPlexSansArabic_500Medium', fontSize: 14.5, lineHeight: 22 }}>{t.text}</Text>
+        <Text style={{ flex: 1, color: fg, fontFamily: fonts.medium, fontSize: 14.5, lineHeight: 22 }}>{t.text}</Text>
         {t.action ? (
           <Pressable
             hitSlop={8}
@@ -27,7 +28,7 @@ export function ToastHost() {
               t.action!.onPress();
             }}
           >
-            <Text style={{ color: colors.isDark ? colors.primary[600] : colors.accent.onDark, fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 15, lineHeight: 22 }}>{t.action.label}</Text>
+            <Text style={{ color: colors.isDark ? colors.primary[600] : colors.accent.onDark, fontFamily: fonts.bold, fontSize: 15, lineHeight: 22 }}>{t.action.label}</Text>
           </Pressable>
         ) : null}
       </View>

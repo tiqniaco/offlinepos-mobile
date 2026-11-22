@@ -1,4 +1,5 @@
 import { Image, Pressable, View } from 'react-native';
+import { fonts } from '../../ui/fonts';
 import { useTranslation } from 'react-i18next';
 import { Text, Icon, colors, shadow } from '../../ui';
 import { money, qty } from '../../lib/format';
@@ -36,7 +37,7 @@ export function ProductThumb({ name, imagePath, color, size = 52 }: { name: stri
   const c = color ?? colors.primary[500];
   return (
     <View style={{ width: size, height: size, borderRadius: size * 0.3, backgroundColor: c + '1F', alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ color: c, fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: size * 0.4, lineHeight: size * 0.55 }}>{name.trim().charAt(0)}</Text>
+      <Text style={{ color: c, fontFamily: fonts.bold, fontSize: size * 0.4, lineHeight: size * 0.55 }}>{name.trim().charAt(0)}</Text>
     </View>
   );
 }
@@ -62,15 +63,15 @@ export function ProductRow({ p, currency, lang, selected, selecting, onPress, on
       ) : null}
       <ProductThumb name={p.name} imagePath={p.imagePath} color={p.categoryColor} />
       <View style={{ flex: 1, gap: 2 }}>
-        <Text numberOfLines={1} style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 15.5, lineHeight: 23, color: colors.ink.DEFAULT }}>
+        <Text numberOfLines={1} style={{ fontFamily: fonts.bold, fontSize: 15.5, lineHeight: 23, color: colors.ink.DEFAULT }}>
           {p.name}
-          {p.variantLabel ? <Text style={{ color: colors.ink.mute, fontFamily: 'IBMPlexSansArabic_500Medium' }}>{`  ·  ${p.variantLabel}`}</Text> : null}
+          {p.variantLabel ? <Text style={{ color: colors.ink.mute, fontFamily: fonts.medium }}>{`  ·  ${p.variantLabel}`}</Text> : null}
         </Text>
-        <Text style={{ fontFamily: 'IBMPlexSansArabic_600SemiBold', fontSize: 15, lineHeight: 22, color: colors.primary[700] }}>{money(p.retailPriceMinor, currency, lang)}</Text>
+        <Text style={{ fontFamily: fonts.semibold, fontSize: 15, lineHeight: 22, color: colors.primary[700] }}>{money(p.retailPriceMinor, currency, lang)}</Text>
       </View>
       <View style={{ backgroundColor: TONE[tone].bg, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, minWidth: 64, alignItems: 'center' }}>
-        <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 14, lineHeight: 20, color: TONE[tone].fg }}>{tone === 'none' ? '—' : qty(p.qtyMilli)}</Text>
-        <Text style={{ fontSize: 11, lineHeight: 15, color: TONE[tone].fg, fontFamily: 'IBMPlexSansArabic_500Medium' }}>{tone === 'none' ? t('products.notTracked') : p.unitName}</Text>
+        <Text style={{ fontFamily: fonts.bold, fontSize: 14, lineHeight: 20, color: TONE[tone].fg }}>{tone === 'none' ? '—' : qty(p.qtyMilli)}</Text>
+        <Text style={{ fontSize: 11, lineHeight: 15, color: TONE[tone].fg, fontFamily: fonts.medium }}>{tone === 'none' ? t('products.notTracked') : p.unitName}</Text>
       </View>
     </Pressable>
   );

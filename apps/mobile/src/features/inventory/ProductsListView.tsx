@@ -1,4 +1,5 @@
 import { Pressable, ScrollView, TextInput, View, Platform } from 'react-native';
+import { fonts } from '../../ui/fonts';
 import { FlashList } from '@shopify/flash-list';
 import { useTranslation } from 'react-i18next';
 import { normalizeDigits } from '@daftarak/shared';
@@ -53,13 +54,13 @@ export function ProductsListView(props: {
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           {p.selecting ? (
             <>
-              <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 22, lineHeight: 32, color: colors.ink.DEFAULT }}>{t('products.selected', { n: p.selected.size })}</Text>
+              <Text style={{ fontFamily: fonts.bold, fontSize: 22, lineHeight: 32, color: colors.ink.DEFAULT }}>{t('products.selected', { n: p.selected.size })}</Text>
               <Button compact kind="ghost" title={t('common.cancel')} onPress={p.onCancelSelect} />
             </>
           ) : (
             <>
               <View>
-                <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 26, lineHeight: 38, color: colors.ink.DEFAULT }}>{t('products.title')}</Text>
+                <Text style={{ fontFamily: fonts.bold, fontSize: 26, lineHeight: 38, color: colors.ink.DEFAULT }}>{t('products.title')}</Text>
                 {p.summary ? (
                   <Text variant="caption">
                     {t('products.count', { n: p.summary.products })}
@@ -85,7 +86,7 @@ export function ProductsListView(props: {
             placeholder={t('products.search')}
             placeholderTextColor={colors.ink.faint}
             returnKeyType="search"
-            style={[{ flex: 1, minWidth: 0, height: '100%', fontSize: 16, fontFamily: 'IBMPlexSansArabic_500Medium', color: colors.ink.DEFAULT, textAlign: 'auto' }, Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null]}
+            style={[{ flex: 1, minWidth: 0, height: '100%', fontSize: 16, fontFamily: fonts.medium, color: colors.ink.DEFAULT, textAlign: 'auto' }, Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null]}
           />
           <Pressable testID="products-scan" onPress={p.onScan} style={({ pressed }) => ({ width: 42, height: 42, borderRadius: 12, backgroundColor: pressed ? colors.primary[100] : colors.primary[50], alignItems: 'center', justifyContent: 'center' })}>
             <Icon name="scan" color={colors.primary[700]} />

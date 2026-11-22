@@ -36,3 +36,13 @@ white on primary button ≥ 3:1) in `src/ui/theme.test.ts`.
 - How it repaints: `applyTheme()` rewrites the shared `colors` object, regenerates the CSS variables and bumps
   a version; the root layout uses that version as a `key`, so every screen remounts with the new colours and
   the appearance screen is reopened.
+
+## Fonts
+`src/ui/fonts.ts` — live `fonts` object (`regular/medium/semibold/bold`), chosen in المظهر, saved as setting `font`.
+| id | font | note |
+|---|---|---|
+| `readex` (default) | Readex Pro | clearest digits and prices at small sizes; modern |
+| `alexandria` | Alexandria | geometric, a bit heavier |
+| `almarai` | Almarai | popular in KSA (no 500/600 weights → mapped) |
+| `plex` | IBM Plex Sans Arabic | the TIQNIA brand-guidelines font |
+Only the chosen family is loaded at start. Use `fonts.bold` etc. (or `<Text variant>`), never a font file name.

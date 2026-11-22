@@ -1,4 +1,5 @@
 import { ActivityIndicator, Pressable, View } from 'react-native';
+import { fonts } from './fonts';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Text } from './Text';
 import { Icon, type IconName } from './Icon';
@@ -36,7 +37,7 @@ export function Button({
     <ActivityIndicator color={FG[kind]} />
   ) : (
     <View className="flex-row items-center justify-center gap-2">
-      <Text style={{ color: FG[kind], fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: compact ? 15 : 17, lineHeight: compact ? 22 : 26 }}>{title}</Text>
+      <Text style={{ color: FG[kind], fontFamily: fonts.bold, fontSize: compact ? 15 : 17, lineHeight: compact ? 22 : 26 }}>{title}</Text>
       {icon ? <Icon name={icon} size={compact ? 18 : 20} color={FG[kind]} tint="transparent" /> : null}
     </View>
   );

@@ -1,4 +1,5 @@
 import { View } from 'react-native';
+import { fonts } from '../../ui/fonts';
 import { useTranslation } from 'react-i18next';
 import { Screen, Text, Card, Avatar, ListGroup, ListRow, SectionTitle, colors } from '../../ui';
 
@@ -47,11 +48,11 @@ export function MoreView({
         <View className="flex-row items-center gap-3">
           <Avatar name={userName} color={userColor} size={56} />
           <View className="flex-1 gap-0.5">
-            <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 18, lineHeight: 27, color: colors.ink.DEFAULT }}>{userName}</Text>
+            <Text style={{ fontFamily: fonts.bold, fontSize: 18, lineHeight: 27, color: colors.ink.DEFAULT }}>{userName}</Text>
             <Text variant="caption">{businessName}</Text>
           </View>
           <View style={{ backgroundColor: colors.primary[50], borderRadius: 99, paddingHorizontal: 12, paddingVertical: 4 }}>
-            <Text style={{ color: colors.primary[700], fontSize: 13, lineHeight: 20, fontFamily: 'IBMPlexSansArabic_700Bold' }}>{roleName}</Text>
+            <Text style={{ color: colors.primary[700], fontSize: 13, lineHeight: 20, fontFamily: fonts.bold }}>{roleName}</Text>
           </View>
         </View>
       </Card>

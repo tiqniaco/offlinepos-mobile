@@ -1,4 +1,5 @@
 import { View } from 'react-native';
+import { fonts } from './fonts';
 import { Text } from './Text';
 import { IconBadge, type Hue } from './IconBadge';
 import type { IconName } from './Icon';
@@ -10,7 +11,7 @@ export function EmptyState({ icon, hue = 'primary', title, body, children }: { i
       <View style={{ padding: 14, borderRadius: 32, backgroundColor: colors.paper.card }}>
         <IconBadge name={icon} hue={hue} size={72} />
       </View>
-      <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 19, lineHeight: 28, color: colors.ink.DEFAULT, textAlign: 'center' }}>{title}</Text>
+      <Text style={{ fontFamily: fonts.bold, fontSize: 19, lineHeight: 28, color: colors.ink.DEFAULT, textAlign: 'center' }}>{title}</Text>
       {body ? (
         <Text variant="body" style={{ textAlign: 'center', maxWidth: 300 }}>
           {body}

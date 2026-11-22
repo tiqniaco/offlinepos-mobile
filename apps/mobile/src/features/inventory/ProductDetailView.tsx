@@ -1,4 +1,5 @@
 import { Image, Pressable, ScrollView, View } from 'react-native';
+import { fonts } from '../../ui/fonts';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -68,7 +69,7 @@ export function ProductDetailView({
               {canManage ? (
                 <Pressable testID="product-edit" onPress={onEdit} style={{ flexDirection: 'row', gap: 6, alignItems: 'center', height: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.16)' }}>
                   <Icon name="edit" color="#FFFFFF" tint="rgba(255,255,255,0.2)" size={20} />
-                  <Text style={{ color: '#FFFFFF', fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 14, lineHeight: 20 }}>{t('product.edit')}</Text>
+                  <Text style={{ color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 14, lineHeight: 20 }}>{t('product.edit')}</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -77,25 +78,25 @@ export function ProductDetailView({
                 {d.imagePath ? (
                   <Image source={{ uri: d.imagePath }} style={{ width: 84, height: 84 }} />
                 ) : (
-                  <Text style={{ color: '#FFFFFF', fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 34, lineHeight: 46 }}>{d.name.charAt(0)}</Text>
+                  <Text style={{ color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 34, lineHeight: 46 }}>{d.name.charAt(0)}</Text>
                 )}
               </View>
               <View style={{ flex: 1, gap: 4 }}>
-                <Text style={{ color: '#FFFFFF', fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 22, lineHeight: 32 }}>{d.name}</Text>
+                <Text style={{ color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 22, lineHeight: 32 }}>{d.name}</Text>
                 <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                  {d.variantLabel ? <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 99, paddingHorizontal: 10, paddingVertical: 2 }}><Text style={{ color: colors.accent.onDark, fontSize: 12.5, lineHeight: 19, fontFamily: 'IBMPlexSansArabic_700Bold' }}>{d.variantLabel}</Text></View> : null}
-                  {d.categoryName ? <View style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 99, paddingHorizontal: 10, paddingVertical: 2 }}><Text style={{ color: '#FFFFFF', fontSize: 12.5, lineHeight: 19, fontFamily: 'IBMPlexSansArabic_600SemiBold' }}>{d.categoryName}</Text></View> : null}
+                  {d.variantLabel ? <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 99, paddingHorizontal: 10, paddingVertical: 2 }}><Text style={{ color: colors.accent.onDark, fontSize: 12.5, lineHeight: 19, fontFamily: fonts.bold }}>{d.variantLabel}</Text></View> : null}
+                  {d.categoryName ? <View style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 99, paddingHorizontal: 10, paddingVertical: 2 }}><Text style={{ color: '#FFFFFF', fontSize: 12.5, lineHeight: 19, fontFamily: fonts.semibold }}>{d.categoryName}</Text></View> : null}
                 </View>
               </View>
             </View>
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 16, padding: 12 }}>
-                <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12.5, lineHeight: 19, fontFamily: 'IBMPlexSansArabic_500Medium' }}>{t('productForm.retail')}</Text>
-                <Text style={{ color: '#FFFFFF', fontSize: 20, lineHeight: 30, fontFamily: 'IBMPlexSansArabic_700Bold' }}>{money(d.retailPriceMinor, currency, lang)}</Text>
+                <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12.5, lineHeight: 19, fontFamily: fonts.medium }}>{t('productForm.retail')}</Text>
+                <Text style={{ color: '#FFFFFF', fontSize: 20, lineHeight: 30, fontFamily: fonts.bold }}>{money(d.retailPriceMinor, currency, lang)}</Text>
               </View>
               <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 16, padding: 12 }}>
-                <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12.5, lineHeight: 19, fontFamily: 'IBMPlexSansArabic_500Medium' }}>{t('productForm.wholesale')}</Text>
-                <Text style={{ color: '#FFFFFF', fontSize: 20, lineHeight: 30, fontFamily: 'IBMPlexSansArabic_700Bold' }}>{money(d.wholesalePriceMinor, currency, lang)}</Text>
+                <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12.5, lineHeight: 19, fontFamily: fonts.medium }}>{t('productForm.wholesale')}</Text>
+                <Text style={{ color: '#FFFFFF', fontSize: 20, lineHeight: 30, fontFamily: fonts.bold }}>{money(d.wholesalePriceMinor, currency, lang)}</Text>
               </View>
             </View>
           </View>
@@ -111,7 +112,7 @@ export function ProductDetailView({
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text variant="caption">{t('product.stock')}</Text>
-                    <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 26, lineHeight: 36, color: colors.ink.DEFAULT }}>
+                    <Text style={{ fontFamily: fonts.bold, fontSize: 26, lineHeight: 36, color: colors.ink.DEFAULT }}>
                       {qty(d.level.qtyMilli)} <Text style={{ fontSize: 16, color: colors.ink.mute }}>{d.baseUnitName}</Text>
                     </Text>
                     {split && d.larger && split.units !== 0 ? (
@@ -122,18 +123,18 @@ export function ProductDetailView({
                 </View>
                 {tone === 'low' || tone === 'out' ? (
                   <View style={{ backgroundColor: colors.amber[50], borderRadius: 12, padding: 10 }}>
-                    <Text style={{ color: colors.amber[700], fontFamily: 'IBMPlexSansArabic_600SemiBold', fontSize: 13.5, lineHeight: 21 }}>{t('product.lowWarning', { qty: qty(d.lowStockMilli ?? 0) })}</Text>
+                    <Text style={{ color: colors.amber[700], fontFamily: fonts.semibold, fontSize: 13.5, lineHeight: 21 }}>{t('product.lowWarning', { qty: qty(d.lowStockMilli ?? 0) })}</Text>
                   </View>
                 ) : null}
                 {canSeeCost ? (
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <View style={{ flex: 1, backgroundColor: colors.paper.sunk, borderRadius: 14, padding: 10 }}>
                       <Text variant="caption">{t('product.avgCost')}</Text>
-                      <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 15, lineHeight: 23, color: colors.ink.DEFAULT }}>{money(d.level.avgCostMinor || d.costMinor, currency, lang)}</Text>
+                      <Text style={{ fontFamily: fonts.bold, fontSize: 15, lineHeight: 23, color: colors.ink.DEFAULT }}>{money(d.level.avgCostMinor || d.costMinor, currency, lang)}</Text>
                     </View>
                     <View style={{ flex: 1, backgroundColor: colors.paper.sunk, borderRadius: 14, padding: 10 }}>
                       <Text variant="caption">{t('product.stockValue')}</Text>
-                      <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 15, lineHeight: 23, color: colors.ink.DEFAULT }}>{money(d.level.valueMinor, currency, lang)}</Text>
+                      <Text style={{ fontFamily: fonts.bold, fontSize: 15, lineHeight: 23, color: colors.ink.DEFAULT }}>{money(d.level.valueMinor, currency, lang)}</Text>
                     </View>
                   </View>
                 ) : null}
@@ -158,7 +159,7 @@ export function ProductDetailView({
                 {d.barcodes.map((b) => (
                   <View key={b} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                     <IconBadge name="scan" hue="ink" size={40} />
-                    <Text style={{ fontFamily: 'IBMPlexSansArabic_600SemiBold', fontSize: 16, lineHeight: 24, letterSpacing: 1, color: colors.ink.DEFAULT }}>{b}</Text>
+                    <Text style={{ fontFamily: fonts.semibold, fontSize: 16, lineHeight: 24, letterSpacing: 1, color: colors.ink.DEFAULT }}>{b}</Text>
                   </View>
                 ))}
               </View>
@@ -193,7 +194,7 @@ export function ProductDetailView({
                     <Text variant="subtitle">{t(`movement.${m.type}`)}{m.reason && m.reason !== 'count' ? ` · ${t(`adjust.reasons.${m.reason}`, { defaultValue: m.reason })}` : ''}</Text>
                     <Text variant="caption">{dateTimeLabel(lang, m.occurredAt)}</Text>
                   </View>
-                  <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 16, lineHeight: 24, color: m.qtyMilli >= 0 ? colors.leaf[700] : colors.rose[700] }}>
+                  <Text style={{ fontFamily: fonts.bold, fontSize: 16, lineHeight: 24, color: m.qtyMilli >= 0 ? colors.leaf[700] : colors.rose[700] }}>
                     {m.qtyMilli > 0 ? '+' : ''}
                     {qty(m.qtyMilli)}
                   </Text>

@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { fonts } from '../../ui/fonts';
 import { View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -41,7 +42,7 @@ export default function Users() {
         <Card>
           <View className="items-center gap-2 py-3">
             <IconBadge name="users" hue="amber" size={56} />
-            <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 16, lineHeight: 24, color: colors.ink.DEFAULT }}>{t('users.empty')}</Text>
+            <Text style={{ fontFamily: fonts.bold, fontSize: 16, lineHeight: 24, color: colors.ink.DEFAULT }}>{t('users.empty')}</Text>
             <Text variant="caption" className="text-center">
               {t('users.emptyHint')}
             </Text>

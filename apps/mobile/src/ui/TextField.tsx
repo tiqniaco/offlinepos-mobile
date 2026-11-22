@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { fonts } from './fonts';
 import { Platform, TextInput, View, type TextInputProps } from 'react-native';
 import { normalizeDigits } from '@daftarak/shared';
 import { Text } from './Text';
@@ -47,7 +48,7 @@ export function TextField({ label, error, hint, icon, onChangeText, latinDigits 
             rest.onBlur?.(e);
           }}
           style={[
-            { flex: 1, minWidth: 0, height: '100%', fontSize: 17, fontFamily: 'IBMPlexSansArabic_500Medium', color: colors.ink.DEFAULT, textAlign: ltr ? 'left' : 'auto' },
+            { flex: 1, minWidth: 0, height: '100%', fontSize: 17, fontFamily: fonts.medium, color: colors.ink.DEFAULT, textAlign: ltr ? 'left' : 'auto' },
             ltr ? { writingDirection: 'ltr' } : null,
             Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null,
             style,

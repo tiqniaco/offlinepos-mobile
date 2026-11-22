@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { fonts } from '../../ui/fonts';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,11 +29,11 @@ export default function Subscription() {
     <Screen back title={t('more.subscription')}>
       <View style={[{ borderRadius: 22, overflow: 'hidden' }, shadow.lifted]}>
         <LinearGradient colors={[colors.primary[500], colors.primary[700], colors.primary[800]]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 20, gap: 6 }}>
-          <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 20, fontFamily: 'IBMPlexSansArabic_500Medium' }}>{t('subscription.plan')}</Text>
-          <Text style={{ color: '#FFFFFF', fontSize: 32, lineHeight: 44, fontFamily: 'IBMPlexSansArabic_700Bold' }}>{planName}</Text>
+          <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 20, fontFamily: fonts.medium }}>{t('subscription.plan')}</Text>
+          <Text style={{ color: '#FFFFFF', fontSize: 32, lineHeight: 44, fontFamily: fonts.bold }}>{planName}</Text>
           {days != null ? (
             <View style={{ alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 99, paddingHorizontal: 12, paddingVertical: 4 }}>
-              <Text style={{ color: colors.accent.onDark, fontSize: 13, lineHeight: 20, fontFamily: 'IBMPlexSansArabic_700Bold' }}>{t('subscription.days', { n: days })}</Text>
+              <Text style={{ color: colors.accent.onDark, fontSize: 13, lineHeight: 20, fontFamily: fonts.bold }}>{t('subscription.days', { n: days })}</Text>
             </View>
           ) : null}
         </LinearGradient>
@@ -48,7 +49,7 @@ export default function Subscription() {
           ].map((x) => (
             <View key={x.k} className="flex-1 items-center gap-1.5">
               <IconBadge name={x.icon} hue={x.hue} size={40} />
-              <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 17, lineHeight: 26, color: colors.ink.DEFAULT }}>{x.v}</Text>
+              <Text style={{ fontFamily: fonts.bold, fontSize: 17, lineHeight: 26, color: colors.ink.DEFAULT }}>{x.v}</Text>
               <Text variant="caption" className="text-center">
                 {t(`subscription.${x.k}`)}
               </Text>

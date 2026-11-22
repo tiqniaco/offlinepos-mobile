@@ -7,6 +7,7 @@ const scale = (name, keys) => Object.fromEntries(keys.map((k) => [k, v(`${name}-
 const FULL = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
 const SMALL = ['50', '100', '300', '500', '600', '700'];
 
+// Fonts are NOT Tailwind classes: they follow the user's choice via src/ui/fonts.ts (Text sets fontFamily).
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: ['./src/**/*.{ts,tsx}'],
@@ -24,12 +25,6 @@ module.exports = {
         rose: scale('rose', SMALL),
         leaf: scale('leaf', SMALL),
         sky: scale('sky', SMALL),
-      },
-      fontFamily: {
-        sans: ['IBMPlexSansArabic_400Regular'],
-        medium: ['IBMPlexSansArabic_500Medium'],
-        semibold: ['IBMPlexSansArabic_600SemiBold'],
-        bold: ['IBMPlexSansArabic_700Bold'],
       },
       borderRadius: { card: '16px', field: '12px' },
       fontSize: { tiny: ['12px', '18px'], body: ['15px', '24px'], title: ['20px', '30px'], display: ['28px', '40px'] },

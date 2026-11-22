@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { fonts } from '../../ui/fonts';
 import { Alert, Pressable, TextInput, View, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -104,7 +105,7 @@ export default function StockCount() {
               blurOnSubmit={false}
               placeholder={t('productForm.barcodePh')}
               placeholderTextColor={colors.ink.faint}
-              style={[{ flex: 1, minWidth: 0, fontSize: 16, color: colors.ink.DEFAULT, textAlign: 'left', fontFamily: 'IBMPlexSansArabic_500Medium' }, Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null]}
+              style={[{ flex: 1, minWidth: 0, fontSize: 16, color: colors.ink.DEFAULT, textAlign: 'left', fontFamily: fonts.medium }, Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null]}
             />
           </View>
         </View>
@@ -121,8 +122,8 @@ export default function StockCount() {
                 <Text variant="caption">{t('count.system')}: {qty(l.expectedMilli)} {l.unitName}</Text>
               </View>
               <View style={{ alignItems: 'center', minWidth: 64 }}>
-                <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 20, lineHeight: 28, color: colors.ink.DEFAULT }}>{qty(l.countedMilli)}</Text>
-                <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 12, lineHeight: 18, color: diff === 0 ? colors.leaf[700] : diff > 0 ? colors.sky[700] : colors.rose[700] }}>
+                <Text style={{ fontFamily: fonts.bold, fontSize: 20, lineHeight: 28, color: colors.ink.DEFAULT }}>{qty(l.countedMilli)}</Text>
+                <Text style={{ fontFamily: fonts.bold, fontSize: 12, lineHeight: 18, color: diff === 0 ? colors.leaf[700] : diff > 0 ? colors.sky[700] : colors.rose[700] }}>
                   {diff === 0 ? '✓' : `${diff > 0 ? '+' : ''}${qty(diff)}`}
                 </Text>
               </View>

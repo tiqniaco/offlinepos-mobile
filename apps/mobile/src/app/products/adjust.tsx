@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { fonts } from '../../ui/fonts';
 import { View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -53,7 +54,7 @@ export default function AdjustStock() {
       <Card>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text variant="caption">{t('product.stock')}: {qty(d.level.qtyMilli)}</Text>
-          <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 16, lineHeight: 24, color: after < 0 ? colors.rose[700] : colors.primary[700] }}>{t('adjust.result', { qty: qty(after), unit: d.baseUnitName })}</Text>
+          <Text style={{ fontFamily: fonts.bold, fontSize: 16, lineHeight: 24, color: after < 0 ? colors.rose[700] : colors.primary[700] }}>{t('adjust.result', { qty: qty(after), unit: d.baseUnitName })}</Text>
         </View>
       </Card>
       {after < 0 ? <Banner tone="warn" text={t('adjust.negativeWarn')} /> : null}

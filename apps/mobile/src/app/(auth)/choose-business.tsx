@@ -1,4 +1,5 @@
 import { View } from 'react-native';
+import { fonts } from '../../ui/fonts';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { OnboardingScreen, Text, Button, Card, Banner, IconBadge, Icon, colors } from '../../ui';
@@ -22,7 +23,7 @@ export default function ChooseBusiness() {
           <View className="flex-row items-center gap-3">
             <IconBadge name="store" hue="amber" />
             <View className="flex-1">
-              <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 16, lineHeight: 24, color: colors.ink.DEFAULT }}>{b.name}</Text>
+              <Text style={{ fontFamily: fonts.bold, fontSize: 16, lineHeight: 24, color: colors.ink.DEFAULT }}>{b.name}</Text>
               <Text variant="caption">{t('chooseBusiness.useExisting', { name: b.name })}</Text>
             </View>
             <Icon name="chevron" color={colors.ink.faint} />

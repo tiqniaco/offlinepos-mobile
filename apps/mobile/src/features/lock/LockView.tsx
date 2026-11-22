@@ -1,4 +1,5 @@
 import { Pressable, View } from 'react-native';
+import { fonts } from '../../ui/fonts';
 import { useTranslation } from 'react-i18next';
 import { Text, Hero, Avatar, PinDots, PinPad, Button, Logo, shadow, colors } from '../../ui';
 
@@ -43,24 +44,24 @@ export function LockView({
         <View className="items-center gap-3 px-6 pb-6 pt-6">
           <View className="flex-row items-center gap-2" style={{ backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 99, paddingHorizontal: 12, paddingVertical: 5 }}>
             <Logo size={20} bare />
-            <Text style={{ color: '#FFFFFF', fontSize: 13, lineHeight: 20, fontFamily: 'IBMPlexSansArabic_600SemiBold' }}>{businessName}</Text>
+            <Text style={{ color: '#FFFFFF', fontSize: 13, lineHeight: 20, fontFamily: fonts.semibold }}>{businessName}</Text>
           </View>
           {selected ? (
             <>
               <Avatar name={selected.name} color={selected.color} size={78} ring />
               <View className="items-center">
-                <Text style={{ color: '#FFFFFF', fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 22, lineHeight: 32 }}>{selected.name}</Text>
-                <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 20, fontFamily: 'IBMPlexSansArabic_500Medium' }}>{selected.roleName}</Text>
+                <Text style={{ color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 22, lineHeight: 32 }}>{selected.name}</Text>
+                <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 20, fontFamily: fonts.medium }}>{selected.roleName}</Text>
               </View>
               <View className="h-6 justify-center">
                 <PinDots count={pin.length} total={Math.max(4, pin.length)} error={!!message} light />
               </View>
-              <Text style={{ color: message ? '#FFD9D4' : 'rgba(255,255,255,0.85)', fontSize: 14, lineHeight: 22, fontFamily: 'IBMPlexSansArabic_500Medium' }}>{message ?? t('lock.enterPin')}</Text>
+              <Text style={{ color: message ? '#FFD9D4' : 'rgba(255,255,255,0.85)', fontSize: 14, lineHeight: 22, fontFamily: fonts.medium }}>{message ?? t('lock.enterPin')}</Text>
             </>
           ) : (
             <View className="items-center gap-1 py-4">
-              <Text style={{ color: '#FFFFFF', fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 26, lineHeight: 38 }}>{t('lock.welcomeBack')}</Text>
-              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 15, lineHeight: 24, fontFamily: 'IBMPlexSansArabic_500Medium' }}>{t('lock.chooseUser')}</Text>
+              <Text style={{ color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 26, lineHeight: 38 }}>{t('lock.welcomeBack')}</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 15, lineHeight: 24, fontFamily: fonts.medium }}>{t('lock.chooseUser')}</Text>
             </View>
           )}
         </View>
@@ -77,7 +78,7 @@ export function LockView({
             >
               <Avatar name={u.name} color={u.color} size={60} />
               <View className="items-center">
-                <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 16, lineHeight: 24, color: colors.ink.DEFAULT }}>{u.name}</Text>
+                <Text style={{ fontFamily: fonts.bold, fontSize: 16, lineHeight: 24, color: colors.ink.DEFAULT }}>{u.name}</Text>
                 <Text variant="caption">{u.roleName}</Text>
               </View>
             </Pressable>

@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
+import { fonts } from '../../ui/fonts';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
-import { Screen, Text, SectionTitle, Icon, PALETTES, buildTheme, colors, shadow, type PaletteId, type Appearance } from '../../ui';
+import { Screen, Text, SectionTitle, Icon, PALETTES, FONT_FAMILIES, preloadAllFonts, buildTheme, colors, shadow, type PaletteId, type Appearance, type FontId } from '../../ui';
 
 const MODES: { id: Appearance; icon: 'globe' | 'shield' | 'book' | 'refresh' }[] = [
   { id: 'light', icon: 'globe' },
@@ -29,8 +31,28 @@ function MiniPreview({ palette, mode }: { palette: PaletteId; mode: Exclude<Appe
   );
 }
 
-export function AppearanceView({ palette, appearance, onPalette, onAppearance, lang }: { palette: PaletteId; appearance: Appearance; onPalette: (p: PaletteId) => void; onAppearance: (a: Appearance) => void; lang: string }) {
+export function AppearanceView({
+  palette,
+  appearance,
+  font,
+  onPalette,
+  onAppearance,
+  onFont,
+  lang,
+}: {
+  palette: PaletteId;
+  appearance: Appearance;
+  font: FontId;
+  onPalette: (p: PaletteId) => void;
+  onAppearance: (a: Appearance) => void;
+  onFont: (f: FontId) => void;
+  lang: string;
+}) {
   const { t } = useTranslation();
+  const [fontsReady, setFontsReady] = useState(false);
+  useEffect(() => {
+    void preloadAllFonts().then(() => setFontsReady(true), () => setFontsReady(true));
+  }, []);
   const previewMode: Exclude<Appearance, 'system'> = appearance === 'system' ? (colors.isDark ? 'dark' : 'light') : appearance;
   return (
     <Screen back title={t('appearance.title')}>
@@ -50,7 +72,7 @@ export function AppearanceView({ palette, appearance, onPalette, onAppearance, l
             >
               <MiniPreview palette={p.id} mode={previewMode} />
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 14, lineHeight: 20, color: colors.ink.DEFAULT }}>{lang === 'en' ? p.nameEn : p.nameAr}</Text>
+                <Text style={{ fontFamily: fonts.bold, fontSize: 14, lineHeight: 20, color: colors.ink.DEFAULT }}>{lang === 'en' ? p.nameEn : p.nameAr}</Text>
                 {on ? (
                   <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: colors.primary[600], alignItems: 'center', justifyContent: 'center' }}>
                     <Icon name="check" size={12} color="#FFFFFF" />
@@ -91,9 +113,38 @@ export function AppearanceView({ palette, appearance, onPalette, onAppearance, l
                 <MiniPreview palette={palette} mode={pm} />
               )}
               <View>
-                <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 15, lineHeight: 22, color: on ? colors.primary[700] : colors.ink.DEFAULT }}>{t(`appearance.${m.id}`)}</Text>
+                <Text style={{ fontFamily: fonts.bold, fontSize: 15, lineHeight: 22, color: on ? colors.primary[700] : colors.ink.DEFAULT }}>{t(`appearance.${m.id}`)}</Text>
                 <Text variant="caption">{t(`appearance.${m.id}Hint`)}</Text>
               </View>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <SectionTitle>{t('appearance.font')}</SectionTitle>
+      <View style={{ gap: 10 }}>
+        {FONT_FAMILIES.map((f) => {
+          const on = f.id === font;
+          return (
+            <Pressable
+              key={f.id}
+              testID={`font-${f.id}`}
+              onPress={() => onFont(f.id)}
+              style={({ pressed }) => [
+                { padding: 14, gap: 4, borderRadius: 18, backgroundColor: colors.paper.card, borderWidth: 2, borderColor: on ? colors.primary[500] : 'transparent', opacity: pressed ? 0.85 : 1 },
+                shadow.soft,
+              ]}
+            >
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text variant="caption">{lang === 'en' ? f.nameEn : f.nameAr}</Text>
+                {on ? (
+                  <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: colors.primary[600], alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon name="check" size={12} color="#FFFFFF" />
+                  </View>
+                ) : null}
+              </View>
+              <Text style={{ fontFamily: fontsReady ? f.set.bold : undefined, fontSize: 20, lineHeight: 32, color: colors.ink.DEFAULT }}>{t('appearance.fontSample')}</Text>
+              <Text style={{ fontFamily: fontsReady ? f.set.regular : undefined, fontSize: 14, lineHeight: 22, color: colors.ink.soft }}>{t('home.safeBody')}</Text>
             </Pressable>
           );
         })}

@@ -9,7 +9,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { LockView, type LockUser } from '../features/lock/LockView';
 import { HomeView } from '../features/home/HomeView';
 import { MoreView } from '../features/more/MoreView';
-import { Banner, applyTheme, useTheme, type PaletteId, type Appearance } from '../ui';
+import { Banner, applyTheme, applyFont, useTheme, type PaletteId, type Appearance } from '../ui';
 import { AppearanceView } from '../features/settings/AppearanceView';
 import { dateLabel } from '../lib/format';
 import { ProductsListView } from '../features/inventory/ProductsListView';
@@ -55,7 +55,7 @@ export default function DevGallery() {
         onBiometric={noop}
       />
     );
-  if (view === 'appearance') return <AppearanceView palette={theme.palette} appearance={theme.appearance} lang="ar" onPalette={(p) => applyTheme(p, theme.appearance, false)} onAppearance={(a) => applyTheme(theme.palette, a, false)} />;
+  if (view === 'appearance') return <AppearanceView palette={theme.palette} appearance={theme.appearance} font={theme.font} onFont={(f) => void applyFont(f)} lang="ar" onPalette={(p) => applyTheme(p, theme.appearance, false)} onAppearance={(a) => applyTheme(theme.palette, a, false)} />;
   if (view === 'products')
     return (
       <ProductsListView

@@ -1,4 +1,5 @@
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
+import { fonts } from './fonts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from './Text';
 import colors from './colors';
@@ -15,7 +16,7 @@ export function Sheet({ visible, onClose, title, children, footer }: { visible: 
             <View style={{ width: 44, height: 5, borderRadius: 3, backgroundColor: colors.paper.line }} />
           </View>
           {title ? (
-            <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 19, lineHeight: 28, color: colors.ink.DEFAULT, paddingHorizontal: 20, paddingTop: 12 }}>{title}</Text>
+            <Text style={{ fontFamily: fonts.bold, fontSize: 19, lineHeight: 28, color: colors.ink.DEFAULT, paddingHorizontal: 20, paddingTop: 12 }}>{title}</Text>
           ) : null}
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, gap: 12 }}>
             {children}

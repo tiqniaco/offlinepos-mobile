@@ -1,4 +1,5 @@
 import { Pressable, View } from 'react-native';
+import { fonts } from './fonts';
 import * as Haptics from 'expo-haptics';
 import { Text } from './Text';
 import { Icon } from './Icon';
@@ -67,7 +68,7 @@ export function PinPad({ value, onChange, maxLength = 6, onBiometric, disabled }
             ) : k === 'bio' ? (
               <Icon name="fingerprint" color={colors.primary[600]} size={30} />
             ) : (
-              <Text style={{ fontFamily: 'IBMPlexSansArabic_600SemiBold', fontSize: 28, lineHeight: 36, color: colors.ink.DEFAULT }}>{k}</Text>
+              <Text style={{ fontFamily: fonts.semibold, fontSize: 28, lineHeight: 36, color: colors.ink.DEFAULT }}>{k}</Text>
             )}
           </Pressable>
         );

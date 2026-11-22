@@ -1,4 +1,5 @@
 import { Pressable, ScrollView, View } from 'react-native';
+import { fonts } from '../../ui/fonts';
 import { useTranslation } from 'react-i18next';
 import { Text, Hero, Avatar, Card, IconBadge, Icon, colors, type IconName, type Hue } from '../../ui';
 
@@ -16,7 +17,7 @@ function Chip({ children, dot }: { children: string; dot?: string }) {
   return (
     <View className="flex-row items-center gap-1.5" style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 99, paddingHorizontal: 11, paddingVertical: 5 }}>
       {dot ? <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: dot }} /> : null}
-      <Text style={{ color: '#FFFFFF', fontSize: 12.5, lineHeight: 19, fontFamily: 'IBMPlexSansArabic_600SemiBold' }}>{children}</Text>
+      <Text style={{ color: '#FFFFFF', fontSize: 12.5, lineHeight: 19, fontFamily: fonts.semibold }}>{children}</Text>
     </View>
   );
 }
@@ -55,15 +56,15 @@ export function HomeView({
           <View className="flex-row items-center gap-3">
             <Avatar name={userName} color={userColor} size={46} ring />
             <View className="flex-1">
-              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 20, fontFamily: 'IBMPlexSansArabic_500Medium' }}>{dateLabel}</Text>
-              <Text style={{ color: '#FFFFFF', fontSize: 19, lineHeight: 28, fontFamily: 'IBMPlexSansArabic_700Bold' }}>{greeting}</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 20, fontFamily: fonts.medium }}>{dateLabel}</Text>
+              <Text style={{ color: '#FFFFFF', fontSize: 19, lineHeight: 28, fontFamily: fonts.bold }}>{greeting}</Text>
             </View>
             <Pressable testID="home-lock" accessibilityRole="button" onPress={onLock} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)', opacity: pressed ? 0.7 : 1 })}>
               <Icon name="lock" color="#FFFFFF" tint="rgba(255,255,255,0.2)" />
             </Pressable>
           </View>
           <View className="gap-2">
-            <Text style={{ color: '#FFFFFF', fontSize: 30, lineHeight: 42, fontFamily: 'IBMPlexSansArabic_700Bold' }}>{businessName}</Text>
+            <Text style={{ color: '#FFFFFF', fontSize: 30, lineHeight: 42, fontFamily: fonts.bold }}>{businessName}</Text>
             <View className="flex-row flex-wrap gap-2">
               <Chip dot="#7CE0A0">{t('home.offline')}</Chip>
               {planChip ? <Chip>{planChip}</Chip> : null}
@@ -80,7 +81,7 @@ export function HomeView({
               <Card key={st.key} onPress={st.onPress} style={{ flex: 1 }}>
                 <View style={{ gap: 8 }}>
                   <IconBadge name={st.icon} hue={st.hue} size={38} />
-                  <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 20, lineHeight: 28, color: colors.ink.DEFAULT }}>{st.value}</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontFamily: fonts.bold, fontSize: 20, lineHeight: 28, color: colors.ink.DEFAULT }}>{st.value}</Text>
                   <Text variant="caption" numberOfLines={1}>{st.label}</Text>
                 </View>
               </Card>
@@ -91,7 +92,7 @@ export function HomeView({
         <Card padded={false}>
           <View className="gap-3 px-4 pb-2 pt-4">
             <View className="flex-row items-center justify-between">
-              <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 18, lineHeight: 28, color: colors.ink.DEFAULT }}>{t('home.setupTitle')}</Text>
+              <Text style={{ fontFamily: fonts.bold, fontSize: 18, lineHeight: 28, color: colors.ink.DEFAULT }}>{t('home.setupTitle')}</Text>
               <Text variant="caption">{t('home.setupProgress', { done, total })}</Text>
             </View>
             <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.paper.sunk, overflow: 'hidden' }}>
@@ -110,7 +111,7 @@ export function HomeView({
                 <Text
                   style={{
                     flex: 1,
-                    fontFamily: 'IBMPlexSansArabic_600SemiBold',
+                    fontFamily: fonts.semibold,
                     fontSize: 15,
                     lineHeight: 23,
                     color: task.done ? colors.ink.mute : colors.ink.DEFAULT,
@@ -121,7 +122,7 @@ export function HomeView({
                 </Text>
                 {task.soon ? (
                   <View style={{ backgroundColor: colors.amber[50], borderRadius: 99, paddingHorizontal: 10, paddingVertical: 3 }}>
-                    <Text style={{ color: colors.amber[700], fontSize: 12, lineHeight: 18, fontFamily: 'IBMPlexSansArabic_700Bold' }}>{t('home.soon')}</Text>
+                    <Text style={{ color: colors.amber[700], fontSize: 12, lineHeight: 18, fontFamily: fonts.bold }}>{t('home.soon')}</Text>
                   </View>
                 ) : task.done ? (
                   <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: colors.leaf[500], alignItems: 'center', justifyContent: 'center' }}>
@@ -140,7 +141,7 @@ export function HomeView({
           <View className="flex-row items-center gap-3">
             <IconBadge name="shield" hue="sky" size={48} />
             <View className="flex-1">
-              <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 16, lineHeight: 24, color: colors.ink.DEFAULT }}>{t('home.safeTitle')}</Text>
+              <Text style={{ fontFamily: fonts.bold, fontSize: 16, lineHeight: 24, color: colors.ink.DEFAULT }}>{t('home.safeTitle')}</Text>
               <Text variant="caption">{t('home.safeBody')}</Text>
             </View>
           </View>

@@ -3,7 +3,7 @@
  * The daily check-in runs in the background afterwards and never blocks start-up.
  */
 import { Appearance, Platform } from 'react-native';
-import { applyTheme } from '../ui/themeStore';
+import { applyFont, applyTheme } from '../ui/themeStore';
 import { getDb, openDatabase, DbNotEncryptedError } from '../db/client';
 import { business } from '../db/schema';
 import { getCurrentDevice } from '../domain/device';
@@ -19,6 +19,7 @@ let subscribed = false;
 export async function boot(): Promise<void> {
   const set = useApp.getState().set;
   if (Platform.OS === 'web') {
+    await applyFont('readex').catch(() => undefined);
     // The product is mobile-only. Web is used ONLY to preview onboarding screens during design work:
     // no database, no secure storage, nothing is saved.
     initI18n('ar');
@@ -30,6 +31,7 @@ export async function boot(): Promise<void> {
     await openDatabase();
   } catch (e) {
     initI18n('ar');
+    await applyFont('readex').catch(() => undefined);
     set({ status: 'fatal', fatal: e instanceof DbNotEncryptedError ? 'db_not_encrypted' : 'db_open_failed' });
     return;
   }
@@ -39,6 +41,7 @@ export async function boot(): Promise<void> {
     subscribed = true;
   }
   const settings = await loadSettings(db);
+  await applyFont(settings.font ?? 'readex').catch(() => applyFont('readex'));
   applyTheme(settings.palette ?? 'tiqnia', settings.appearance ?? 'light', Appearance.getColorScheme() === 'dark');
   const lang = settings.language ?? 'ar';
   initI18n(lang);

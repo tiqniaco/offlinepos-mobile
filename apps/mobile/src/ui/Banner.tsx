@@ -1,4 +1,5 @@
 import { Pressable, View } from 'react-native';
+import { fonts } from './fonts';
 import { Text } from './Text';
 import { IconBadge, type Hue } from './IconBadge';
 import type { IconName } from './Icon';
@@ -22,12 +23,12 @@ export function Banner({ tone = 'info', title, text, action, onAction, testID, i
         <IconBadge name={icon ?? t.icon} hue={t.hue} size={38} />
       </View>
       <View className="flex-1 gap-0.5">
-        {title ? <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 15, lineHeight: 22, color: t.color }}>{title}</Text> : null}
-        <Text style={{ fontFamily: 'IBMPlexSansArabic_500Medium', fontSize: 13.5, lineHeight: 21, color: t.color }}>{text}</Text>
+        {title ? <Text style={{ fontFamily: fonts.bold, fontSize: 15, lineHeight: 22, color: t.color }}>{title}</Text> : null}
+        <Text style={{ fontFamily: fonts.medium, fontSize: 13.5, lineHeight: 21, color: t.color }}>{text}</Text>
       </View>
       {action && onAction ? (
         <Pressable onPress={onAction} hitSlop={8} style={{ backgroundColor: colors.paper.card, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
-          <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 13, lineHeight: 20, color: t.color }}>{action}</Text>
+          <Text style={{ fontFamily: fonts.bold, fontSize: 13, lineHeight: 20, color: t.color }}>{action}</Text>
         </Pressable>
       ) : null}
     </View>

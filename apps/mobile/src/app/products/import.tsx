@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { fonts } from '../../ui/fonts';
 import { ScrollView, Switch, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -106,7 +107,7 @@ export default function ImportProducts() {
                   {REQUIRED.includes(f) ? <Text style={{ color: colors.rose[500] }}> *</Text> : null}
                 </Text>
                 <View style={{ backgroundColor: mapping[f] != null ? colors.primary[50] : colors.paper.sunk, borderRadius: 99, paddingHorizontal: 12, paddingVertical: 4, maxWidth: 170 }}>
-                  <Text numberOfLines={1} style={{ fontFamily: 'IBMPlexSansArabic_600SemiBold', fontSize: 13, lineHeight: 20, color: mapping[f] != null ? colors.primary[700] : colors.ink.mute }}>
+                  <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 13, lineHeight: 20, color: mapping[f] != null ? colors.primary[700] : colors.ink.mute }}>
                     {mapping[f] != null ? headers[mapping[f]!] : t('importer.notMapped')}
                   </Text>
                 </View>
@@ -129,11 +130,11 @@ export default function ImportProducts() {
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <Card style={{ flex: 1 }}>
               <Text variant="caption">{t('importer.valid')}</Text>
-              <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 26, lineHeight: 36, color: colors.leaf[700] }}>{validation.valid.length}</Text>
+              <Text style={{ fontFamily: fonts.bold, fontSize: 26, lineHeight: 36, color: colors.leaf[700] }}>{validation.valid.length}</Text>
             </Card>
             <Card style={{ flex: 1 }}>
               <Text variant="caption">{t('importer.withErrors')}</Text>
-              <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 26, lineHeight: 36, color: validation.errors.length ? colors.rose[700] : colors.ink.faint }}>
+              <Text style={{ fontFamily: fonts.bold, fontSize: 26, lineHeight: 36, color: validation.errors.length ? colors.rose[700] : colors.ink.faint }}>
                 {new Set(validation.errors.map((e) => e.rowNumber)).size}
               </Text>
             </Card>
@@ -187,7 +188,7 @@ export default function ImportProducts() {
           <View style={{ gap: 10 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <IconBadge name="check" hue="leaf" size={52} />
-              <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 19, lineHeight: 28, color: colors.ink.DEFAULT }}>{t('importer.doneTitle')}</Text>
+              <Text style={{ fontFamily: fonts.bold, fontSize: 19, lineHeight: 28, color: colors.ink.DEFAULT }}>{t('importer.doneTitle')}</Text>
             </View>
             <Text variant="body">{t('importer.created', { n: report.created })}</Text>
             {report.updated ? <Text variant="body">{t('importer.updated', { n: report.updated })}</Text> : null}

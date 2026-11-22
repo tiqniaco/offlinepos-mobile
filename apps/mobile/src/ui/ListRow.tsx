@@ -1,4 +1,5 @@
 import { Pressable, View } from 'react-native';
+import { fonts } from './fonts';
 import { Text } from './Text';
 import { Icon, type IconName } from './Icon';
 import { IconBadge, type Hue } from './IconBadge';
@@ -33,7 +34,7 @@ export function ListRow({
       <View className="min-h-[64px] flex-row items-center gap-3 px-4 py-3">
         {leading ?? (icon ? <IconBadge name={icon} hue={tone === 'danger' ? 'rose' : hue} size={40} /> : null)}
         <View className="flex-1">
-          <Text style={{ fontFamily: 'IBMPlexSansArabic_600SemiBold', fontSize: 16, lineHeight: 24, color: tone === 'danger' ? colors.rose[700] : colors.ink.DEFAULT }}>{title}</Text>
+          <Text style={{ fontFamily: fonts.semibold, fontSize: 16, lineHeight: 24, color: tone === 'danger' ? colors.rose[700] : colors.ink.DEFAULT }}>{title}</Text>
           {subtitle ? <Text variant="caption">{subtitle}</Text> : null}
         </View>
         {value ? (

@@ -732,6 +732,7 @@ D1 load at 10,000 businesses ≈ 10k check-ins/day (≈ 0.12 req/s) — far insi
 | D-32 | Camera scanning with **react-native-vision-camera 5 + react-native-vision-camera-barcode-scanner** (ML Kit, official companion) | "react-native-vision-camera" | v5 moved code scanning into this companion package |
 | D-33 | Expiry/batch: Phase 2 adds the product flag and `batches` table; **expiry dates are entered with purchase invoices (Phase 4)** | "optional expiry/batch" in Phase 2 | stock enters with a known expiry only when it is bought; opening stock has no reliable expiry |
 | D-34 | **Theming now (owner request):** TIQNIA brand blues as default palette + 4 more palettes, and light / dark / eye-comfort / system modes, switchable in settings | spec: calm colours, dark mode in Phase 7 | owner asked for TIQNIA colours and a full theme switch; built on CSS variables + live tokens so later screens get it for free |
+| D-35 | Default UI font **Readex Pro** (user-selectable: Readex Pro, Alexandria, Almarai, IBM Plex Sans Arabic) | IBM Plex Sans Arabic | owner asked for a better font; Readex Pro reads prices/digits most clearly at small sizes. IBM Plex stays available (TIQNIA brand font). |
 | D-19 | Phase 1 is delivered in **three commits groups** (1a app foundation, 1b server/auth/licence, 1c onboarding + admin) inside one phase | one phase | it's the largest phase; you can review progress mid-way. Acceptance is still checked once at the end |
 
 No other deviations. The full stack in SPEC §2 is otherwise used as specified (Expo + Router + dev builds,

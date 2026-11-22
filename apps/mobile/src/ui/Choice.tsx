@@ -1,4 +1,5 @@
 import { Pressable, View } from 'react-native';
+import { fonts } from './fonts';
 import { Text } from './Text';
 import { Icon, type IconName } from './Icon';
 import { IconBadge, type Hue } from './IconBadge';
@@ -50,7 +51,7 @@ export function Choice({
       {icon ? <IconBadge name={icon} hue={selected ? 'primary' : hue} size={46} /> : null}
       {emoji ? <Text style={{ fontSize: compact ? 22 : 26, lineHeight: compact ? 30 : 34 }}>{emoji}</Text> : null}
       <View className="flex-1">
-        <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: compact ? 15 : 16, lineHeight: 24, color: selected ? colors.primary[800] : colors.ink.DEFAULT }}>{title}</Text>
+        <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontFamily: fonts.bold, fontSize: compact ? 15 : 16, lineHeight: 24, color: selected ? colors.primary[800] : colors.ink.DEFAULT }}>{title}</Text>
         {hint ? <Text variant="caption">{hint}</Text> : null}
       </View>
       <View
