@@ -1,7 +1,7 @@
 import '../lib/polyfills';
 import '../../global.css';
 import { useEffect } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -41,6 +41,9 @@ export default function RootLayout() {
       {/* Any touch counts as activity for the auto-lock timer. */}
       <View className="flex-1 bg-paper" onTouchStart={touch}>
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#F6F2EA' }, animation: 'fade' }}>
+          <Stack.Protected guard={__DEV__ && Platform.OS === 'web'}>
+            <Stack.Screen name="dev-gallery" />
+          </Stack.Protected>
           <Stack.Protected guard={status === 'fatal'}>
             <Stack.Screen name="fatal" />
           </Stack.Protected>

@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Screen, Text, Button, Card, Banner, Icon } from '../../ui';
+import { OnboardingScreen, Text, Button, Card, Banner, IconBadge, Icon, colors } from '../../ui';
 import { useOnboarding } from '../../state/app';
 
 export default function ChooseBusiness() {
@@ -10,9 +10,7 @@ export default function ChooseBusiness() {
   const set = useOnboarding((s) => s.set);
   if (!auth) return null;
   return (
-    <Screen title={t('chooseBusiness.title')}>
-      <Text>{t('chooseBusiness.body')}</Text>
-      <Banner tone="warn" text={t('chooseBusiness.existingWarning')} />
+    <OnboardingScreen step={3} stepLabel={t('onboarding.step', { n: 3, total: 4 })} title={t('chooseBusiness.title')} subtitle={t('chooseBusiness.body')}>
       {auth.businesses.map((b) => (
         <Card
           key={b.id}
@@ -22,14 +20,16 @@ export default function ChooseBusiness() {
           }}
         >
           <View className="flex-row items-center gap-3">
-            <Icon name="store" />
-            <Text variant="subtitle" className="flex-1">
-              {t('chooseBusiness.useExisting', { name: b.name })}
-            </Text>
-            <Icon name="chevron" />
+            <IconBadge name="store" hue="amber" />
+            <View className="flex-1">
+              <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 16, lineHeight: 24, color: colors.ink.DEFAULT }}>{b.name}</Text>
+              <Text variant="caption">{t('chooseBusiness.useExisting', { name: b.name })}</Text>
+            </View>
+            <Icon name="chevron" color={colors.ink.faint} />
           </View>
         </Card>
       ))}
+      <Banner tone="warn" text={t('chooseBusiness.existingWarning')} />
       <Button
         kind="secondary"
         icon="plus"
@@ -39,6 +39,6 @@ export default function ChooseBusiness() {
           router.push('/business');
         }}
       />
-    </Screen>
+    </OnboardingScreen>
   );
 }

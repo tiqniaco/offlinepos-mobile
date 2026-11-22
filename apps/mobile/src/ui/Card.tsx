@@ -1,25 +1,18 @@
 import { Pressable, View, type ViewProps } from 'react-native';
+import { shadow } from './shadow';
 
-const SHADOW = {
-  shadowColor: '#3A2E1A',
-  shadowOpacity: 0.07,
-  shadowRadius: 14,
-  shadowOffset: { width: 0, height: 6 },
-  elevation: 2,
-};
-
-/** Soft paper card. If onPress is set, the whole card is tappable (SPEC §10). */
-export function Card({ children, className = '', onPress, style, ...rest }: ViewProps & { className?: string; onPress?: () => void }) {
-  const cls = `rounded-card bg-paper-card p-4 border border-paper-line/60 ${className}`;
+/** Paper card with a soft warm shadow. If onPress is set, the whole card is tappable (SPEC §10). */
+export function Card({ children, className = '', onPress, style, padded = true, ...rest }: ViewProps & { className?: string; onPress?: () => void; padded?: boolean }) {
+  const cls = `rounded-[20px] bg-paper-card ${padded ? 'p-4' : ''} ${className}`;
   if (onPress) {
     return (
-      <Pressable accessibilityRole="button" onPress={onPress} className={`${cls} active:opacity-80`} style={[SHADOW, style]} {...rest}>
+      <Pressable accessibilityRole="button" onPress={onPress} className={cls} style={({ pressed }) => [shadow.soft, { opacity: pressed ? 0.85 : 1 }, style as object]} {...rest}>
         {children}
       </Pressable>
     );
   }
   return (
-    <View className={cls} style={[SHADOW, style]} {...rest}>
+    <View className={cls} style={[shadow.soft, style]} {...rest}>
       {children}
     </View>
   );

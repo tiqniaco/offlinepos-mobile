@@ -22,8 +22,8 @@ export default function Language() {
   return (
     <Screen back title={t('more.language')}>
       <View className="gap-2">
-        <Choice title="العربية" selected={lang === 'ar'} onPress={() => void choose('ar')} />
-        <Choice title="English" selected={lang === 'en'} onPress={() => void choose('en')} />
+        <Choice emoji="🇪🇬" title="العربية" hint="اتجاه من اليمين للشمال" selected={lang === 'ar'} onPress={() => void choose('ar')} />
+        <Choice emoji="🇬🇧" title="English" hint="Left-to-right layout" selected={lang === 'en'} onPress={() => void choose('en')} />
       </View>
       <Text variant="caption">{t('language.restart')}</Text>
     </Screen>

@@ -35,7 +35,8 @@ cd apps/mobile && pnpm test       # PIN, audit chain, licence guard, i18n (Jest)
 
 ## Web preview of onboarding screens
 `cd apps/mobile && npx expo start --web` shows the onboarding screens in a browser for design checks
-only. There is no database on web; the product is mobile-only.
+only. Lock, home and more screens: open `/dev-gallery?view=lock|lock-pin|home|home-banner|more`
+(sample data, dev builds on web only). There is no database on web; the product is mobile-only.
 
 ## Production
 - `node apps/api/scripts/gen-licence-key.mjs` → secret to `wrangler secret put LICENCE_SIGNING_KEY --env production`,

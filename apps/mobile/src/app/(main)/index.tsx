@@ -1,43 +1,51 @@
-import { View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Screen, Text, Card, Icon, colors } from '../../ui';
+import { DEFAULT_PLANS } from '@daftarak/shared';
 import { useApp } from '../../state/app';
+import { getDb } from '../../db/client';
+import { activeUserCount } from '../../domain/auth/users';
 import { LicenceBanner } from '../../features/LicenceBanner';
+import { HomeView, type SetupTask } from '../../features/home/HomeView';
+import { dateLabel } from '../../lib/format';
 
 export default function Home() {
-  const { t } = useTranslation();
-  const user = useApp((s) => s.user);
+  const { t, i18n } = useTranslation();
+  const user = useApp((s) => s.user)!;
   const business = useApp((s) => s.business);
-  const hour = new Date().getHours();
+  const licence = useApp((s) => s.licence);
+  const [users, setUsers] = useState(1);
+
+  useFocusEffect(
+    useCallback(() => {
+      void activeUserCount(getDb()).then(setUsers);
+    }, []),
+  );
+
+  const plan = DEFAULT_PLANS.find((p) => p.code === licence?.plan);
+  const planName = plan ? (i18n.language === 'en' ? plan.nameEn : plan.nameAr) : null;
+  const planChip = licence?.trialDaysLeft != null ? t('licence.trial', { days: licence.trialDaysLeft }) : planName ? t('home.plan', { name: planName }) : null;
+  const canManage = user.permissions.includes('users.manage');
+
+  const tasks: SetupTask[] = [
+    { key: 'owner', title: t('home.taskOwner'), icon: 'users', hue: 'teal', done: true },
+    ...(canManage ? [{ key: 'team', title: t('home.taskTeam'), icon: 'users' as const, hue: 'amber' as const, done: users > 1, onPress: () => router.push('/settings/users') }] : []),
+    { key: 'lock', title: t('home.taskLock'), icon: 'fingerprint', hue: 'sky', done: user.biometricEnabled, onPress: () => router.push('/settings/security') },
+    { key: 'products', title: t('home.taskProducts'), icon: 'list', hue: 'rose', done: false, soon: true },
+  ];
+  const showBanner = licence && licence.mode !== 'full';
+
   return (
-    <Screen scroll>
-      <View className="mt-3 gap-1">
-        <Text variant="caption">{business?.name}</Text>
-        <Text variant="title">{t(hour < 15 ? 'home.greeting' : 'home.greetingEvening', { name: user?.name ?? '' })}</Text>
-      </View>
-      <LicenceBanner />
-      <LinearGradient colors={[colors.teal[500], colors.teal[700]]} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={{ borderRadius: 16, padding: 18 }}>
-        <View className="flex-row items-center gap-3">
-          <Icon name="book" color="#fff" tint="#ffffff33" size={30} />
-          <View className="flex-1">
-            <Text variant="subtitle" className="text-white">
-              {t('home.nextPhaseTitle')}
-            </Text>
-            <Text variant="caption" className="text-teal-50">
-              {t('home.nextPhaseBody')}
-            </Text>
-          </View>
-        </View>
-      </LinearGradient>
-      <Card>
-        <View className="flex-row items-center gap-3">
-          <Icon name="shield" color={colors.leaf[500]} />
-          <Text variant="label" className="flex-1">
-            {t('welcome.point3')}
-          </Text>
-        </View>
-      </Card>
-    </Screen>
+    <HomeView
+      greeting={t(new Date().getHours() < 15 ? 'home.greeting' : 'home.greetingEvening', { name: user.name })}
+      userName={user.name}
+      userColor={user.color}
+      businessName={business?.name ?? ''}
+      dateLabel={dateLabel(i18n.language)}
+      planChip={planChip}
+      banner={showBanner ? <LicenceBanner /> : null}
+      tasks={tasks}
+      onLock={() => useApp.getState().lock()}
+    />
   );
 }

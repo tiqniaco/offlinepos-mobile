@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { digitsOnly, OTP_POLICY } from '@daftarak/shared';
-import { Screen, Text, Button, TextField } from '../../ui';
+import { OTP_POLICY } from '@daftarak/shared';
+import { OnboardingScreen, Text, Button, OtpInput, Card, colors } from '../../ui';
 import { api } from '../../api/client';
 import { errorMessage } from '../../lib/errors';
 import { useOnboarding } from '../../state/app';
@@ -25,7 +25,7 @@ export default function OtpScreen() {
   }, [wait]);
 
   const verify = async (value = code) => {
-    if (value.length !== 6) return;
+    if (value.length !== 6 || busy) return;
     setBusy(true);
     setError(null);
     try {
@@ -51,30 +51,45 @@ export default function OtpScreen() {
   };
 
   return (
-    <Screen back title={t('otp.title')} footer={<Button testID="otp-verify" title={t('otp.verify')} loading={busy} disabled={code.length !== 6} onPress={() => verify()} />}>
-      <Text>{t('otp.body', { phone: `+${phone}` })}</Text>
-      <TextField
-        testID="otp-input"
-        label={t('otp.title')}
-        value={code}
-        onChangeText={(v) => {
-          const d = digitsOnly(v).slice(0, 6);
-          setCode(d);
-          if (d.length === 6) void verify(d);
-        }}
-        keyboardType="number-pad"
-        textContentType="oneTimeCode"
-        autoComplete="sms-otp"
-        maxLength={6}
-        ltr
-        autoFocus
-        error={error}
-        style={{ fontSize: 28, letterSpacing: 10, textAlign: 'center' }}
-      />
-      <View className="items-center">
-        {wait > 0 ? <Text variant="caption">{t('otp.resendIn', { s: wait })}</Text> : <Button kind="ghost" title={t('otp.resend')} onPress={resend} />}
-        <Button kind="ghost" title={t('otp.changePhone')} onPress={() => router.back()} />
+    <OnboardingScreen
+      step={2}
+      stepLabel={t('onboarding.step', { n: 2, total: 4 })}
+      title={t('otp.title')}
+      subtitle={t('otp.body', { phone: `+${phone}` })}
+      footer={<Button testID="otp-verify" title={t('otp.verify')} loading={busy} disabled={code.length !== 6} onPress={() => verify()} />}
+    >
+      <Card>
+        <View className="gap-4">
+          <OtpInput
+            testID="otp-input"
+            value={code}
+            error={!!error}
+            onChange={(d) => {
+              setCode(d);
+              setError(null);
+              if (d.length === 6) void verify(d);
+            }}
+          />
+          {error ? (
+            <Text variant="caption" className="text-center" style={{ color: colors.rose[700] }}>
+              {error}
+            </Text>
+          ) : null}
+        </View>
+      </Card>
+      <View className="flex-row items-center justify-center gap-2">
+        <Text variant="caption">{t('otp.didntGet')}</Text>
+        {wait > 0 ? (
+          <View className="rounded-full bg-paper-sunk px-3 py-1">
+            <Text variant="caption" style={{ color: colors.ink.soft }}>
+              {t('otp.resendIn', { s: wait })}
+            </Text>
+          </View>
+        ) : (
+          <Button compact kind="ghost" title={t('otp.resend')} onPress={resend} />
+        )}
       </View>
-    </Screen>
+      <Button compact kind="ghost" title={t('otp.changePhone')} onPress={() => router.back()} />
+    </OnboardingScreen>
   );
 }

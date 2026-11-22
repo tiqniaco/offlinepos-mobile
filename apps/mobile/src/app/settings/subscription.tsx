@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { DEFAULT_PLANS } from '@daftarak/shared';
-import { Screen, Text, Card, Button } from '../../ui';
+import { LinearGradient } from 'expo-linear-gradient';
+import { DEFAULT_PLANS, UNLIMITED } from '@daftarak/shared';
+import { Screen, Text, Card, Button, SectionTitle, IconBadge, colors, shadow } from '../../ui';
 import { useApp } from '../../state/app';
 import { backgroundCheckin } from '../../state/boot';
 import { LicenceBanner } from '../../features/LicenceBanner';
@@ -15,23 +16,48 @@ export default function Subscription() {
   const [busy, setBusy] = useState(false);
   const plan = DEFAULT_PLANS.find((p) => p.code === l?.plan);
   const planName = plan ? (i18n.language === 'en' ? plan.nameEn : plan.nameAr) : (l?.plan ?? '—');
+  const lim = (n: number | undefined) => (n == null ? '—' : n === UNLIMITED ? t('subscription.unlimited') : String(n));
   const refresh = async () => {
     setBusy(true);
     const r = await backgroundCheckin(true).catch(() => null);
     setMsg(r?.outcome === 'ok' ? t('subscription.updated') : r?.outcome === 'offline' ? t('subscription.offline') : t('errors.unknown'));
     setBusy(false);
   };
+  const days = l?.trialDaysLeft ?? l?.graceDaysLeft;
   return (
     <Screen back title={t('more.subscription')}>
-      <LicenceBanner />
+      <View style={[{ borderRadius: 22, overflow: 'hidden' }, shadow.lifted]}>
+        <LinearGradient colors={[colors.teal[500], colors.teal[700], colors.teal[800]]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 20, gap: 6 }}>
+          <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 20, fontFamily: 'IBMPlexSansArabic_500Medium' }}>{t('subscription.plan')}</Text>
+          <Text style={{ color: '#FFFFFF', fontSize: 32, lineHeight: 44, fontFamily: 'IBMPlexSansArabic_700Bold' }}>{planName}</Text>
+          {days != null ? (
+            <View style={{ alignSelf: 'flex-start', backgroundColor: 'rgba(242,169,59,0.25)', borderRadius: 99, paddingHorizontal: 12, paddingVertical: 4 }}>
+              <Text style={{ color: '#FFE7BF', fontSize: 13, lineHeight: 20, fontFamily: 'IBMPlexSansArabic_700Bold' }}>{t('subscription.days', { n: days })}</Text>
+            </View>
+          ) : null}
+        </LinearGradient>
+      </View>
+      {l && l.mode !== 'full' ? <LicenceBanner /> : null}
+      <SectionTitle>{t('subscription.limits')}</SectionTitle>
       <Card>
-        <View className="gap-2">
-          <Text variant="caption">{t('subscription.plan')}</Text>
-          <Text variant="title">{planName}</Text>
+        <View className="flex-row justify-between">
+          {[
+            { k: 'usersLimit', v: lim(l?.limits.users), icon: 'users' as const, hue: 'amber' as const },
+            { k: 'productsLimit', v: lim(l?.limits.products), icon: 'list' as const, hue: 'sky' as const },
+            { k: 'invoicesLimit', v: lim(l?.limits.invoices_month), icon: 'book' as const, hue: 'teal' as const },
+          ].map((x) => (
+            <View key={x.k} className="flex-1 items-center gap-1.5">
+              <IconBadge name={x.icon} hue={x.hue} size={40} />
+              <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 17, lineHeight: 26, color: colors.ink.DEFAULT }}>{x.v}</Text>
+              <Text variant="caption" className="text-center">
+                {t(`subscription.${x.k}`)}
+              </Text>
+            </View>
+          ))}
         </View>
       </Card>
-      <Button kind="secondary" title={busy ? t('subscription.checking') : t('licence.checkNow')} loading={busy} onPress={refresh} />
-      {msg ? <Text variant="caption">{msg}</Text> : null}
+      <Button kind="secondary" icon="globe" title={busy ? t('subscription.checking') : t('licence.checkNow')} loading={busy} onPress={refresh} />
+      {msg ? <Text variant="caption" className="text-center">{msg}</Text> : null}
     </Screen>
   );
 }

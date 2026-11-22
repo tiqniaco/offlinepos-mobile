@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Screen, Text, Button, TextField } from '../../ui';
+import { OnboardingScreen, Text, Button, TextField, SectionTitle, Card, Banner } from '../../ui';
 import { useApp, useOnboarding } from '../../state/app';
 import { getDb } from '../../db/client';
 import { attachExistingBusiness, createBusinessOnline } from '../../domain/onboarding';
@@ -46,30 +47,44 @@ export default function OwnerScreen() {
   };
 
   return (
-    <Screen back title={t('owner.title')} footer={<Button testID="owner-finish" title={busy ? t('owner.creating') : t('owner.finish')} loading={busy} onPress={finish} />}>
-      <Text>{t('owner.body')}</Text>
-      <TextField testID="owner-name" label={t('owner.name')} value={name} onChangeText={setName} error={errors.name} latinDigits={false} />
-      <TextField
-        testID="owner-pin"
-        label={t('owner.pin')}
-        value={pin}
-        onChangeText={(v) => setPin(normalizePinInput(v))}
-        keyboardType="number-pad"
-        secureTextEntry
-        ltr
-        error={errors.pin}
-      />
-      <TextField
-        testID="owner-pin2"
-        label={t('owner.pinConfirm')}
-        value={pin2}
-        onChangeText={(v) => setPin2(normalizePinInput(v))}
-        keyboardType="number-pad"
-        secureTextEntry
-        ltr
-        error={errors.pin2}
-      />
-      {errors.form ? <Text className="text-rose-700">{errors.form}</Text> : null}
-    </Screen>
+    <OnboardingScreen
+      step={4}
+      stepLabel={t('onboarding.step', { n: 4, total: 4 })}
+      title={t('owner.title')}
+      subtitle={t('owner.body')}
+      footer={<Button testID="owner-finish" title={busy ? t('owner.creating') : t('owner.finish')} loading={busy} onPress={finish} />}
+    >
+      <SectionTitle>{t('owner.sectionYou')}</SectionTitle>
+      <TextField testID="owner-name" icon="users" label={t('owner.name')} value={name} onChangeText={setName} error={errors.name} latinDigits={false} />
+      <SectionTitle>{t('owner.sectionPin')}</SectionTitle>
+      <Card>
+        <View className="gap-3">
+          <TextField
+            testID="owner-pin"
+            icon="lock"
+            label={t('owner.pin')}
+            value={pin}
+            onChangeText={(v) => setPin(normalizePinInput(v))}
+            keyboardType="number-pad"
+            secureTextEntry
+            ltr
+            error={errors.pin}
+          />
+          <TextField
+            testID="owner-pin2"
+            icon="lock"
+            label={t('owner.pinConfirm')}
+            value={pin2}
+            onChangeText={(v) => setPin2(normalizePinInput(v))}
+            keyboardType="number-pad"
+            secureTextEntry
+            ltr
+            error={errors.pin2}
+          />
+          <Text variant="caption">{t('owner.pinNote')}</Text>
+        </View>
+      </Card>
+      {errors.form ? <Banner tone="danger" text={errors.form} /> : null}
+    </OnboardingScreen>
   );
 }

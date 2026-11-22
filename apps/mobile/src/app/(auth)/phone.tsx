@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { normalizePhone } from '@daftarak/shared';
-import { Screen, Text, Button, TextField } from '../../ui';
+import { OnboardingScreen, Button, PhoneField, Banner } from '../../ui';
 import { api } from '../../api/client';
 import { errorMessage } from '../../lib/errors';
 import { useOnboarding } from '../../state/app';
@@ -31,22 +31,15 @@ export default function PhoneScreen() {
   };
 
   return (
-    <Screen back title={t('phone.title')} footer={<Button testID="phone-send" title={t('phone.send')} loading={busy} onPress={submit} />}>
-      <Text>{t('phone.body')}</Text>
-      <TextField
-        testID="phone-input"
-        label={t('phone.label')}
-        placeholder={t('phone.placeholder')}
-        keyboardType="phone-pad"
-        autoComplete="tel"
-        textContentType="telephoneNumber"
-        ltr
-        value={raw}
-        onChangeText={setRaw}
-        error={error}
-        onSubmitEditing={submit}
-        autoFocus
-      />
-    </Screen>
+    <OnboardingScreen
+      step={1}
+      stepLabel={t('onboarding.step', { n: 1, total: 4 })}
+      title={t('phone.title')}
+      subtitle={t('phone.body')}
+      footer={<Button testID="phone-send" title={t('phone.send')} loading={busy} onPress={submit} />}
+    >
+      <PhoneField testID="phone-input" value={raw} onChangeText={setRaw} error={error} onSubmitEditing={submit} placeholder="01x xxxx xxxx" />
+      <Banner tone="info" icon="shield" text={t('welcome.point3Hint')} />
+    </OnboardingScreen>
   );
 }

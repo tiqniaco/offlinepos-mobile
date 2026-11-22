@@ -1,26 +1,70 @@
 import { Pressable, View } from 'react-native';
 import { Text } from './Text';
 import { Icon, type IconName } from './Icon';
+import { IconBadge, type Hue } from './IconBadge';
 import colors from './colors.json';
 
-/** Big tappable option card (one-hand friendly) used for country / type / yes-no choices. */
-export function Choice({ title, hint, icon, selected, onPress, testID }: { title: string; hint?: string; icon?: IconName; selected: boolean; onPress: () => void; testID?: string }) {
+/** Big tappable option (one-hand friendly) for country / type / yes-no choices. */
+export function Choice({
+  title,
+  hint,
+  icon,
+  hue = 'teal',
+  emoji,
+  selected,
+  onPress,
+  testID,
+  compact = false,
+}: {
+  title: string;
+  hint?: string;
+  icon?: IconName;
+  hue?: Hue;
+  emoji?: string;
+  selected: boolean;
+  onPress: () => void;
+  testID?: string;
+  compact?: boolean;
+}) {
   return (
     <Pressable
       testID={testID}
       accessibilityRole="radio"
       accessibilityState={{ selected }}
       onPress={onPress}
-      className={`min-h-[60px] flex-1 flex-row items-center gap-3 rounded-card border-2 px-4 py-3 ${selected ? 'border-teal-500 bg-teal-50' : 'border-paper-line bg-paper-card'}`}
+      style={({ pressed }) => ({
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: compact ? 8 : 12,
+        minHeight: compact ? 56 : 72,
+        paddingHorizontal: compact ? 12 : 14,
+        paddingVertical: 12,
+        borderRadius: 18,
+        borderWidth: 2,
+        borderColor: selected ? colors.teal[500] : colors.paper.line,
+        backgroundColor: selected ? colors.teal[50] : colors.paper.card,
+        opacity: pressed ? 0.85 : 1,
+      })}
     >
-      {icon ? <Icon name={icon} color={selected ? colors.teal[700] : colors.ink.mute} /> : null}
+      {icon ? <IconBadge name={icon} hue={selected ? 'teal' : hue} size={46} /> : null}
+      {emoji ? <Text style={{ fontSize: compact ? 22 : 26, lineHeight: compact ? 30 : 34 }}>{emoji}</Text> : null}
       <View className="flex-1">
-        <Text variant="subtitle" className={selected ? 'text-teal-800' : 'text-ink'}>
-          {title}
-        </Text>
+        <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: compact ? 15 : 16, lineHeight: 24, color: selected ? colors.teal[800] : colors.ink.DEFAULT }}>{title}</Text>
         {hint ? <Text variant="caption">{hint}</Text> : null}
       </View>
-      <View className={`h-6 w-6 items-center justify-center rounded-full border-2 ${selected ? 'border-teal-600 bg-teal-600' : 'border-paper-line'}`}>
+      <View
+        style={{
+          width: compact ? 20 : 24,
+          height: compact ? 20 : 24,
+          borderRadius: 12,
+          borderWidth: 2,
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderColor: selected ? colors.teal[600] : colors.paper.line,
+          backgroundColor: selected ? colors.teal[600] : 'transparent',
+        }}
+      >
         {selected ? <Icon name="check" size={14} color="#fff" /> : null}
       </View>
     </Pressable>

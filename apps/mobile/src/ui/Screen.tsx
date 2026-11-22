@@ -1,46 +1,145 @@
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Text } from './Text';
 import { Icon } from './Icon';
+import { Hero } from './Hero';
+import { Steps } from './Steps';
+import { shadow } from './shadow';
+import colors from './colors.json';
 
+function BackButton({ light = false }: { light?: boolean }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="back"
+      hitSlop={10}
+      onPress={() => router.back()}
+      style={({ pressed }) => [
+        { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 },
+        light ? { backgroundColor: 'rgba(255,255,255,0.16)' } : { backgroundColor: colors.paper.card, ...(shadow.soft as object) },
+      ]}
+    >
+      <Icon name="back" color={light ? '#FFFFFF' : colors.ink.DEFAULT} />
+    </Pressable>
+  );
+}
+
+function Footer({ children }: { children: React.ReactNode }) {
+  const insets = useSafeAreaInsets();
+  return <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 12) + 4, backgroundColor: colors.paper.DEFAULT, gap: 8 }}>{children}</View>;
+}
+
+/** Standard screen: large title header, optional back, scrollable content, sticky footer. */
 export function Screen({
   children,
   title,
+  subtitle,
   back = false,
   scroll = true,
   footer,
   className = '',
+  right,
 }: {
   children: React.ReactNode;
   title?: string;
+  subtitle?: string;
   back?: boolean;
   scroll?: boolean;
   footer?: React.ReactNode;
   className?: string;
+  right?: React.ReactNode;
 }) {
   const Body = scroll ? ScrollView : View;
   return (
-    <SafeAreaView className="flex-1 bg-paper" edges={['top', 'bottom']}>
+    <SafeAreaView className="flex-1 bg-paper" edges={['top']}>
       <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {title || back ? (
-          <View className="flex-row items-center gap-2 px-4 pb-2 pt-3">
-            {back ? (
-              <Pressable accessibilityRole="button" accessibilityLabel="back" hitSlop={12} onPress={() => router.back()} className="h-11 w-11 items-center justify-center rounded-full active:bg-paper-sunk">
-                <Icon name="back" />
-              </Pressable>
+          <View className="gap-3 px-5 pb-3 pt-3">
+            {back || right ? (
+              <View className="flex-row items-center justify-between">
+                {back ? <BackButton /> : <View />}
+                {right}
+              </View>
             ) : null}
-            {title ? <Text variant="title">{title}</Text> : null}
+            {title ? (
+              <View className="gap-0.5">
+                <Text variant="display" style={{ fontSize: 26, lineHeight: 38 }}>
+                  {title}
+                </Text>
+                {subtitle ? <Text variant="body">{subtitle}</Text> : null}
+              </View>
+            ) : null}
           </View>
         ) : null}
         <Body
           className="flex-1"
-          {...(scroll ? { contentContainerClassName: `px-4 pb-6 gap-4 ${className}`, keyboardShouldPersistTaps: 'handled' as const } : { className: `flex-1 px-4 ${className}` })}
+          {...(scroll
+            ? { contentContainerClassName: `px-5 pb-8 gap-4 ${className}`, keyboardShouldPersistTaps: 'handled' as const, showsVerticalScrollIndicator: false }
+            : { className: `flex-1 px-5 ${className}` })}
         >
           {children}
         </Body>
-        {footer ? <View className="gap-2 border-t border-paper-line/70 bg-paper px-4 pb-3 pt-3">{footer}</View> : null}
+        {footer ? <Footer>{footer}</Footer> : null}
       </KeyboardAvoidingView>
     </SafeAreaView>
+  );
+}
+
+/**
+ * Onboarding step: gradient hero with back button, progress and title; content sits on a paper sheet
+ * that overlaps the hero. Primary action is pinned to the bottom (thumb zone).
+ */
+export function OnboardingScreen({
+  step,
+  total = 4,
+  stepLabel,
+  title,
+  subtitle,
+  children,
+  footer,
+  back = true,
+}: {
+  step: number;
+  total?: number;
+  stepLabel: string;
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+  back?: boolean;
+}) {
+  return (
+    <View className="flex-1 bg-paper">
+      <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView className="flex-1" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+          <Hero>
+            <View className="gap-5 px-5 pt-3">
+              <View className="flex-row items-center justify-between">
+                {back ? <BackButton light /> : <View style={{ height: 44 }} />}
+                <View style={{ width: 120 }}>
+                  <Steps current={step} total={total} label={stepLabel} light />
+                </View>
+              </View>
+              <View className="gap-1 pb-2">
+                <Text style={{ color: '#FFFFFF', fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 28, lineHeight: 40 }}>{title}</Text>
+                {subtitle ? <Text style={{ color: 'rgba(255,255,255,0.88)', fontSize: 15, lineHeight: 24, fontFamily: 'IBMPlexSansArabic_400Regular' }}>{subtitle}</Text> : null}
+              </View>
+            </View>
+          </Hero>
+          <View className="gap-4 px-5 pt-2">{children}</View>
+        </ScrollView>
+        {footer ? <Footer>{footer}</Footer> : null}
+      </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+export function SectionTitle({ children, action }: { children: string; action?: React.ReactNode }) {
+  return (
+    <View className="mt-2 flex-row items-center justify-between">
+      <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 15, lineHeight: 22, color: colors.ink.soft }}>{children}</Text>
+      {action}
+    </View>
   );
 }

@@ -10,6 +10,10 @@ apps/mobile/
     (main)/                tabs: index (home), more
     settings/              users, user-form, security, language, subscription, audit
     fatal.tsx              shown if the DB can't be opened encrypted
+    dev-gallery.tsx        DEV + web only: renders the pure views with sample data for design review
+  src/features/            pure views (props in, no DB) + bigger shared UI:
+    lock/LockView.tsx  home/HomeView.tsx  more/MoreView.tsx  LicenceBanner.tsx
+                           screens in src/app are thin containers that load data and render these
   src/state/app.ts         Zustand: app status, current user, licence, settings (UI mirror only)
   src/state/boot.ts        start-up sequence + background check-in
   src/domain/
@@ -28,6 +32,9 @@ apps/mobile/
   src/config/licenceKeys.ts  Ed25519 PUBLIC keys for offline licence verification
   src/i18n/ar.json en.json Arabic (default) and English copy — same keys (tested)
   src/ui/                  design system; colors.json feeds Tailwind and code
+                           Hero (gradient header), OnboardingScreen/Screen, Card, Button, TextField,
+                           PhoneField, OtpInput, PinPad/PinDots, Choice, ListRow/ListGroup, IconBadge,
+                           Avatar, Steps, Banner, Logo, Icon (custom duotone set), shadow
 
 apps/api/
   wrangler.jsonc           bindings, vars, production env

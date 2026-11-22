@@ -2,77 +2,76 @@ import { Pressable, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Text } from './Text';
 import { Icon } from './Icon';
+import { shadow } from './shadow';
 import colors from './colors.json';
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'bio', '0', 'del'] as const;
 
+export function PinDots({ count, total, error, light = false }: { count: number; total: number; error?: boolean; light?: boolean }) {
+  return (
+    <View style={{ flexDirection: 'row', gap: 14, direction: 'ltr' }} accessibilityLabel={`${count} / ${total}`}>
+      {Array.from({ length: total }).map((_, i) => {
+        const on = i < count;
+        const base = light ? 'rgba(255,255,255,' : 'rgba(31,42,46,';
+        return (
+          <View
+            key={i}
+            style={{
+              width: on ? 16 : 14,
+              height: on ? 16 : 14,
+              borderRadius: 8,
+              backgroundColor: error ? colors.rose[500] : on ? (light ? '#FFFFFF' : colors.teal[600]) : 'transparent',
+              borderWidth: on || error ? 0 : 2,
+              borderColor: base + '0.35)',
+            }}
+          />
+        );
+      })}
+    </View>
+  );
+}
+
 /**
- * PIN pad with big keys. Keypad layout stays left-to-right in Arabic too (like the phone dialer).
- * Auto-submits when `length` digits are entered.
+ * Round-key PIN pad. Layout stays left-to-right in Arabic too, like the phone dialer.
+ * PINs are 4–6 digits, so the caller decides when to submit.
  */
-export function PinPad({
-  value,
-  onChange,
-  length = 4,
-  maxLength = 6,
-  onSubmit,
-  onBiometric,
-  error,
-  disabled,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  length?: number;
-  maxLength?: number;
-  onSubmit?: (v: string) => void;
-  onBiometric?: () => void;
-  error?: boolean;
-  disabled?: boolean;
-}) {
+export function PinPad({ value, onChange, maxLength = 6, onBiometric, disabled }: { value: string; onChange: (v: string) => void; maxLength?: number; onBiometric?: () => void; disabled?: boolean }) {
   const press = (k: (typeof KEYS)[number]) => {
     if (disabled) return;
     void Haptics.selectionAsync().catch(() => undefined);
     if (k === 'del') return onChange(value.slice(0, -1));
     if (k === 'bio') return onBiometric?.();
     if (value.length >= maxLength) return;
-    const next = value + k;
-    onChange(next);
-    if (next.length === length) onSubmit?.(next);
+    onChange(value + k);
   };
   return (
-    <View className="items-center gap-6">
-      <View className="flex-row gap-3" style={{ direction: 'ltr' }} accessibilityLabel={`${value.length} / ${length}`}>
-        {Array.from({ length: Math.max(length, value.length) }).map((_, i) => (
-          <View
-            key={i}
-            className={`h-4 w-4 rounded-full border-2 ${error ? 'border-rose-500 bg-rose-500' : i < value.length ? 'border-teal-600 bg-teal-600' : 'border-ink-faint'}`}
-          />
-        ))}
-      </View>
-      <View className="w-full max-w-[320px] flex-row flex-wrap justify-between gap-y-3" style={{ direction: 'ltr' }}>
-        {KEYS.map((k) =>
-          k === 'bio' && !onBiometric ? (
-            <View key={k} className="h-[68px] w-[30%]" />
-          ) : (
-            <Pressable
-              key={k}
-              testID={`pin-${k}`}
-              accessibilityRole="button"
-              accessibilityLabel={k}
-              onPress={() => press(k)}
-              className="h-[68px] w-[30%] items-center justify-center rounded-2xl bg-paper-card active:bg-teal-50"
-            >
-              {k === 'del' ? (
-                <Icon name="back" color={colors.ink.soft} />
-              ) : k === 'bio' ? (
-                <Icon name="fingerprint" color={colors.teal[600]} />
-              ) : (
-                <Text className="font-semibold text-[26px] leading-[34px] text-ink">{k}</Text>
-              )}
-            </Pressable>
-          ),
-        )}
-      </View>
+    <View style={{ width: '100%', maxWidth: 300, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 14, direction: 'ltr' }}>
+      {KEYS.map((k) => {
+        if (k === 'bio' && !onBiometric) return <View key={k} style={{ width: 76, height: 76 }} />;
+        const plain = k === 'bio' || k === 'del';
+        return (
+          <Pressable
+            key={k}
+            testID={`pin-${k}`}
+            accessibilityRole="button"
+            accessibilityLabel={k}
+            onPress={() => press(k)}
+            style={({ pressed }) => [
+              { width: 76, height: 76, borderRadius: 38, alignItems: 'center', justifyContent: 'center' },
+              plain ? null : { backgroundColor: pressed ? colors.teal[50] : colors.paper.card, ...(shadow.soft as object) },
+              plain && pressed ? { backgroundColor: colors.paper.sunk } : null,
+            ]}
+          >
+            {k === 'del' ? (
+              <Icon name="backspace" color={colors.ink.soft} size={28} />
+            ) : k === 'bio' ? (
+              <Icon name="fingerprint" color={colors.teal[600]} size={30} />
+            ) : (
+              <Text style={{ fontFamily: 'IBMPlexSansArabic_600SemiBold', fontSize: 28, lineHeight: 36, color: colors.ink.DEFAULT }}>{k}</Text>
+            )}
+          </Pressable>
+        );
+      })}
     </View>
   );
 }

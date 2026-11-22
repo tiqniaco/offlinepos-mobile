@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { COUNTRY_PROFILES, countryOfPhone, digitsOnly } from '@daftarak/shared';
-import { Screen, Text, Button, TextField, Choice } from '../../ui';
+import { OnboardingScreen, Text, Button, TextField, Choice, SectionTitle, Card } from '../../ui';
 import { useOnboarding } from '../../state/app';
 
 /** Business name → country → type → VAT. Country defaults from the phone prefix. */
@@ -29,28 +29,40 @@ export default function BusinessScreen() {
 
   const rate = COUNTRY_PROFILES[country].vatRateBp / 100;
   return (
-    <Screen title={t('business.title')} footer={<Button testID="business-next" title={t('common.next')} onPress={next} />}>
-      <TextField testID="business-name" label={t('business.name')} placeholder={t('business.namePlaceholder')} value={name} onChangeText={setName} error={errors.name} latinDigits={false} />
-      <Text variant="label">{t('business.country')}</Text>
+    <OnboardingScreen
+      step={3}
+      stepLabel={t('onboarding.step', { n: 3, total: 4 })}
+      title={t('business.title')}
+      footer={<Button testID="business-next" title={t('common.next')} icon="chevron" onPress={next} />}
+    >
+      <TextField testID="business-name" icon="store" label={t('business.name')} placeholder={t('business.namePlaceholder')} value={name} onChangeText={setName} error={errors.name} latinDigits={false} />
+
+      <SectionTitle>{t('business.country')}</SectionTitle>
       <View className="flex-row gap-3">
-        <Choice testID="country-EG" title={t('business.EG')} selected={country === 'EG'} onPress={() => setCountry('EG')} />
-        <Choice testID="country-SA" title={t('business.SA')} selected={country === 'SA'} onPress={() => setCountry('SA')} />
+        <Choice compact testID="country-EG" emoji="🇪🇬" title={t('business.EG')} selected={country === 'EG'} onPress={() => setCountry('EG')} />
+        <Choice compact testID="country-SA" emoji="🇸🇦" title={t('business.SA')} selected={country === 'SA'} onPress={() => setCountry('SA')} />
       </View>
-      <Text variant="label">{t('business.type')}</Text>
+
+      <SectionTitle>{t('business.type')}</SectionTitle>
       <View className="gap-3">
-        <Choice testID="type-shop" icon="store" title={t('business.shop')} hint={t('business.shopHint')} selected={type === 'shop'} onPress={() => setType('shop')} />
-        <Choice testID="type-trading" icon="truck" title={t('business.trading')} hint={t('business.tradingHint')} selected={type === 'trading'} onPress={() => setType('trading')} />
+        <Choice testID="type-shop" icon="store" hue="amber" title={t('business.shop')} hint={t('business.shopHint')} selected={type === 'shop'} onPress={() => setType('shop')} />
+        <Choice testID="type-trading" icon="truck" hue="sky" title={t('business.trading')} hint={t('business.tradingHint')} selected={type === 'trading'} onPress={() => setType('trading')} />
       </View>
-      <Text variant="label">{t('business.vat')}</Text>
-      <View className="flex-row gap-3">
-        <Choice testID="vat-no" title={t('common.no')} selected={!vat} onPress={() => setVat(false)} />
-        <Choice testID="vat-yes" title={t('common.yes')} hint={t('business.vatRate', { rate })} selected={vat} onPress={() => setVat(true)} />
-      </View>
-      {vat ? (
-        <TextField label={t('business.vatNumber')} value={vatNumber} onChangeText={(v) => setVatNumber(digitsOnly(v))} keyboardType="number-pad" ltr error={errors.vat} />
-      ) : (
-        <Text variant="caption">{t('business.vatHint')}</Text>
-      )}
-    </Screen>
+
+      <SectionTitle>{t('business.vat')}</SectionTitle>
+      <Card>
+        <View className="gap-3">
+          <View className="flex-row gap-3">
+            <Choice compact testID="vat-no" title={t('common.no')} selected={!vat} onPress={() => setVat(false)} />
+            <Choice compact testID="vat-yes" title={t('common.yes')} hint={t('business.vatRate', { rate })} selected={vat} onPress={() => setVat(true)} />
+          </View>
+          {vat ? (
+            <TextField label={t('business.vatNumber')} value={vatNumber} onChangeText={(v) => setVatNumber(digitsOnly(v))} keyboardType="number-pad" ltr error={errors.vat} />
+          ) : (
+            <Text variant="caption">{t('business.vatHint')}</Text>
+          )}
+        </View>
+      </Card>
+    </OnboardingScreen>
   );
 }

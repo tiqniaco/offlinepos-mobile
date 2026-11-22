@@ -3,7 +3,7 @@ import { View, Switch } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { eq } from 'drizzle-orm';
-import { Screen, Text, Button, TextField, Choice, colors } from '../../ui';
+import { Screen, Text, Button, TextField, Choice, SectionTitle, Card, Banner, colors } from '../../ui';
 import { getDb } from '../../db/client';
 import { users } from '../../db/schema';
 import { addUser, listRoles, updateUser, type RoleRow } from '../../domain/auth/users';
@@ -59,14 +59,24 @@ export default function UserForm() {
 
   return (
     <Screen back title={id ? name : t('users.add')} footer={<Button testID="user-save" title={t('common.save')} loading={busy} onPress={save} />}>
-      <TextField testID="user-name" label={t('users.name')} value={name} onChangeText={setName} latinDigits={false} />
-      <Text variant="label">{t('users.role')}</Text>
+      <TextField testID="user-name" icon="users" label={t('users.name')} value={name} onChangeText={setName} latinDigits={false} />
+      <SectionTitle>{t('users.role')}</SectionTitle>
       <View className="gap-2">
         {roles.map((r) => (
-          <Choice key={r.id} testID={`role-${r.key}`} title={r.name} selected={roleId === r.id} onPress={() => setRoleId(r.id)} />
+          <Choice
+            key={r.id}
+            testID={`role-${r.key}`}
+            icon={r.key === 'owner' ? 'shield' : r.key === 'manager' ? 'users' : 'card'}
+            hue={r.key === 'owner' ? 'teal' : r.key === 'manager' ? 'sky' : 'amber'}
+            title={r.name}
+            selected={roleId === r.id}
+            onPress={() => setRoleId(r.id)}
+          />
         ))}
       </View>
+      <SectionTitle>{t('users.pin')}</SectionTitle>
       <TextField
+        icon="lock"
         testID="user-pin"
         label={id ? t('users.changePin') : t('users.pin')}
         value={pin}
@@ -76,12 +86,14 @@ export default function UserForm() {
         ltr
       />
       {id && id !== actor.id ? (
-        <View className="flex-row items-center justify-between rounded-card bg-paper-card px-4 py-3">
-          <Text variant="subtitle">{active ? t('users.disable') : t('users.enable')}</Text>
-          <Switch value={!active} onValueChange={(v) => setActive(!v)} trackColor={{ true: colors.rose[500], false: colors.paper.line }} />
-        </View>
+        <Card>
+          <View className="flex-row items-center justify-between">
+            <Text variant="subtitle">{active ? t('users.disable') : t('users.enable')}</Text>
+            <Switch value={!active} onValueChange={(v) => setActive(!v)} trackColor={{ true: colors.rose[500], false: colors.paper.line }} />
+          </View>
+        </Card>
       ) : null}
-      {err ? <Text className="text-rose-700">{err}</Text> : null}
+      {err ? <Banner tone="danger" text={err} /> : null}
     </Screen>
   );
 }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Switch } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { Screen, Text, Choice, colors } from '../../ui';
+import { Screen, Text, Choice, SectionTitle, Card, IconBadge, Banner, colors } from '../../ui';
 import { getDb } from '../../db/client';
 import { changeSetting } from '../../domain/settings/settings';
 import { updateUser } from '../../domain/auth/users';
@@ -47,19 +47,26 @@ export default function Security() {
 
   return (
     <Screen back title={t('more.security')}>
-      <Text variant="label">{t('security.autoLock')}</Text>
-      <View className="gap-2">
+      {bioAvailable ? (
+        <Card>
+          <View className="flex-row items-center gap-3">
+            <IconBadge name="fingerprint" hue="teal" />
+            <Text variant="subtitle" className="flex-1">
+              {t('security.biometric')}
+            </Text>
+            <Switch value={bio} onValueChange={(v) => void toggleBio(v)} trackColor={{ true: colors.teal[500], false: colors.paper.line }} />
+          </View>
+        </Card>
+      ) : null}
+      <SectionTitle>{t('security.autoLock')}</SectionTitle>
+      <View className="flex-row flex-wrap gap-2">
         {OPTIONS.map((n) => (
-          <Choice key={n} title={n === 0 ? t('security.never') : t('security.minutes', { n })} selected={minutes === n} onPress={() => void setLock(n)} />
+          <View key={n} style={{ width: '48%' }}>
+            <Choice compact title={n === 0 ? t('security.never') : t('security.minutes', { n })} selected={minutes === n} onPress={() => void setLock(n)} />
+          </View>
         ))}
       </View>
-      {bioAvailable ? (
-        <View className="flex-row items-center justify-between rounded-card bg-paper-card px-4 py-3">
-          <Text variant="subtitle">{t('security.biometric')}</Text>
-          <Switch value={bio} onValueChange={(v) => void toggleBio(v)} trackColor={{ true: colors.teal[500], false: colors.paper.line }} />
-        </View>
-      ) : null}
-      {err ? <Text className="text-rose-700">{err}</Text> : null}
+      {err ? <Banner tone="danger" text={err} /> : null}
     </Screen>
   );
 }

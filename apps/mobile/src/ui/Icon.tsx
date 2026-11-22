@@ -4,10 +4,11 @@
  * Directional icons are mirrored automatically in RTL.
  */
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
-import { I18nManager } from 'react-native';
+import { I18nManager, Platform } from 'react-native';
+import i18n from 'i18next';
 import colors from './colors.json';
 
-export type IconName = 'home' | 'more' | 'phone' | 'shield' | 'users' | 'lock' | 'globe' | 'card' | 'info' | 'chevron' | 'back' | 'fingerprint' | 'check' | 'store' | 'truck' | 'book' | 'cloudOff' | 'plus' | 'warning' | 'list';
+export type IconName = 'home' | 'more' | 'phone' | 'shield' | 'users' | 'lock' | 'globe' | 'card' | 'info' | 'chevron' | 'back' | 'fingerprint' | 'check' | 'store' | 'truck' | 'book' | 'cloudOff' | 'plus' | 'warning' | 'list' | 'backspace';
 
 const MIRRORED: IconName[] = ['chevron', 'back'];
 
@@ -15,7 +16,8 @@ export function Icon({ name, size = 24, color = colors.teal[600], tint }: { name
   const fill = tint ?? color + '26'; // ~15% alpha of the stroke colour
   const sw = 1.8;
   const p = { stroke: color, strokeWidth: sw, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, fill: 'none' };
-  const flip = I18nManager.isRTL && MIRRORED.includes(name) ? { transform: [{ scaleX: -1 }] } : undefined;
+  const rtl = Platform.OS === 'web' ? i18n.language !== 'en' : I18nManager.isRTL;
+  const flip = rtl && MIRRORED.includes(name) ? { transform: [{ scaleX: -1 }] } : undefined;
   const body = (() => {
     switch (name) {
       case 'home':
@@ -54,6 +56,8 @@ export function Icon({ name, size = 24, color = colors.teal[600], tint }: { name
         return (<><Path d="M12 6.5C10 5 7 4.6 3.5 5.3v13C7 17.7 10 18 12 19.5c2-1.5 5-1.8 8.5-1.2v-13C17 4.6 14 5 12 6.5z" fill={fill} /><Path d="M12 6.5C10 5 7 4.6 3.5 5.3v13C7 17.7 10 18 12 19.5m0-13c2-1.5 5-1.9 8.5-1.2v13c-3.5-.6-6.5-.3-8.5 1.2m0-13v13" {...p} /></>);
       case 'cloudOff':
         return (<><Path d="M7 18h10.5a4 4 0 0 0 .7-7.9A6 6 0 0 0 7.1 9 4.5 4.5 0 0 0 7 18z" fill={fill} /><Path d="M7 18h10.5a4 4 0 0 0 .7-7.9A6 6 0 0 0 7.1 9 4.5 4.5 0 0 0 7 18zM3 3l18 18" {...p} /></>);
+      case 'backspace':
+        return (<><Path d="M9 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6-7z" fill={fill} /><Path d="M9 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6-7zM12 9.5l5 5M17 9.5l-5 5" {...p} /></>);
       case 'plus':
         return <Path d="M12 5v14M5 12h14" {...p} strokeWidth={2.2} />;
       case 'list':

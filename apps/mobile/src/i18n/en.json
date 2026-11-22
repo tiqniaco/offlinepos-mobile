@@ -23,7 +23,12 @@
     "start": "Let's start",
     "point1": "100% offline",
     "point2": "Invoices, printing, WhatsApp",
-    "point3": "Your data is encrypted on your phone"
+    "point3": "Your data is encrypted on your phone",
+    "badge": "Made for shops in Egypt & Saudi Arabia",
+    "point1Hint": "Sell and print even with no internet",
+    "point2Hint": "Receipt on the printer or PDF on WhatsApp",
+    "point3Hint": "A PIN lock for every employee",
+    "free": "Start free — 14-day full trial"
   },
   "phone": {
     "title": "Your mobile number",
@@ -39,7 +44,8 @@
     "resendIn": "You can request a new code in {{s}} s",
     "resend": "Send a new code",
     "verify": "Confirm",
-    "changePhone": "Change number"
+    "changePhone": "Change number",
+    "didntGet": "Didn't get the code?"
   },
   "chooseBusiness": {
     "title": "Your business",
@@ -63,7 +69,9 @@
     "vat": "Registered for VAT?",
     "vatHint": "If not, no tax is printed on your invoices.",
     "vatNumber": "VAT number",
-    "vatRate": "Rate: {{rate}}%"
+    "vatRate": "Rate: {{rate}}%",
+    "sectionInfo": "Business details",
+    "sectionTax": "Tax"
   },
   "owner": {
     "title": "Your owner account",
@@ -74,7 +82,10 @@
     "mismatch": "The PINs don't match",
     "weak": "That PIN is easy to guess, pick another",
     "finish": "Done — open Daftarak",
-    "creating": "Setting up your Daftarak…"
+    "creating": "Setting up your Daftarak…",
+    "sectionYou": "You",
+    "sectionPin": "PIN",
+    "pinNote": "You'll use it every time you open the app. You can enable biometrics later."
   },
   "lock": {
     "title": "Who's using the app?",
@@ -83,14 +94,27 @@
     "lockedFor": "Locked for now. Try again in {{time}}",
     "biometric": "Unlock with biometrics",
     "biometricPrompt": "Unlock Daftarak",
-    "switchUser": "Another user"
+    "switchUser": "Another user",
+    "welcomeBack": "Welcome back",
+    "chooseUser": "Choose your account"
   },
   "home": {
     "greeting": "Good morning, {{name}}",
     "greetingEvening": "Good evening, {{name}}",
     "todaySales": "Today's sales",
     "nextPhaseTitle": "Selling and products arrive in the next update",
-    "nextPhaseBody": "The foundation is ready: account, lock, users and licence. Products, selling and printing come in the next phase."
+    "nextPhaseBody": "The foundation is ready: account, lock, users and licence. Products, selling and printing come in the next phase.",
+    "setupTitle": "Set up Daftarak",
+    "setupProgress": "{{done}} of {{total}} done",
+    "taskOwner": "Owner account created",
+    "taskTeam": "Add your staff, each with a PIN",
+    "taskLock": "Turn on biometric unlock",
+    "taskProducts": "Add your products",
+    "soon": "Soon",
+    "safeTitle": "Your data is safe",
+    "safeBody": "Encrypted and stored on your phone, works offline.",
+    "offline": "Works offline",
+    "plan": "{{name}} plan"
   },
   "licence": {
     "trial": "Trial: {{days}} days left",
@@ -121,7 +145,10 @@
     "subscription": "Subscription",
     "about": "About",
     "lockNow": "Lock now",
-    "audit": "Activity log"
+    "audit": "Activity log",
+    "sectionAccount": "Account & team",
+    "sectionApp": "App",
+    "lockHint": "The screen locks; nobody gets in without a PIN"
   },
   "users": {
     "title": "Users",
@@ -134,7 +161,11 @@
     "biometric": "Biometric unlock",
     "changePin": "Change PIN",
     "lastOwner": "At least one owner must stay active",
-    "noPermission": "You don't have permission for this. Ask the manager."
+    "noPermission": "You don't have permission for this. Ask the manager.",
+    "empty": "No other users yet",
+    "emptyHint": "Add a cashier or manager, each with their own PIN",
+    "disabled": "Disabled",
+    "you": "You"
   },
   "security": {
     "autoLock": "Auto-lock after",
@@ -154,7 +185,14 @@
     "never": "Not yet",
     "checking": "Updating…",
     "updated": "Updated",
-    "offline": "No internet right now — we'll retry later. Your work continues normally."
+    "offline": "No internet right now — we'll retry later. Your work continues normally.",
+    "days": "{{n}} days left",
+    "features": "Features",
+    "limits": "Limits",
+    "usersLimit": "Users",
+    "productsLimit": "Products",
+    "invoicesLimit": "Invoices / month",
+    "unlimited": "Unlimited"
   },
   "errors": {
     "network": "No internet connection. Check it and try again.",
@@ -186,5 +224,8 @@
       "clock_rollback": "Phone clock went back",
       "override_manager_pin": "Manager override"
     }
+  },
+  "onboarding": {
+    "step": "Step {{n}} of {{total}}"
   }
 }
