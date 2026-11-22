@@ -1,7 +1,7 @@
 import { Pressable, ScrollView, View } from 'react-native';
 import { fonts } from '../../ui/fonts';
 import { useTranslation } from 'react-i18next';
-import { Text, Hero, Avatar, Card, IconBadge, Icon, colors, type IconName, type Hue } from '../../ui';
+import { Text, Hero, Avatar, Card, IconBadge, Icon, Button, colors, type IconName, type Hue } from '../../ui';
 
 export interface SetupTask {
   key: string;
@@ -34,6 +34,7 @@ export function HomeView({
   tasks,
   onLock,
   stats,
+  onSell,
 }: {
   greeting: string;
   userName: string;
@@ -45,6 +46,7 @@ export function HomeView({
   tasks: SetupTask[];
   onLock: () => void;
   stats?: { key: string; label: string; value: string; icon: IconName; hue: Hue; onPress?: () => void }[];
+  onSell?: () => void;
 }) {
   const { t } = useTranslation();
   const done = tasks.filter((x) => x.done).length;
@@ -75,6 +77,7 @@ export function HomeView({
 
       <View className="gap-4 px-5" style={{ marginTop: -14 }}>
         {banner}
+        {onSell ? <Button testID="home-sell" icon="scan" title={t('home.startSale')} onPress={onSell} /> : null}
         {stats && stats.length ? (
           <View style={{ flexDirection: 'row', gap: 10 }}>
             {stats.map((st) => (

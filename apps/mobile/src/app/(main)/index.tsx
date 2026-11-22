@@ -7,6 +7,8 @@ import { getDb } from '../../db/client';
 import { activeUserCount } from '../../domain/auth/users';
 import { inventorySummary, type InventorySummary } from '../../domain/inventory/products';
 import { money } from '../../lib/format';
+import { todaySummary } from '../../domain/sales/sales';
+import { businessDay } from '@daftarak/shared';
 import { LicenceBanner } from '../../features/LicenceBanner';
 import { HomeView, type SetupTask } from '../../features/home/HomeView';
 import { dateLabel } from '../../lib/format';
@@ -18,12 +20,15 @@ export default function Home() {
   const licence = useApp((s) => s.licence);
   const [users, setUsers] = useState(1);
   const [inv, setInv] = useState<InventorySummary | null>(null);
+  const [today, setToday] = useState<Awaited<ReturnType<typeof todaySummary>> | null>(null);
+  const tz = useApp((s) => s.settings.timezone ?? 'Africa/Cairo');
 
   useFocusEffect(
     useCallback(() => {
       void activeUserCount(getDb()).then(setUsers);
       void inventorySummary(getDb()).then(setInv);
-    }, []),
+      void todaySummary(getDb(), businessDay(Date.now(), tz)).then(setToday);
+    }, [tz]),
   );
 
   const plan = DEFAULT_PLANS.find((p) => p.code === licence?.plan);
@@ -50,14 +55,16 @@ export default function Home() {
       banner={showBanner ? <LicenceBanner /> : null}
       tasks={tasks}
       onLock={() => useApp.getState().lock()}
+      onSell={user.permissions.includes('sales.create') ? () => router.push('/(main)/sell') : undefined}
       stats={
         inv && inv.products > 0
           ? [
+              ...(today
+                ? [{ key: 's', label: t('home.todayInvoices', { n: today.invoices }), value: money(today.salesMinor - today.returnsMinor, business?.currency ?? 'EGP', i18n.language), icon: 'card' as const, hue: 'primary' as const, onPress: () => router.push('/sales') }]
+                : []),
               { key: 'p', label: t('home.statProducts'), value: String(inv.products), icon: 'box' as const, hue: 'primary' as const, onPress: () => router.push('/(main)/products') },
               { key: 'l', label: t('home.statLow'), value: String(inv.lowStock), icon: 'warning' as const, hue: inv.lowStock ? ('amber' as const) : ('leaf' as const), onPress: () => router.push('/(main)/products') },
-              ...(user.permissions.includes('cost.view')
-                ? [{ key: 'v', label: t('home.statValue'), value: money(inv.stockValueMinor, business?.currency ?? 'EGP', i18n.language), icon: 'layers' as const, hue: 'sky' as const }]
-                : []),
+
             ]
           : undefined
       }

@@ -11,6 +11,50 @@ import { HomeView } from '../features/home/HomeView';
 import { MoreView } from '../features/more/MoreView';
 import { Banner, applyTheme, applyFont, useTheme, type PaletteId, type Appearance } from '../ui';
 import { AppearanceView } from '../features/settings/AppearanceView';
+import { PosView } from '../features/sales/PosView';
+import { ReceiptView } from '../features/printing/ReceiptView';
+import { DEFAULT_RECEIPT } from '../domain/settings/settings';
+import { priceCart, zatcaTlvBase64, zatcaTimestamp } from '@daftarak/shared';
+import { View } from 'react-native';
+
+const SAMPLE_CART = [
+  { key: 'a', productId: 'a', productUnitId: 'a', name: 'شاي العروسة 250 جم', unitName: 'قطعة', qtyMilli: 3000, factorMilli: 1000, unitPriceMinor: 2200, catalogPriceMinor: 2200, taxRateBp: 1400 },
+  { key: 'b', productId: 'b', productUnitId: 'b', name: 'زيت عافية 800 مل', unitName: 'زجاجة', qtyMilli: 1000, factorMilli: 1000, unitPriceMinor: 7450, catalogPriceMinor: 7450, taxRateBp: 1400, discount: { type: 'percent' as const, bp: 500 } },
+  { key: 'c', productId: 'c', productUnitId: 'c', name: 'أرز الضحى 1 كيلو', unitName: 'كرتونة', qtyMilli: 1000, factorMilli: 12000, unitPriceMinor: 39000, catalogPriceMinor: 39000, taxRateBp: 1400 },
+];
+const SAMPLE_RECEIPT = {
+  kind: 'INVOICE' as const,
+  title: 'فاتورة ضريبية مبسطة',
+  number: 'INV-A-000123',
+  date: Date.UTC(2026, 10, 22, 14, 35),
+  businessName: 'سوبر ماركت النور',
+  address: 'الرياض — حي النخيل، شارع التخصصي',
+  phones: ['966501234567'],
+  vatNumber: '310122393500003',
+  logoPath: null,
+  cashier: 'أحمد',
+  customerName: 'محمود علي',
+  customerBalanceMinor: 12_500,
+  lines: [
+    { name: 'شاي العروسة 250 جم', qtyMilli: 3000, unit: 'قطعة', priceMinor: 2200, discountMinor: 0, totalMinor: 6600 },
+    { name: 'زيت عافية 800 مل', qtyMilli: 1000, unit: 'زجاجة', priceMinor: 7450, discountMinor: 373, totalMinor: 7077 },
+    { name: 'أرز الضحى 1 كيلو', qtyMilli: 1000, unit: 'كرتونة', priceMinor: 39000, discountMinor: 0, totalMinor: 39000 },
+  ],
+  discountMinor: 373,
+  netMinor: 45_802,
+  taxMinor: 6875,
+  taxRatePct: 15,
+  roundingMinor: 0,
+  totalMinor: 52_677,
+  creditMinor: 0,
+  changeMinor: 7323,
+  tenderedMinor: 60_000,
+  payments: [{ method: 'cash', label: null, amountMinor: 52_677 }],
+  voided: false,
+  qr: zatcaTlvBase64({ sellerName: 'سوبر ماركت النور', vatNumber: '310122393500003', timestamp: zatcaTimestamp(Date.UTC(2026, 10, 22, 14, 35)), totalWithVatMinor: 52_677, vatMinor: 6875 }),
+  currency: 'SAR' as const,
+  template: DEFAULT_RECEIPT,
+};
 import { dateLabel } from '../lib/format';
 import { ProductsListView } from '../features/inventory/ProductsListView';
 import { ProductDetailView } from '../features/inventory/ProductDetailView';
@@ -56,6 +100,43 @@ export default function DevGallery() {
       />
     );
   if (view === 'appearance') return <AppearanceView palette={theme.palette} appearance={theme.appearance} font={theme.font} onFont={(f) => void applyFont(f)} lang="ar" onPalette={(p) => applyTheme(p, theme.appearance, false)} onAppearance={(a) => applyTheme(theme.palette, a, false)} />;
+  if (view === 'pos' || view === 'pos-empty')
+    return (
+      <PosView
+        topInset={0}
+        lines={view === 'pos' ? SAMPLE_CART : []}
+        priced={view === 'pos' ? priceCart({ lines: SAMPLE_CART, pricesIncludeVat: true }) : null}
+        lastKey="c"
+        customerName={view === 'pos' ? 'محمود علي' : null}
+        customerNote={view === 'pos' ? 'عليه 125.00 ج.م' : null}
+        search=""
+        hits={[]}
+        currency="EGP"
+        lang="ar"
+        vatLabel="الضريبة 14%"
+        pricesIncludeVat
+        parkedCount={2}
+        onSearch={noop}
+        onSubmitSearch={noop}
+        onScan={noop}
+        onPickHit={noop}
+        onQty={noop}
+        onLine={noop}
+        onCustomer={noop}
+        onMenu={noop}
+        onPark={noop}
+        onPay={noop}
+        onDiscount={noop}
+      />
+    );
+  if (view === 'receipt58' || view === 'receipt80')
+    return (
+      <View style={{ backgroundColor: '#ddd', alignItems: 'flex-start', padding: 0 }}>
+        <View testID="receipt" collapsable={false}>
+          <ReceiptView d={SAMPLE_RECEIPT} dots={view === 'receipt58' ? 384 : 576} />
+        </View>
+      </View>
+    );
   if (view === 'products')
     return (
       <ProductsListView

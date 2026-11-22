@@ -1,0 +1,125 @@
+/**
+ * The thermal receipt, drawn in PRINTER DOTS (width = 384 for 58 mm, 576 for 80 mm). It is rendered
+ * off-screen, captured as an image and sent as ESC/POS raster — so Arabic shaping is always right.
+ * Pure black on white, no theme colours.
+ */
+import { Image, Text as RNText, View } from 'react-native';
+import { SvgXml } from 'react-native-svg';
+import i18n from 'i18next';
+import { formatMinor, formatQty } from '@daftarak/shared';
+import { fonts } from '../../ui';
+import type { ReceiptData } from './receiptData';
+import { qrSvg } from './qr';
+
+const INK = '#000000';
+
+function T({ s = 22, b = false, center = false, children, style }: { s?: number; b?: boolean; center?: boolean; children: React.ReactNode; style?: object }) {
+  return <RNText style={[{ color: INK, fontSize: s, lineHeight: Math.round(s * 1.45), fontFamily: b ? fonts.bold : fonts.medium, textAlign: center ? 'center' : 'auto' }, style]}>{children}</RNText>;
+}
+
+const Rule = ({ dashed = true }: { dashed?: boolean }) => <View style={{ borderTopWidth: 2, borderStyle: dashed ? 'dashed' : 'solid', borderColor: INK, marginVertical: 8 }} />;
+
+function Row({ label, value, s = 22, b = false }: { label: string; value: string; s?: number; b?: boolean }) {
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
+      <T s={s} b={b}>
+        {label}
+      </T>
+      <T s={s} b={b} style={{ writingDirection: 'ltr' }}>
+        {value}
+      </T>
+    </View>
+  );
+}
+
+export function ReceiptView({ d, dots }: { d: ReceiptData; dots: number }) {
+  const t = i18n.t.bind(i18n);
+  const wide = dots >= 512;
+  const m = (v: number) => formatMinor(v);
+  const cur = d.currency === 'SAR' ? 'ر.س' : 'ج.م';
+  // Digits only (no Arabic AM/PM) so the line never gets reordered by bidi rules.
+  const dt = new Date(d.date);
+  const p2 = (n: number) => String(n).padStart(2, '0');
+  const date = `${dt.getFullYear()}-${p2(dt.getMonth() + 1)}-${p2(dt.getDate())}  ${p2(dt.getHours())}:${p2(dt.getMinutes())}`;
+  return (
+    <View collapsable={false} style={{ width: dots, backgroundColor: '#FFFFFF', paddingHorizontal: 6, paddingVertical: 14 }}>
+      {d.template.showLogo && d.logoPath ? <Image source={{ uri: d.logoPath }} style={{ width: dots * 0.4, height: dots * 0.4, alignSelf: 'center', marginBottom: 6 }} resizeMode="contain" /> : null}
+      <T s={wide ? 36 : 30} b center>
+        {d.businessName}
+      </T>
+      {d.address ? (
+        <T s={20} center>
+          {d.address}
+        </T>
+      ) : null}
+      {d.phones.length ? (
+        <T s={20} center style={{ writingDirection: 'ltr' }}>
+          {d.phones.map((p) => (p.startsWith('20') ? `0${p.slice(2)}` : p.startsWith('966') ? `0${p.slice(3)}` : p)).join(' - ')}
+        </T>
+      ) : null}
+      {d.vatNumber ? (
+        <T s={20} center>
+          الرقم الضريبي: {d.vatNumber}
+        </T>
+      ) : null}
+      <Rule />
+      <T s={26} b center>
+        {d.voided ? `${d.title} — ملغاة` : d.title}
+      </T>
+      <Row s={20} label={d.number} value={date} />
+      {d.cashier ? <Row s={20} label="الكاشير" value={d.cashier} /> : null}
+      {d.customerName ? <Row s={20} label="العميل" value={d.customerName} /> : null}
+      <Rule />
+      {d.lines.map((l, i) => (
+        <View key={i} style={{ marginBottom: 6 }}>
+          <T s={22} b>
+            {l.name}
+          </T>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <T s={20}>{`${formatQty(l.qtyMilli)} ${l.unit} × ${m(l.priceMinor)}`}</T>
+            <T s={22} b style={{ writingDirection: 'ltr' }}>
+              {m(l.totalMinor)}
+            </T>
+          </View>
+          {d.template.showDiscount && l.discountMinor > 0 ? <T s={18}>{`خصم ${m(l.discountMinor)}`}</T> : null}
+        </View>
+      ))}
+      <Rule />
+      {d.template.showDiscount && d.discountMinor > 0 ? <Row label="الخصم" value={`-${m(d.discountMinor)}`} /> : null}
+      {d.template.showTax && d.taxRatePct != null ? (
+        <>
+          <Row label="الإجمالي بدون الضريبة" value={m(d.netMinor)} />
+          <Row label={`ضريبة القيمة المضافة ${d.taxRatePct}%`} value={m(d.taxMinor)} />
+        </>
+      ) : null}
+      {d.roundingMinor ? <Row label="تقريب" value={m(d.roundingMinor)} /> : null}
+      <View style={{ borderWidth: 3, borderColor: INK, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, marginVertical: 6 }}>
+        <Row s={wide ? 34 : 30} b label="الإجمالي" value={`${m(d.totalMinor)} ${cur}`} />
+      </View>
+      {d.payments.map((p, i) => (
+        <Row key={i} s={20} label={`${t(`pay.methods.${p.method}`)}${p.label ? ` (${p.label})` : ''}`} value={m(p.amountMinor)} />
+      ))}
+      {d.tenderedMinor > 0 && d.changeMinor > 0 ? (
+        <>
+          <Row s={20} label="المدفوع نقداً" value={m(d.tenderedMinor)} />
+          <Row s={22} b label="الباقي" value={m(d.changeMinor)} />
+        </>
+      ) : null}
+      {d.template.showBalance && d.customerBalanceMinor != null && d.customerBalanceMinor !== 0 ? <Row s={20} label="رصيد العميل" value={m(d.customerBalanceMinor)} /> : null}
+      {d.qr ? (
+        <View style={{ alignItems: 'center', marginTop: 10 }}>
+          <SvgXml xml={qrSvg(d.qr)} width={wide ? 240 : 200} height={wide ? 240 : 200} />
+        </View>
+      ) : null}
+      <Rule />
+      {d.template.footer ? (
+        <T s={22} center>
+          {d.template.footer}
+        </T>
+      ) : null}
+      <T s={16} center>
+        دفترك
+      </T>
+    </View>
+  );
+}

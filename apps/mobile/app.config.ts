@@ -16,6 +16,7 @@ const config: ExpoConfig = {
     infoPlist: {
       NSFaceIDUsageDescription: 'لفتح دفترك بالبصمة بدل الرقم السري',
       NSCameraUsageDescription: 'لقراءة الباركود وتصوير المنتجات',
+      NSBluetoothAlwaysUsageDescription: 'للطباعة على طابعة الفواتير بالبلوتوث',
       CFBundleAllowMixedLocalizations: true,
     },
   },
@@ -29,7 +30,7 @@ const config: ExpoConfig = {
     predictiveBackGestureEnabled: false,
     // Data stays on the phone and in our own encrypted backups (Phase 6), never in Google auto-backup.
     allowBackup: false,
-    permissions: ['CAMERA'],
+    permissions: ['CAMERA', 'BLUETOOTH', 'BLUETOOTH_ADMIN', 'BLUETOOTH_CONNECT', 'BLUETOOTH_SCAN', 'ACCESS_FINE_LOCATION'],
   },
   plugins: [
     'expo-router',
@@ -40,6 +41,7 @@ const config: ExpoConfig = {
     ['expo-local-authentication', { faceIDPermission: 'لفتح دفترك بالبصمة بدل الرقم السري' }],
     ['expo-image-picker', { cameraPermission: 'لقراءة الباركود وتصوير المنتجات', photosPermission: 'لاختيار صورة المنتج' }],
     'expo-document-picker',
+    ['react-native-ble-plx', { isBackgroundEnabled: false, modes: [], bluetoothAlwaysPermission: 'للطباعة على طابعة الفواتير بالبلوتوث', neverForLocation: true }],
     ['expo-splash-screen', { image: './assets/splash-icon.png', imageWidth: 160, backgroundColor: '#0F4CC7' }],
   ],
   experiments: { typedRoutes: true },
