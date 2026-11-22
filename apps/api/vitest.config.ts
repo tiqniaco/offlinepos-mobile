@@ -19,6 +19,7 @@ export default defineConfig({
             OTP_PEPPER: 'test-pepper',
             BACKUP_WRAP_KEY: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8',
             OTP_PROVIDER: 'console',
+            LICENCE_KID: '2026-01',
           },
         },
       };

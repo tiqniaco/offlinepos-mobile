@@ -11,10 +11,25 @@
   ],
   "vars": {
     "OTP_PROVIDER": "console",
-    "LICENCE_KID": "2026-01",
+    "LICENCE_KID": "dev",
     "ADMIN_ORIGIN": "http://localhost:5173",
     "SMSMISR_BASE_URL": "https://smsmisr.com/api/OTP/",
     "SMSMISR_ENVIRONMENT": "2"
+  },
+  "env": {
+    "production": {
+      "name": "daftarak-api",
+      "d1_databases": [
+        { "binding": "DB", "database_name": "daftarak", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
+      ],
+      "vars": {
+        "OTP_PROVIDER": "smsmisr",
+        "LICENCE_KID": "2026-01",
+        "ADMIN_ORIGIN": "https://admin.daftarak.app",
+        "SMSMISR_BASE_URL": "https://smsmisr.com/api/OTP/",
+        "SMSMISR_ENVIRONMENT": "1"
+      }
+    }
   }
   // Secrets (wrangler secret put …): LICENCE_SIGNING_KEY, ACCESS_TOKEN_SECRET, OTP_PEPPER,
   // BACKUP_WRAP_KEY, SMSMISR_USERNAME, SMSMISR_PASSWORD, SMSMISR_SENDER, SMSMISR_TEMPLATE.
