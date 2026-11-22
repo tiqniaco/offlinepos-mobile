@@ -1,3 +1,9 @@
 packages:
   - apps/*
   - packages/*
+
+# Native builds allowed during install (CI needs them for tests / wrangler).
+onlyBuiltDependencies:
+  - better-sqlite3
+  - esbuild
+  - workerd

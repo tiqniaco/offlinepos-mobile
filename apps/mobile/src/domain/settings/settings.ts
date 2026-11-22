@@ -1,7 +1,8 @@
 /** Typed access to the settings table (values seeded from country/type profile at onboarding). */
 import { eq } from 'drizzle-orm';
 import type { BusinessSettings } from '@daftarak/shared';
-import type { AppDb } from '../../db/client';
+import type { Db as AppDb } from '../../db/types';
+import { withTx } from '../../db/tx';
 import { settings } from '../../db/schema';
 import { appendAudit } from '../audit/audit';
 import { assertCanWrite } from '../licence/guard';
@@ -31,7 +32,7 @@ export async function changeSetting<K extends SettingKey>(
   const personal = key === 'language' || key === 'autoLockMinutes';
   if (!personal) assertCanWrite();
   const now = Date.now();
-  await db.transaction(async (tx) => {
+  await withTx(db, async (tx) => {
     const before = await tx.select().from(settings).where(eq(settings.key, key)).limit(1);
     await writeSettings(tx, { [key]: value } as Partial<AppSettings>, now);
     await appendAudit(tx, {

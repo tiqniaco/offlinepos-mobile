@@ -5,7 +5,7 @@
  */
 import { desc } from 'drizzle-orm';
 import { GENESIS_HASH, chainHash, uuidv7 } from '@daftarak/shared';
-import type { AppDb } from '../../db/client';
+import type { Db as AppDb } from '../../db/types';
 import { auditLog } from '../../db/schema';
 
 export type AuditAction =
@@ -20,7 +20,18 @@ export type AuditAction =
   | 'settings.change'
   | 'licence.mode_change'
   | 'clock.rollback'
-  | 'override.manager_pin';
+  | 'override.manager_pin'
+  | 'product.create'
+  | 'product.update'
+  | 'product.price_change'
+  | 'product.delete'
+  | 'product.restore'
+  | 'product.bulk_category'
+  | 'product.import'
+  | 'category.change'
+  | 'stock.adjust'
+  | 'stock.count'
+  | 'stock.rebuild';
 
 export interface AuditInput {
   action: AuditAction;

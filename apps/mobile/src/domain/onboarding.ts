@@ -6,7 +6,8 @@
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import { buildInitialSettings, COUNTRY_PROFILES, uuidv7, type AuthResponse, type CreateBusinessResponse, type DeviceInfo } from '@daftarak/shared';
-import type { AppDb } from '../db/client';
+import type { Db as AppDb } from '../db/types';
+import { withTx } from '../db/tx';
 import { business, devices, docSequences } from '../db/schema';
 import { api } from '../api/client';
 import { APP_VERSION } from '../config/env';
@@ -14,6 +15,7 @@ import { SECURE_KEYS, getOrCreateBackupKey, getOrCreateInstallId, setSecret } fr
 import { appendAudit } from './audit/audit';
 import { seedSystemRoles, insertUser } from './auth/users';
 import { setMeta } from './device';
+import { ensureInventorySeed } from './inventory/seed';
 import { writeSettings } from './settings/settings';
 import { storeLicence, refreshLicenceState } from './licence/service';
 
@@ -60,7 +62,7 @@ async function writeLocal(db: AppDb, auth: AuthResponse, reg: CreateBusinessResp
   const deviceCode = registration.deviceCode;
   const profile = COUNTRY_PROFILES[form.country];
   const plat = Platform.OS === 'ios' ? 'ios' : 'android';
-  await db.transaction(async (tx) => {
+  await withTx(db, async (tx) => {
     await setMeta(tx, 'device_id', deviceId);
     await setMeta(tx, 'device_code', deviceCode);
     await setMeta(tx, 'account_phone', auth.account.phone);
@@ -93,6 +95,7 @@ async function writeLocal(db: AppDb, auth: AuthResponse, reg: CreateBusinessResp
     await appendAudit(tx, { action: 'device.register', entity: 'devices', entityId: deviceId, after: { code: deviceCode }, deviceId, at: now });
     await insertUser(tx, { name: owner.name, pin: owner.pin, roleId: roleIds.owner, createdBy: null, deviceId, deviceCode, now, colorIndex: 0 });
   });
+  await ensureInventorySeed(db, { id: deviceId, code: deviceCode }, now);
   await setSecret(SECURE_KEYS.refreshToken, auth.refreshToken);
   await storeLicence(db, registration.licence, registration.serverTime);
   await refreshLicenceState(db);

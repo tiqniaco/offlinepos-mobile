@@ -4,7 +4,8 @@
  */
 import { and, asc, eq, isNull, count } from 'drizzle-orm';
 import { HybridLogicalClock, SYSTEM_ROLES, uuidv7, roleHas, type Permission } from '@daftarak/shared';
-import type { AppDb } from '../../db/client';
+import type { Db as AppDb } from '../../db/types';
+import { withTx } from '../../db/tx';
 import { roles, users } from '../../db/schema';
 import { appendAudit } from '../audit/audit';
 import { assertCanWrite, assertWithinLimit } from '../licence/guard';
@@ -46,7 +47,7 @@ export function hlcFor(deviceCode: string) {
   return hlc;
 }
 
-type Tx = Parameters<Parameters<AppDb['transaction']>[0]>[0];
+type Tx = AppDb;
 
 /** Seed the three system roles. Called once during onboarding. Returns role ids by key. */
 export async function seedSystemRoles(tx: Tx, ctx: { deviceId: string; deviceCode: string; now: number }) {
@@ -173,7 +174,7 @@ export async function addUser(
   const [{ n }] = (await db.select({ n: count() }).from(users).where(and(eq(users.isActive, true), isNull(users.deletedAt)))) as [{ n: number }];
   assertWithinLimit('users', n);
   const now = Date.now();
-  return db.transaction((tx) =>
+  return withTx(db, (tx) =>
     insertUser(tx, { ...input, createdBy: actor.id, deviceId: device.id, deviceCode: device.code, now, colorIndex: n }),
   );
 }
@@ -191,7 +192,7 @@ export async function updateUser(
   if (!onlySelfFields) requirePermission(actor, 'users.manage');
   assertCanWrite();
   const now = Date.now();
-  await db.transaction(async (tx) => {
+  await withTx(db, async (tx) => {
     const before = (await tx.select().from(users).where(eq(users.id, userId)).limit(1))[0];
     if (!before) throw new Error('user not found');
     const set: Partial<typeof users.$inferInsert> = { updatedAt: now, hlc: hlcFor(device.code).tick() };

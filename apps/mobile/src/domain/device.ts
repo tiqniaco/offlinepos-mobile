@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import type { AppDb } from '../db/client';
+import type { Db as AppDb } from '../db/types';
 import { kvMeta } from '../db/schema';
 
 export interface CurrentDevice {

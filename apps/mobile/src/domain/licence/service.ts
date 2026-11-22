@@ -4,7 +4,7 @@
  */
 import { eq } from 'drizzle-orm';
 import { CLOCK_TOLERANCE_MS, bumpMaxSeen, type LicenceState } from '@daftarak/shared';
-import type { AppDb } from '../../db/client';
+import type { Db as AppDb } from '../../db/types';
 import { licenceState } from '../../db/schema';
 import { SECURE_KEYS, deleteSecret, getSecret, setSecret } from '../../lib/secure';
 import { api, ApiError } from '../../api/client';

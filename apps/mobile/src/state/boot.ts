@@ -6,6 +6,7 @@ import { Platform } from 'react-native';
 import { getDb, openDatabase, DbNotEncryptedError } from '../db/client';
 import { business } from '../db/schema';
 import { getCurrentDevice } from '../domain/device';
+import { ensureInventorySeed } from '../domain/inventory/seed';
 import { loadSettings } from '../domain/settings/settings';
 import { checkinDue, refreshLicenceState, runCheckin } from '../domain/licence/service';
 import { subscribeLicence } from '../domain/licence/guard';
@@ -46,6 +47,7 @@ export async function boot(): Promise<void> {
     return;
   }
   const device = await getCurrentDevice(db);
+  if (device) await ensureInventorySeed(db, device);
   await refreshLicenceState(db);
   set({
     status: 'locked',
