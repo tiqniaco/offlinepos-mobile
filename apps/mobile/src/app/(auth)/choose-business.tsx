@@ -17,7 +17,7 @@ export default function ChooseBusiness() {
           key={b.id}
           onPress={() => {
             set({ existingBusinessId: b.id, businessForm: { name: b.name, country: b.country, type: b.type, vatRegistered: false, vatNumber: null } });
-            router.push('/owner');
+            router.push('/restore');
           }}
         >
           <View className="flex-row items-center gap-3">

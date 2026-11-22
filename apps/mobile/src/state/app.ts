@@ -14,6 +14,8 @@ export interface BusinessInfo {
   country: 'EG' | 'SA';
   type: 'shop' | 'trading';
   currency: 'EGP' | 'SAR';
+  /** Server-side business id (backups, billing). */
+  serverBusinessId: string;
 }
 
 interface AppState {

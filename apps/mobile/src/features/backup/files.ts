@@ -9,7 +9,8 @@ import { bytesToHex } from '@noble/hashes/utils.js';
 import { base64urlDecode, ObkReader, ObkWriter, readObkHeader, type ObkHeader } from '@daftarak/shared';
 import { getSqlite, DB_NAME } from '../../db/client';
 
-const SLICE = 256 * 1024;
+// 64 KB per slice: ≈ 7 ms in Node, ~25–40 ms expected on Hermes — far below the 100 ms freeze budget.
+const SLICE = 64 * 1024;
 const yieldUi = () => new Promise<void>((r) => setTimeout(r, 0));
 const IMAGES = 'product-images';
 

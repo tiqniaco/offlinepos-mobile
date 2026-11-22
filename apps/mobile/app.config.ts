@@ -57,6 +57,9 @@ const config: ExpoConfig = {
   experiments: { typedRoutes: true },
   extra: {
     apiUrl: process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:8787',
+    // Store billing (RevenueCat public SDK keys; empty → in-app purchase hidden, activation codes still work).
+    revenuecat: { android: process.env.REVENUECAT_ANDROID_KEY ?? '', ios: process.env.REVENUECAT_IOS_KEY ?? '' },
+    supportWhatsApp: process.env.SUPPORT_WHATSAPP ?? '',
     // Real ad unit ids are injected at release build time; empty → Google test units.
     admob: {
       bannerAndroid: process.env.ADMOB_BANNER_ANDROID ?? '',

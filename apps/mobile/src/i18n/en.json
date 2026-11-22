@@ -54,7 +54,7 @@
     "title": "Your business",
     "body": "This number already has a business.",
     "useExisting": "Use “{{name}}” on this phone",
-    "existingWarning": "The old phone becomes read-only. Old data moves over once backup & restore ships (soon). Until then this phone starts empty.",
+    "existingWarning": "We'll restore your data from the latest backup; the old phone becomes read-only.",
     "createNew": "Create a new business"
   },
   "business": {
@@ -174,7 +174,9 @@
     "shifts": "Shift & cash drawer",
     "vouchers": "Receipts & payments",
     "reports": "Reports & dashboard",
-    "offers": "Offers & coupons"
+    "offers": "Offers & coupons",
+    "backup": "Backup",
+    "sessions": "Signed-in phones"
   },
   "users": {
     "title": "Users",
@@ -218,7 +220,33 @@
     "usersLimit": "Users",
     "productsLimit": "Products",
     "invoicesLimit": "Invoices / month",
-    "unlimited": "Unlimited"
+    "unlimited": "Unlimited",
+    "choose": "Choose your plan",
+    "monthly": "Monthly",
+    "yearly": "Yearly (save)",
+    "perMonth": "month",
+    "perYear": "year",
+    "subscribe": "Subscribe",
+    "current": "Your current plan",
+    "restore": "Restore purchases",
+    "restored": "Subscription checked",
+    "thanks": "Thank you! Your plan activates in a few seconds.",
+    "codeTitle": "Have an activation code?",
+    "codeHint": "Paid a sales rep or in cash? Enter your code.",
+    "redeem": "Activate",
+    "codeOk": "{{plan}} plan activated ✓",
+    "contactSales": "Message us on WhatsApp",
+    "salesMessage": "Hi, I'd like to subscribe to Daftarak for: {{name}}",
+    "limitsLine": "Up to {{users}} users · {{products}} products",
+    "f": {
+      "noAds": "No ads",
+      "multiUnit": "Multiple units (carton/piece)",
+      "offers": "Offers & coupons",
+      "expenses": "Expenses & shifts",
+      "expiry": "Expiry & batches",
+      "advReports": "Advanced reports & profit",
+      "customRoles": "Custom roles"
+    }
   },
   "errors": {
     "network": "No internet connection. Check it and try again.",
@@ -231,7 +259,11 @@
     "otp_send_failed": "We couldn't send the SMS. Try again shortly.",
     "unknown": "Something went wrong. Try again.",
     "required": "This field is required",
-    "dbNotEncrypted": "This build has no database encryption, so it won't run to protect your data."
+    "dbNotEncrypted": "This build has no database encryption, so it won't run to protect your data.",
+    "step_up_required": "Please confirm with a new code sent to your phone",
+    "code_invalid": "This code is not valid",
+    "code_used": "This code was already used",
+    "backup_not_uploaded": "The backup didn't finish uploading, try again"
   },
   "audit": {
     "intact": "The log is intact — nothing was edited",
@@ -673,7 +705,11 @@
     "audit": "Activity log",
     "alertTitle": "Records were changed",
     "alertBody": "Today's check found a record changed after saving. Open the integrity check to see which one.",
-    "open": "Open check"
+    "open": "Open check",
+    "anchorsTitle": "Proof from the server",
+    "anchorsOk": "{{n}} daily fingerprints recorded on the server and matching (latest {{at}})",
+    "noAnchors": "No daily fingerprints yet — recorded at the first online check-in.",
+    "anchorBroken": "Data before {{at}} was changed after it was recorded on the server (at record {{seq}})."
   },
   "printers": {
     "title": "Printers",
@@ -1164,6 +1200,81 @@
       "overShort": "Cash over/short",
       "rounding": "Rounding",
       "net": "Net profit"
+    }
+  },
+  "restore": {
+    "title": "Restore your data",
+    "subtitle": "Choose the backup to restore on this phone",
+    "start": "Restore this backup",
+    "startEmpty": "Start without data",
+    "verify": "Confirm and restore",
+    "loading": "Loading backups…",
+    "none": "No cloud backups yet. You can start without data.",
+    "counts": "{{inv}} invoices · {{prod}} products",
+    "device": "phone {{code}}",
+    "chosen": "Chosen",
+    "otpNote": "For safety we'll text you a code before decrypting the backup.",
+    "otpSent": "Enter the code we sent you",
+    "downloading": "Downloading…",
+    "decrypting": "Decrypting and verifying…",
+    "installing": "Installing your data…",
+    "keepOpen": "Keep the app open until we finish",
+    "from": "Backup of {{day}} from phone {{code}}",
+    "k": {
+      "invoices": "Invoices",
+      "products": "Products",
+      "customers": "Customers",
+      "suppliers": "Suppliers"
+    },
+    "lastInvoice": "Last invoice: {{n}}",
+    "oldPhone": "After restoring, the old phone becomes read-only.",
+    "confirm": "Yes, restore my data",
+    "decryptFailed": "We couldn't open this backup. It may be damaged — try an older one."
+  },
+  "backup": {
+    "title": "Backup",
+    "subtitle": "Encrypted before it leaves the phone",
+    "last": "Last backup",
+    "never": "No backup yet",
+    "kind": {
+      "auto": "automatic",
+      "manual": "manual",
+      "local": "saved on phone"
+    },
+    "cloudCount": "{{n}} backups in the cloud",
+    "staleHint": "No recent backup. Back up now so you don't lose data if the phone is lost.",
+    "autoHint": "The app backs up automatically every day on Wi-Fi, without interrupting your work.",
+    "now": "Back up now",
+    "building": "Preparing and encrypting…",
+    "uploading": "Uploading…",
+    "keepWorking": "You can keep working",
+    "done": "Backup uploaded ✓",
+    "failed": "Backup failed. Check the internet and try again.",
+    "offline": "Offline",
+    "local": "Save an encrypted copy on the phone",
+    "excel": "Export all data to Excel",
+    "privacy": "Only the business owner can open a backup, after confirming with a code."
+  },
+  "sessions": {
+    "title": "Signed-in phones",
+    "subtitle": "Lost a phone? Sign it out here",
+    "thisPhone": "this phone",
+    "lastUsed": "Last used {{at}}",
+    "revoke": "Sign out",
+    "revokeConfirm": "That phone is signed out and becomes read-only when it next connects."
+  },
+  "upgrade": {
+    "limitTitle": "You reached the free plan limit",
+    "limitBody": "All your data stays. To add more, subscribe to a plan.",
+    "featureTitle": "This is a paid feature",
+    "featureBody": "Subscribe to unlock it — and ads disappear too.",
+    "see": "See plans",
+    "later": "Later",
+    "what": {
+      "products": "Products",
+      "parties": "Customers & suppliers",
+      "invoices_month": "Invoices this month",
+      "users": "Users"
     }
   }
 }

@@ -1,0 +1,170 @@
+import { useEffect, useState } from 'react';
+import { View } from 'react-native';
+import { router } from 'expo-router';
+import { useTranslation } from 'react-i18next';
+import { OnboardingScreen, Text, Button, Card, Banner, IconBadge, OtpInput, Chip, colors, fonts } from '../../ui';
+import { useOnboarding } from '../../state/app';
+import { api, ApiError } from '../../api/client';
+import { setSecret, SECURE_KEYS } from '../../lib/secure';
+import { useAccessToken } from '../../lib/session';
+import { deviceInfo } from '../../domain/onboarding';
+import { storeLicence, refreshLicenceState } from '../../domain/licence/service';
+import { getDb } from '../../db/client';
+import { boot } from '../../state/boot';
+import { applyRestore, stageRestore, type RestorePreview } from '../../features/backup/service';
+import { setRestoreBusinessId } from '../../features/backup/restoreState';
+import { dayText } from '../../features/export/builders';
+import { errorMessage } from '../../lib/errors';
+import { haptic } from '../../ui/haptics';
+
+type Backup = Awaited<ReturnType<typeof api.listBackups>>['backups'][number];
+type Step = 'list' | 'otp' | 'working' | 'preview' | 'installing';
+
+const mb = (n: number) => `${(n / 1024 / 1024).toFixed(n > 10 * 1024 * 1024 ? 0 : 1)} MB`;
+const day = (ms: number) => {
+  const d = new Date(ms);
+  return dayText(d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate());
+};
+
+/** New phone: restore the business from its encrypted cloud backup (PLAN.md §9.4). */
+export default function Restore() {
+  const { t } = useTranslation();
+  const auth = useOnboarding((s) => s.auth);
+  const businessId = useOnboarding((s) => s.existingBusinessId);
+  const [backups, setBackups] = useState<Backup[] | null>(null);
+  const [pick, setPick] = useState<string | null>(null);
+  const [step, setStep] = useState<Step>('list');
+  const [code, setCode] = useState('');
+  const [progress, setProgress] = useState<{ p: number; stage: string }>({ p: 0, stage: '' });
+  const [preview, setPreview] = useState<RestorePreview | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!auth || !businessId) return;
+    setRestoreBusinessId(businessId);
+    useAccessToken(auth.accessToken, auth.accessExpiresAt);
+    void api.listBackups(auth.accessToken, businessId).then(
+      (r) => {
+        setBackups(r.backups);
+        setPick(r.backups[0]?.id ?? null);
+      },
+      (e) => setErr(errorMessage(t, e)),
+    );
+  }, [auth, businessId, t]);
+  if (!auth || !businessId) return null;
+
+  const sendOtp = async () => {
+    setErr(null);
+    try {
+      await api.stepUpRequest(auth.accessToken);
+      setStep('otp');
+    } catch (e) {
+      setErr(errorMessage(t, e));
+    }
+  };
+  const verify = async () => {
+    setErr(null);
+    try {
+      await api.stepUpVerify(auth.accessToken, code);
+      setStep('working');
+      const pv = await stageRestore(auth.accessToken, pick!, (p, stage) => setProgress({ p, stage }));
+      setPreview(pv);
+      setStep('preview');
+    } catch (e) {
+      setErr(e instanceof ApiError ? errorMessage(t, e) : t('restore.decryptFailed'));
+      setStep(e instanceof ApiError && e.code === 'otp_invalid' ? 'otp' : 'list');
+    }
+  };
+  const install = async () => {
+    setErr(null);
+    setStep('installing');
+    try {
+      const reg = await applyRestore(auth.accessToken, businessId, await deviceInfo());
+      await setSecret(SECURE_KEYS.refreshToken, auth.refreshToken);
+      await storeLicence(getDb(), reg.registration.licence, reg.registration.serverTime);
+      await refreshLicenceState(getDb());
+      haptic.success();
+      await boot(); // restored users → lock screen
+    } catch (e) {
+      setErr(errorMessage(t, e));
+      setStep('preview');
+    }
+  };
+
+  return (
+    <OnboardingScreen
+      step={3}
+      stepLabel={t('onboarding.step', { n: 3, total: 4 })}
+      title={t('restore.title')}
+      subtitle={t('restore.subtitle')}
+      footer={
+        step === 'list' ? (
+          <>
+            <Button testID="restore-start" icon="download" title={t('restore.start')} disabled={!pick} onPress={() => void sendOtp()} />
+            <Button kind="ghost" title={t('restore.startEmpty')} onPress={() => router.push('/owner')} />
+          </>
+        ) : step === 'otp' ? (
+          <Button title={t('restore.verify')} disabled={code.length !== 6} onPress={() => void verify()} />
+        ) : step === 'preview' ? (
+          <Button testID="restore-confirm" icon="check" title={t('restore.confirm')} onPress={() => void install()} />
+        ) : null
+      }
+    >
+      {err ? <Banner tone="danger" text={err} /> : null}
+      {step === 'list' ? (
+        backups == null ? (
+          <Text variant="caption">{t('restore.loading')}</Text>
+        ) : backups.length === 0 ? (
+          <Banner tone="warn" text={t('restore.none')} />
+        ) : (
+          <>
+            {backups.slice(0, 8).map((b) => (
+              <Card key={b.id} onPress={() => setPick(b.id)} style={{ borderWidth: 2, borderColor: pick === b.id ? colors.primary[500] : 'transparent' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <IconBadge name="cloudOff" hue={pick === b.id ? 'primary' : 'ink'} size={36} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontFamily: fonts.semibold, fontSize: 15, lineHeight: 21, color: colors.ink.DEFAULT }}>{day(b.at)} · {new Date(b.at).toTimeString().slice(0, 5)}</Text>
+                    <Text variant="caption">{t('restore.counts', { inv: b.counts.invoices ?? 0, prod: b.counts.products ?? 0 })} · {mb(b.size)} · {t('restore.device', { code: b.deviceCode ?? '?' })}</Text>
+                  </View>
+                  {pick === b.id ? <Chip label={t('restore.chosen')} selected /> : null}
+                </View>
+              </Card>
+            ))}
+            <Banner tone="info" text={t('restore.otpNote')} />
+          </>
+        )
+      ) : null}
+      {step === 'otp' ? (
+        <>
+          <Text variant="body">{t('restore.otpSent')}</Text>
+          <OtpInput value={code} onChange={setCode} />
+        </>
+      ) : null}
+      {step === 'working' || step === 'installing' ? (
+        <Card>
+          <Text variant="subtitle">{step === 'installing' ? t('restore.installing') : progress.stage === 'download' ? t('restore.downloading') : t('restore.decrypting')}</Text>
+          <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.paper.sunk, marginTop: 10, overflow: 'hidden' }}>
+            <View style={{ width: `${Math.round((step === 'installing' ? 1 : progress.p) * 100)}%`, height: 8, backgroundColor: colors.primary[500] }} />
+          </View>
+          <Text variant="caption" style={{ marginTop: 6 }}>{t('restore.keepOpen')}</Text>
+        </Card>
+      ) : null}
+      {step === 'preview' && preview ? (
+        <Card>
+          <Text style={{ fontFamily: fonts.bold, fontSize: 18, lineHeight: 26, color: colors.ink.DEFAULT }}>{preview.businessName}</Text>
+          <Text variant="caption">{t('restore.from', { day: day(preview.createdAt), code: preview.deviceCode })}</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+            {(['invoices', 'products', 'customers', 'suppliers'] as const).map((k) => (
+              <View key={k} style={{ flexGrow: 1, minWidth: '45%', padding: 10, borderRadius: 12, backgroundColor: colors.paper.DEFAULT }}>
+                <Text variant="caption">{t(`restore.k.${k}`)}</Text>
+                <Text style={{ fontFamily: fonts.bold, fontSize: 18, lineHeight: 26, color: colors.ink.DEFAULT }}>{preview.counts[k] ?? 0}</Text>
+              </View>
+            ))}
+          </View>
+          {preview.lastInvoice ? <Text variant="caption" style={{ marginTop: 8 }}>{t('restore.lastInvoice', { n: preview.lastInvoice })}</Text> : null}
+          <Banner tone="warn" text={t('restore.oldPhone')} />
+        </Card>
+      ) : null}
+    </OnboardingScreen>
+  );
+}

@@ -72,7 +72,7 @@ export async function boot(): Promise<void> {
     status: 'locked',
     settings,
     device,
-    business: { name: b.name, country: b.country, type: b.type, currency: b.currency },
+    business: { name: b.name, country: b.country, type: b.type, currency: b.currency, serverBusinessId: b.serverBusinessId },
   });
   void backgroundCheckin();
 }
@@ -92,6 +92,6 @@ export async function reloadAppData() {
   useApp.getState().set({
     settings,
     device: await getCurrentDevice(db),
-    business: b ? { name: b.name, country: b.country, type: b.type, currency: b.currency } : null,
+    business: b ? { name: b.name, country: b.country, type: b.type, currency: b.currency, serverBusinessId: b.serverBusinessId } : null,
   });
 }

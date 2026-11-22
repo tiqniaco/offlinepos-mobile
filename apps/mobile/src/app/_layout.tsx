@@ -12,6 +12,7 @@ import { boot } from '../state/boot';
 import { useAutoLock } from '../hooks/useAutoLock';
 import { ToastHost } from '../ui/Toast';
 import { AdsProvider } from '../features/ads/AdsProvider';
+import { UpgradeSheet } from '../features/UpgradeSheet';
 import { modalOptions, stackOptions } from '../ui/motion';
 import { PrintHost } from '../features/printing/PrintHost';
 import { colors, useTheme, applyTheme } from '../ui';
@@ -90,6 +91,7 @@ export default function RootLayout() {
           <>
             <PrintHost />
             <AdsProvider />
+            <UpgradeSheet />
           </>
         ) : null}
       </View>

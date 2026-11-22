@@ -13,6 +13,7 @@ import { gcm } from '@noble/ciphers/aes.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex, randomBytes } from '@noble/hashes/utils.js';
 import { Gunzip, Gzip } from 'fflate';
+import { utf8Decode, utf8ToBytes } from './crypto';
 
 export const OBK_MAGIC = [0x4f, 0x42, 0x4b, 0x31]; // "OBK1"
 const FRAME_PLAIN = 256 * 1024;
@@ -35,8 +36,8 @@ export class ObkError extends Error {
   }
 }
 
-const enc = new TextEncoder();
-const dec = new TextDecoder();
+const enc = { encode: (s: string) => utf8ToBytes(s) };
+const dec = { decode: (b: Uint8Array) => utf8Decode(b) };
 const u32 = (n: number) => new Uint8Array([(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255]);
 const readU32 = (b: Uint8Array, o: number) => ((b[o]! << 24) | (b[o + 1]! << 16) | (b[o + 2]! << 8) | b[o + 3]!) >>> 0;
 function concat(parts: Uint8Array[]): Uint8Array {
