@@ -1,0 +1,17 @@
+{
+  "name": "daftarak",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "audit": "pnpm audit --prod --audit-level high"
+  },
+  "devDependencies": {
+    "turbo": "^2.11.13",
+    "typescript": "~6.0.3"
+  }
+}
