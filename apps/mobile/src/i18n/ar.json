@@ -341,7 +341,8 @@
     "lowWarning": "الرصيد قليل — أقل من {{qty}}",
     "units": "الوحدات",
     "baseUnit": "الوحدة الأساسية",
-    "inLarger": "{{units}} {{large}} + {{rest}} {{small}}"
+    "inLarger": "{{units}} {{large}} + {{rest}} {{small}}",
+    "allMovements": "كل الحركات"
   },
   "movement": {
     "OPENING": "رصيد أول",

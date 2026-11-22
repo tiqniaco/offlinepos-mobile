@@ -65,6 +65,7 @@ export default function ProductScreen() {
         canAdjust={canAdjust}
         canSeeCost={canSeeCost}
         onAdjust={() => router.push({ pathname: '/products/adjust', params: { id } })}
+        onMovements={() => router.push({ pathname: '/reports/movement', params: { id } })}
         onEdit={() => router.push({ pathname: '/products/form', params: { id } })}
         onAddVariant={() => setVariant({ label: '', current: d.variantLabel ?? '' })}
         onDelete={remove}

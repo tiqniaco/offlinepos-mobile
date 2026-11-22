@@ -36,6 +36,7 @@ export function ProductDetailView({
   canAdjust,
   canSeeCost,
   onAdjust,
+  onMovements,
   onEdit,
   onAddVariant,
   onDelete,
@@ -48,6 +49,7 @@ export function ProductDetailView({
   canAdjust: boolean;
   canSeeCost: boolean;
   onAdjust: () => void;
+  onMovements?: () => void;
   onEdit: () => void;
   onAddVariant: () => void;
   onDelete: () => void;
@@ -178,7 +180,7 @@ export function ProductDetailView({
             </>
           ) : null}
 
-          <SectionTitle>{t('product.movements')}</SectionTitle>
+          <SectionTitle action={onMovements ? <Button compact kind="ghost" icon="list" title={t('product.allMovements')} onPress={onMovements} /> : undefined}>{t('product.movements')}</SectionTitle>
           <Card padded={false}>
             {d.movements.length === 0 ? (
               <Text variant="caption" style={{ padding: 16 }}>

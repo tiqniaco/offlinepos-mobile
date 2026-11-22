@@ -341,7 +341,8 @@
     "lowWarning": "Low stock — below {{qty}}",
     "units": "Units",
     "baseUnit": "Base unit",
-    "inLarger": "{{units}} {{large}} + {{rest}} {{small}}"
+    "inLarger": "{{units}} {{large}} + {{rest}} {{small}}",
+    "allMovements": "All movements"
   },
   "movement": {
     "OPENING": "Opening",
