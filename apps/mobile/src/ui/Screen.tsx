@@ -6,7 +6,7 @@ import { Icon } from './Icon';
 import { Hero } from './Hero';
 import { Steps } from './Steps';
 import { shadow } from './shadow';
-import colors from './colors.json';
+import colors from './colors';
 
 function BackButton({ light = false }: { light?: boolean }) {
   return (

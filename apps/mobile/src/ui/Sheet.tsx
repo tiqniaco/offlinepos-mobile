@@ -1,7 +1,7 @@
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from './Text';
-import colors from './colors.json';
+import colors from './colors';
 
 /** Bottom sheet (thumb-friendly) for pickers, quick forms and confirmations. */
 export function Sheet({ visible, onClose, title, children, footer }: { visible: boolean; onClose: () => void; title?: string; children: React.ReactNode; footer?: React.ReactNode }) {

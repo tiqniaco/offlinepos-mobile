@@ -2,7 +2,7 @@ import { useRef, useState, type ComponentRef } from 'react';
 import { Platform, Pressable, TextInput, View } from 'react-native';
 import { digitsOnly } from '@daftarak/shared';
 import { Text } from './Text';
-import colors from './colors.json';
+import colors from './colors';
 
 /**
  * Six separate boxes over one hidden input (keeps SMS autofill and paste working).
@@ -28,8 +28,8 @@ export function OtpInput({ value, onChange, length = 6, error, testID }: { value
                 borderWidth: 2,
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: ch ? colors.teal[50] : colors.paper.card,
-                borderColor: error ? colors.rose[500] : active ? colors.teal[500] : ch ? colors.teal[200] : colors.paper.line,
+                backgroundColor: ch ? colors.primary[50] : colors.paper.card,
+                borderColor: error ? colors.rose[500] : active ? colors.primary[500] : ch ? colors.primary[200] : colors.paper.line,
               }}
             >
               <Text style={{ fontSize: 26, lineHeight: 34, fontFamily: 'IBMPlexSansArabic_700Bold', color: colors.ink.DEFAULT }}>{ch}</Text>

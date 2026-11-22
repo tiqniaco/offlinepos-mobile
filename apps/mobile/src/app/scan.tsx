@@ -51,7 +51,7 @@ export default function ScanScreen() {
       )}
       {/* Frame overlay */}
       <View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, alignItems: 'center', justifyContent: 'center' }}>
-        <View style={{ width: 280, height: 170, borderRadius: 24, borderWidth: 3, borderColor: colors.amber[500] }} />
+        <View style={{ width: 280, height: 170, borderRadius: 24, borderWidth: 3, borderColor: colors.accent.onDark }} />
         <Text style={{ color: '#fff', marginTop: 16, fontFamily: 'IBMPlexSansArabic_600SemiBold', fontSize: 15, lineHeight: 22 }}>{t('scan.hint')}</Text>
       </View>
       <View style={{ position: 'absolute', top: insets.top + 8, start: 16 }}>

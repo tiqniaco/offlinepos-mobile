@@ -22,7 +22,7 @@ const config: ExpoConfig = {
   android: {
     package: 'app.daftarak',
     adaptiveIcon: {
-      backgroundColor: '#0E8C80',
+      backgroundColor: '#0F4CC7',
       foregroundImage: './assets/android-icon-foreground.png',
       monochromeImage: './assets/android-icon-monochrome.png',
     },
@@ -40,7 +40,7 @@ const config: ExpoConfig = {
     ['expo-local-authentication', { faceIDPermission: 'لفتح دفترك بالبصمة بدل الرقم السري' }],
     ['expo-image-picker', { cameraPermission: 'لقراءة الباركود وتصوير المنتجات', photosPermission: 'لاختيار صورة المنتج' }],
     'expo-document-picker',
-    ['expo-splash-screen', { image: './assets/splash-icon.png', imageWidth: 160, backgroundColor: '#0E8C80' }],
+    ['expo-splash-screen', { image: './assets/splash-icon.png', imageWidth: 160, backgroundColor: '#0F4CC7' }],
   ],
   experiments: { typedRoutes: true },
   extra: {

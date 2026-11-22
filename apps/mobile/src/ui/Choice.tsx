@@ -2,14 +2,14 @@ import { Pressable, View } from 'react-native';
 import { Text } from './Text';
 import { Icon, type IconName } from './Icon';
 import { IconBadge, type Hue } from './IconBadge';
-import colors from './colors.json';
+import colors from './colors';
 
 /** Big tappable option (one-hand friendly) for country / type / yes-no choices. */
 export function Choice({
   title,
   hint,
   icon,
-  hue = 'teal',
+  hue = 'primary',
   emoji,
   selected,
   onPress,
@@ -42,15 +42,15 @@ export function Choice({
         paddingVertical: 12,
         borderRadius: 18,
         borderWidth: 2,
-        borderColor: selected ? colors.teal[500] : colors.paper.line,
-        backgroundColor: selected ? colors.teal[50] : colors.paper.card,
+        borderColor: selected ? colors.primary[500] : colors.paper.line,
+        backgroundColor: selected ? colors.primary[50] : colors.paper.card,
         opacity: pressed ? 0.85 : 1,
       })}
     >
-      {icon ? <IconBadge name={icon} hue={selected ? 'teal' : hue} size={46} /> : null}
+      {icon ? <IconBadge name={icon} hue={selected ? 'primary' : hue} size={46} /> : null}
       {emoji ? <Text style={{ fontSize: compact ? 22 : 26, lineHeight: compact ? 30 : 34 }}>{emoji}</Text> : null}
       <View className="flex-1">
-        <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: compact ? 15 : 16, lineHeight: 24, color: selected ? colors.teal[800] : colors.ink.DEFAULT }}>{title}</Text>
+        <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: compact ? 15 : 16, lineHeight: 24, color: selected ? colors.primary[800] : colors.ink.DEFAULT }}>{title}</Text>
         {hint ? <Text variant="caption">{hint}</Text> : null}
       </View>
       <View
@@ -61,8 +61,8 @@ export function Choice({
           borderWidth: 2,
           alignItems: 'center',
           justifyContent: 'center',
-          borderColor: selected ? colors.teal[600] : colors.paper.line,
-          backgroundColor: selected ? colors.teal[600] : 'transparent',
+          borderColor: selected ? colors.primary[600] : colors.paper.line,
+          backgroundColor: selected ? colors.primary[600] : 'transparent',
         }}
       >
         {selected ? <Icon name="check" size={14} color="#fff" /> : null}

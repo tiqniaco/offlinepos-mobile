@@ -31,7 +31,7 @@ export default function Audit() {
           renderItem={({ item, index }) => (
             <View className="flex-row gap-3">
               <View className="items-center" style={{ width: 20 }}>
-                <View style={{ width: 12, height: 12, borderRadius: 6, marginTop: 18, backgroundColor: colors.teal[500], borderWidth: 3, borderColor: colors.teal[100] }} />
+                <View style={{ width: 12, height: 12, borderRadius: 6, marginTop: 18, backgroundColor: colors.primary[500], borderWidth: 3, borderColor: colors.primary[100] }} />
                 {index < rows.length - 1 ? <View style={{ flex: 1, width: 2, backgroundColor: colors.paper.line }} /> : null}
               </View>
               <View className="flex-1 border-b py-3" style={{ borderColor: colors.paper.line + '99' }}>

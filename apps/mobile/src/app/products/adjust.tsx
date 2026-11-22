@@ -53,7 +53,7 @@ export default function AdjustStock() {
       <Card>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text variant="caption">{t('product.stock')}: {qty(d.level.qtyMilli)}</Text>
-          <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 16, lineHeight: 24, color: after < 0 ? colors.rose[700] : colors.teal[700] }}>{t('adjust.result', { qty: qty(after), unit: d.baseUnitName })}</Text>
+          <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 16, lineHeight: 24, color: after < 0 ? colors.rose[700] : colors.primary[700] }}>{t('adjust.result', { qty: qty(after), unit: d.baseUnitName })}</Text>
         </View>
       </Card>
       {after < 0 ? <Banner tone="warn" text={t('adjust.negativeWarn')} /> : null}

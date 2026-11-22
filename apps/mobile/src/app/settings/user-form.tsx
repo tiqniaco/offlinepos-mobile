@@ -67,7 +67,7 @@ export default function UserForm() {
             key={r.id}
             testID={`role-${r.key}`}
             icon={r.key === 'owner' ? 'shield' : r.key === 'manager' ? 'users' : 'card'}
-            hue={r.key === 'owner' ? 'teal' : r.key === 'manager' ? 'sky' : 'amber'}
+            hue={r.key === 'owner' ? 'primary' : r.key === 'manager' ? 'sky' : 'amber'}
             title={r.name}
             selected={roleId === r.id}
             onPress={() => setRoleId(r.id)}

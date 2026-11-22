@@ -40,7 +40,7 @@ export default function Categories() {
           {rows.map((c, i) => (
             <ListRow
               key={c.id}
-              leading={<View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: (c.color ?? colors.teal[500]) + '22', alignItems: 'center', justifyContent: 'center' }}><View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: c.color ?? colors.teal[500] }} /></View>}
+              leading={<View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: (c.color ?? colors.primary[500]) + '22', alignItems: 'center', justifyContent: 'center' }}><View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: c.color ?? colors.primary[500] }} /></View>}
               title={c.name}
               value={t('categories.products', { n: Number(c.products) })}
               onPress={() => setEdit({ id: c.id, name: c.name, color: c.color })}

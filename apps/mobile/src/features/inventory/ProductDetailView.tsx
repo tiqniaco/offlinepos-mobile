@@ -83,7 +83,7 @@ export function ProductDetailView({
               <View style={{ flex: 1, gap: 4 }}>
                 <Text style={{ color: '#FFFFFF', fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 22, lineHeight: 32 }}>{d.name}</Text>
                 <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                  {d.variantLabel ? <View style={{ backgroundColor: 'rgba(242,169,59,0.3)', borderRadius: 99, paddingHorizontal: 10, paddingVertical: 2 }}><Text style={{ color: '#FFE7BF', fontSize: 12.5, lineHeight: 19, fontFamily: 'IBMPlexSansArabic_700Bold' }}>{d.variantLabel}</Text></View> : null}
+                  {d.variantLabel ? <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 99, paddingHorizontal: 10, paddingVertical: 2 }}><Text style={{ color: colors.accent.onDark, fontSize: 12.5, lineHeight: 19, fontFamily: 'IBMPlexSansArabic_700Bold' }}>{d.variantLabel}</Text></View> : null}
                   {d.categoryName ? <View style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 99, paddingHorizontal: 10, paddingVertical: 2 }}><Text style={{ color: '#FFFFFF', fontSize: 12.5, lineHeight: 19, fontFamily: 'IBMPlexSansArabic_600SemiBold' }}>{d.categoryName}</Text></View> : null}
                 </View>
               </View>

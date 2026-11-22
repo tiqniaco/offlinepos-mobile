@@ -1,6 +1,6 @@
 import { Pressable, View } from 'react-native';
 import { Text } from './Text';
-import colors from './colors.json';
+import colors from './colors';
 
 export function Chip({ label, selected, onPress, count, dot, testID }: { label: string; selected?: boolean; onPress?: () => void; count?: number; dot?: string | null; testID?: string }) {
   return (
@@ -15,8 +15,8 @@ export function Chip({ label, selected, onPress, count, dot, testID }: { label: 
         paddingHorizontal: 14,
         borderRadius: 19,
         borderWidth: 1.5,
-        borderColor: selected ? colors.teal[600] : colors.paper.line,
-        backgroundColor: selected ? colors.teal[600] : colors.paper.card,
+        borderColor: selected ? colors.primary[600] : colors.paper.line,
+        backgroundColor: selected ? colors.primary[600] : colors.paper.card,
         opacity: pressed ? 0.8 : 1,
       })}
     >

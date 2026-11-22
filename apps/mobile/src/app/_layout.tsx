@@ -1,8 +1,9 @@
 import '../lib/polyfills';
 import '../../global.css';
 import { useEffect } from 'react';
-import { Platform, View } from 'react-native';
-import { Stack } from 'expo-router';
+import { Platform, View, useColorScheme } from 'react-native';
+import { vars } from 'nativewind';
+import { Stack, router, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -17,6 +18,7 @@ import { useApp } from '../state/app';
 import { boot } from '../state/boot';
 import { useAutoLock } from '../hooks/useAutoLock';
 import { ToastHost } from '../ui/Toast';
+import { colors, useTheme, applyTheme } from '../ui';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -24,7 +26,24 @@ export default function RootLayout() {
   const [fontsLoaded] = useFonts({ IBMPlexSansArabic_400Regular, IBMPlexSansArabic_500Medium, IBMPlexSansArabic_600SemiBold, IBMPlexSansArabic_700Bold });
   const status = useApp((s) => s.status);
   const touch = useApp((s) => s.touch);
+  const theme = useTheme();
+  const scheme = useColorScheme();
   useAutoLock();
+
+  const pathname = usePathname();
+  // After a theme change the tree remounts: reopen the screen the user was on (the appearance screen).
+  useEffect(() => {
+    const back = useTheme.getState().returnTo;
+    if (!back) return;
+    useTheme.setState({ returnTo: null });
+    if (pathname !== back) setTimeout(() => router.push(back as never), 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theme.version]);
+
+  // 'system' appearance follows the phone's dark/light setting live.
+  useEffect(() => {
+    if (theme.appearance === 'system') applyTheme(theme.palette, 'system', scheme === 'dark');
+  }, [scheme, theme.appearance, theme.palette]);
 
   useEffect(() => {
     void boot();
@@ -38,10 +57,11 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="dark" />
-      {/* Any touch counts as activity for the auto-lock timer. */}
-      <View className="flex-1 bg-paper" onTouchStart={touch}>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#F6F2EA' }, animation: 'fade' }}>
+      <StatusBar style={theme.isDark ? 'light' : 'dark'} />
+      {/* Theme colours as CSS variables for NativeWind; `key` repaints every screen when the theme changes.
+          Any touch counts as activity for the auto-lock timer. */}
+      <View key={theme.version} style={[{ flex: 1, backgroundColor: colors.paper.DEFAULT }, vars(theme.vars)]} onTouchStart={touch}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.paper.DEFAULT }, animation: 'fade' }}>
           <Stack.Protected guard={__DEV__ && Platform.OS === 'web'}>
             <Stack.Screen name="dev-gallery" />
           </Stack.Protected>

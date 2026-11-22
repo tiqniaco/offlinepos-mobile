@@ -25,7 +25,7 @@ function Toggle({ label, hint, value, onChange, disabled }: { label: string; hin
         <Text variant="subtitle">{label}</Text>
         {hint ? <Text variant="caption">{hint}</Text> : null}
       </View>
-      <Switch disabled={disabled} value={value} onValueChange={onChange} trackColor={{ true: colors.teal[500], false: colors.paper.line }} />
+      <Switch disabled={disabled} value={value} onValueChange={onChange} trackColor={{ true: colors.primary[500], false: colors.paper.line }} />
     </View>
   );
 }
@@ -202,7 +202,7 @@ export default function ProductForm() {
           <View style={{ flex: 1 }}>
             <TextField testID="product-barcode" icon="scan" label={t('productForm.barcode')} placeholder={t('productForm.barcodePh')} value={barcode} onChangeText={(v) => setBarcode(normalizeBarcode(v))} ltr autoCapitalize="none" />
           </View>
-          <Pressable onPress={() => scanInto(setBarcode)} style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: colors.teal[600], alignItems: 'center', justifyContent: 'center' }}>
+          <Pressable onPress={() => scanInto(setBarcode)} style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: colors.primary[600], alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="camera" color="#FFFFFF" tint="rgba(255,255,255,0.2)" />
           </Pressable>
         </View>
@@ -270,8 +270,8 @@ export default function ProductForm() {
                 <View style={{ flex: 1 }}>
                   <TextField label={t('productForm.largerBarcode')} value={largerBarcode} onChangeText={(v) => setLargerBarcode(normalizeBarcode(v))} ltr />
                 </View>
-                <Pressable onPress={() => scanInto(setLargerBarcode)} style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: colors.teal[50], alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon name="scan" color={colors.teal[700]} />
+                <Pressable onPress={() => scanInto(setLargerBarcode)} style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: colors.primary[50], alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="scan" color={colors.primary[700]} />
                 </Pressable>
               </View>
             </>
@@ -300,10 +300,10 @@ export default function ProductForm() {
       </Card>
 
       <Pressable onPress={() => setShowMore((v) => !v)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6 }}>
-        <Text variant="label" style={{ color: colors.teal[700] }}>
+        <Text variant="label" style={{ color: colors.primary[700] }}>
           {t('productForm.more')}
         </Text>
-        <Icon name={showMore ? 'minus' : 'plus'} size={16} color={colors.teal[700]} />
+        <Icon name={showMore ? 'minus' : 'plus'} size={16} color={colors.primary[700]} />
       </Pressable>
       {showMore ? (
         <View style={{ gap: 12 }}>

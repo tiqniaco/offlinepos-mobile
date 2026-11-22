@@ -3,13 +3,14 @@
  * sample data so designers can review screens without a phone. Not reachable on devices or in
  * release builds (route guard in _layout.tsx + Platform check here).
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { LockView, type LockUser } from '../features/lock/LockView';
 import { HomeView } from '../features/home/HomeView';
 import { MoreView } from '../features/more/MoreView';
-import { Banner } from '../ui';
+import { Banner, applyTheme, useTheme, type PaletteId, type Appearance } from '../ui';
+import { AppearanceView } from '../features/settings/AppearanceView';
 import { dateLabel } from '../lib/format';
 import { ProductsListView } from '../features/inventory/ProductsListView';
 import { ProductDetailView } from '../features/inventory/ProductDetailView';
@@ -30,7 +31,11 @@ const USERS: LockUser[] = [
 ];
 
 export default function DevGallery() {
-  const { view = 'home' } = useLocalSearchParams<{ view?: string }>();
+  const { view = 'home', palette, mode } = useLocalSearchParams<{ view?: string; palette?: string; mode?: string }>();
+  const theme = useTheme();
+  useEffect(() => {
+    if (palette || mode) applyTheme((palette as PaletteId) ?? theme.palette, (mode as Appearance) ?? theme.appearance, false);
+  }, [palette, mode]); // eslint-disable-line react-hooks/exhaustive-deps
   const [pin, setPin] = useState(view === 'lock-pin' ? '12' : '');
   if (Platform.OS !== 'web' || !__DEV__) return null;
   const noop = () => undefined;
@@ -50,6 +55,7 @@ export default function DevGallery() {
         onBiometric={noop}
       />
     );
+  if (view === 'appearance') return <AppearanceView palette={theme.palette} appearance={theme.appearance} lang="ar" onPalette={(p) => applyTheme(p, theme.appearance, false)} onAppearance={(a) => applyTheme(theme.palette, a, false)} />;
   if (view === 'products')
     return (
       <ProductsListView
@@ -130,7 +136,7 @@ export default function DevGallery() {
         businessName="سوبر ماركت النور"
         account={[
           { key: 'u', icon: 'users', hue: 'amber', title: 'المستخدمين والصلاحيات', onPress: noop },
-          { key: 's', icon: 'card', hue: 'teal', title: 'الاشتراك', value: 'احترافي', onPress: noop },
+          { key: 's', icon: 'card', hue: 'primary', title: 'الاشتراك', value: 'احترافي', onPress: noop },
           { key: 'a', icon: 'list', hue: 'ink', title: 'سجل العمليات', onPress: noop },
         ]}
         app={[
@@ -151,7 +157,7 @@ export default function DevGallery() {
       planChip="فترة تجربة: فاضل 12 يوم"
       banner={view === 'home-banner' ? <Banner tone="warn" text="اشتراكك خلص. فاضل 4 يوم قبل ما ترجع للباقة المجانية." /> : null}
       tasks={[
-        { key: 'o', title: 'حساب المالك اتعمل', icon: 'users', hue: 'teal', done: true },
+        { key: 'o', title: 'حساب المالك اتعمل', icon: 'users', hue: 'primary', done: true },
         { key: 't', title: 'أضف موظفينك برقم سري لكل واحد', icon: 'users', hue: 'amber', done: false, onPress: noop },
         { key: 'l', title: 'فعّل الفتح بالبصمة', icon: 'fingerprint', hue: 'sky', done: false, onPress: noop },
         { key: 'p', title: 'أضف منتجاتك', icon: 'list', hue: 'rose', done: false, soon: true },

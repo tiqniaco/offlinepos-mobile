@@ -3,7 +3,7 @@ import { Platform, TextInput, View } from 'react-native';
 import { normalizeDigits } from '@daftarak/shared';
 import { Text } from './Text';
 import { Icon } from './Icon';
-import colors from './colors.json';
+import colors from './colors';
 
 /** Mobile number with a country hint chip (EG/SA detected from what is typed). LTR always. */
 export function PhoneField({ value, onChangeText, error, onSubmitEditing, testID, placeholder }: { value: string; onChangeText: (v: string) => void; error?: string | null; onSubmitEditing?: () => void; testID?: string; placeholder?: string }) {
@@ -21,7 +21,7 @@ export function PhoneField({ value, onChangeText, error, onSubmitEditing, testID
           borderRadius: 16,
           borderWidth: 2,
           backgroundColor: colors.paper.card,
-          borderColor: error ? colors.rose[500] : focus ? colors.teal[500] : colors.paper.line,
+          borderColor: error ? colors.rose[500] : focus ? colors.primary[500] : colors.paper.line,
           paddingHorizontal: 8,
           gap: 10,
         }}

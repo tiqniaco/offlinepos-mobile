@@ -1,15 +1,30 @@
-const colors = require('./src/ui/colors.json');
+/**
+ * Colours are CSS variables set by the theme (src/ui/theme.ts → cssVars), so every NativeWind class
+ * follows the chosen palette and light/dark/comfort mode. `primary` = brand scale (TIQNIA blue by default).
+ */
+const v = (name) => `rgb(var(--c-${name}) / <alpha-value>)`;
+const scale = (name, keys) => Object.fromEntries(keys.map((k) => [k, v(`${name}-${k}`)]));
+const FULL = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
+const SMALL = ['50', '100', '300', '500', '600', '700'];
 
-/** Design tokens (PLAN.md §3.5): warm paper base, teal primary, amber accent. No purple anywhere. */
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: ['./src/**/*.{ts,tsx}'],
   presets: [require('nativewind/preset')],
-  // Dark mode (Phase 7) will be switched by the app, not by the OS media query.
+  // Dark mode is driven by the app's own theme setting (not the OS media query).
   darkMode: 'class',
   theme: {
     extend: {
-      colors,
+      colors: {
+        paper: { DEFAULT: v('paper'), card: v('paper-card'), sunk: v('paper-sunk'), line: v('paper-line') },
+        ink: { DEFAULT: v('ink'), soft: v('ink-soft'), mute: v('ink-mute'), faint: v('ink-faint') },
+        accent: v('accent'),
+        primary: scale('primary', FULL),
+        amber: scale('amber', SMALL),
+        rose: scale('rose', SMALL),
+        leaf: scale('leaf', SMALL),
+        sky: scale('sky', SMALL),
+      },
       fontFamily: {
         sans: ['IBMPlexSansArabic_400Regular'],
         medium: ['IBMPlexSansArabic_500Medium'],

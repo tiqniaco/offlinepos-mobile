@@ -2,9 +2,9 @@ import { View } from 'react-native';
 import { Text } from './Text';
 import { IconBadge, type Hue } from './IconBadge';
 import type { IconName } from './Icon';
-import colors from './colors.json';
+import colors from './colors';
 
-export function EmptyState({ icon, hue = 'teal', title, body, children }: { icon: IconName; hue?: Hue; title: string; body?: string; children?: React.ReactNode }) {
+export function EmptyState({ icon, hue = 'primary', title, body, children }: { icon: IconName; hue?: Hue; title: string; body?: string; children?: React.ReactNode }) {
   return (
     <View style={{ alignItems: 'center', gap: 10, paddingVertical: 36, paddingHorizontal: 12 }}>
       <View style={{ padding: 14, borderRadius: 32, backgroundColor: colors.paper.card }}>

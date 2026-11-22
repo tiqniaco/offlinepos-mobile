@@ -7,8 +7,9 @@ import { settings } from '../../db/schema';
 import { appendAudit } from '../audit/audit';
 import { assertCanWrite } from '../licence/guard';
 
-export type SettingKey = keyof BusinessSettings | 'language';
-export type AppSettings = BusinessSettings & { language: 'ar' | 'en' };
+export type SettingKey = keyof BusinessSettings | 'language' | 'palette' | 'appearance';
+/** palette/appearance are personal display settings (src/ui/theme.ts). */
+export type AppSettings = BusinessSettings & { language: 'ar' | 'en'; palette: 'tiqnia' | 'teal' | 'emerald' | 'sunset' | 'graphite'; appearance: 'light' | 'dark' | 'comfort' | 'system' };
 
 export async function loadSettings(db: AppDb): Promise<Partial<AppSettings>> {
   const rows = await db.select().from(settings);
@@ -29,7 +30,7 @@ export async function changeSetting<K extends SettingKey>(
   value: AppSettings[K],
   ctx: { userId: string; deviceId: string },
 ): Promise<void> {
-  const personal = key === 'language' || key === 'autoLockMinutes';
+  const personal = key === 'language' || key === 'autoLockMinutes' || key === 'palette' || key === 'appearance';
   if (!personal) assertCanWrite();
   const now = Date.now();
   await withTx(db, async (tx) => {

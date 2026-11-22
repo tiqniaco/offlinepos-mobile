@@ -6,13 +6,13 @@
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { I18nManager, Platform } from 'react-native';
 import i18n from 'i18next';
-import colors from './colors.json';
+import colors from './colors';
 
 export type IconName = 'home' | 'more' | 'phone' | 'shield' | 'users' | 'lock' | 'globe' | 'card' | 'info' | 'chevron' | 'back' | 'fingerprint' | 'check' | 'store' | 'truck' | 'book' | 'cloudOff' | 'plus' | 'warning' | 'list' | 'backspace' | 'scan' | 'camera' | 'image' | 'box' | 'tag' | 'search' | 'dots' | 'trash' | 'edit' | 'minus' | 'upload' | 'download' | 'refresh' | 'layers' | 'clipboard';
 
 const MIRRORED: IconName[] = ['chevron', 'back'];
 
-export function Icon({ name, size = 24, color = colors.teal[600], tint }: { name: IconName; size?: number; color?: string; tint?: string }) {
+export function Icon({ name, size = 24, color = colors.primary[600], tint }: { name: IconName; size?: number; color?: string; tint?: string }) {
   const fill = tint ?? color + '26'; // ~15% alpha of the stroke colour
   const sw = 1.8;
   const p = { stroke: color, strokeWidth: sw, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, fill: 'none' };

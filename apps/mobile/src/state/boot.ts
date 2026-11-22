@@ -2,7 +2,8 @@
  * App start (PLAN.md §3.1): open encrypted DB → settings & language → licence (offline) → lock screen.
  * The daily check-in runs in the background afterwards and never blocks start-up.
  */
-import { Platform } from 'react-native';
+import { Appearance, Platform } from 'react-native';
+import { applyTheme } from '../ui/themeStore';
 import { getDb, openDatabase, DbNotEncryptedError } from '../db/client';
 import { business } from '../db/schema';
 import { getCurrentDevice } from '../domain/device';
@@ -38,6 +39,7 @@ export async function boot(): Promise<void> {
     subscribed = true;
   }
   const settings = await loadSettings(db);
+  applyTheme(settings.palette ?? 'tiqnia', settings.appearance ?? 'light', Appearance.getColorScheme() === 'dark');
   const lang = settings.language ?? 'ar';
   initI18n(lang);
   if (await ensureDirection(lang)) return; // app is reloading

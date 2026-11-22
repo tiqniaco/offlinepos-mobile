@@ -6,8 +6,8 @@ import { Icon, colors, type IconName } from '../../ui';
 
 function TabIcon({ name, focused }: { name: IconName; focused: boolean }) {
   return (
-    <View style={{ width: 56, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: focused ? colors.teal[50] : 'transparent' }}>
-      <Icon name={name} color={focused ? colors.teal[700] : colors.ink.mute} />
+    <View style={{ width: 56, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: focused ? colors.primary[50] : 'transparent' }}>
+      <Icon name={name} color={focused ? colors.primary[700] : colors.ink.mute} />
     </View>
   );
 }
@@ -19,7 +19,7 @@ export default function MainLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.teal[700],
+        tabBarActiveTintColor: colors.primary[700],
         tabBarInactiveTintColor: colors.ink.mute,
         tabBarStyle: {
           backgroundColor: colors.paper.card,

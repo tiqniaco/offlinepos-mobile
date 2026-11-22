@@ -50,8 +50,8 @@ export function MoreView({
             <Text style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 18, lineHeight: 27, color: colors.ink.DEFAULT }}>{userName}</Text>
             <Text variant="caption">{businessName}</Text>
           </View>
-          <View style={{ backgroundColor: colors.teal[50], borderRadius: 99, paddingHorizontal: 12, paddingVertical: 4 }}>
-            <Text style={{ color: colors.teal[700], fontSize: 13, lineHeight: 20, fontFamily: 'IBMPlexSansArabic_700Bold' }}>{roleName}</Text>
+          <View style={{ backgroundColor: colors.primary[50], borderRadius: 99, paddingHorizontal: 12, paddingVertical: 4 }}>
+            <Text style={{ color: colors.primary[700], fontSize: 13, lineHeight: 20, fontFamily: 'IBMPlexSansArabic_700Bold' }}>{roleName}</Text>
           </View>
         </View>
       </Card>

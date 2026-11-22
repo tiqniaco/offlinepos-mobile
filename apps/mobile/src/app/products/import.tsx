@@ -105,8 +105,8 @@ export default function ImportProducts() {
                   {t(`importer.fields.${f}`)}
                   {REQUIRED.includes(f) ? <Text style={{ color: colors.rose[500] }}> *</Text> : null}
                 </Text>
-                <View style={{ backgroundColor: mapping[f] != null ? colors.teal[50] : colors.paper.sunk, borderRadius: 99, paddingHorizontal: 12, paddingVertical: 4, maxWidth: 170 }}>
-                  <Text numberOfLines={1} style={{ fontFamily: 'IBMPlexSansArabic_600SemiBold', fontSize: 13, lineHeight: 20, color: mapping[f] != null ? colors.teal[700] : colors.ink.mute }}>
+                <View style={{ backgroundColor: mapping[f] != null ? colors.primary[50] : colors.paper.sunk, borderRadius: 99, paddingHorizontal: 12, paddingVertical: 4, maxWidth: 170 }}>
+                  <Text numberOfLines={1} style={{ fontFamily: 'IBMPlexSansArabic_600SemiBold', fontSize: 13, lineHeight: 20, color: mapping[f] != null ? colors.primary[700] : colors.ink.mute }}>
                     {mapping[f] != null ? headers[mapping[f]!] : t('importer.notMapped')}
                   </Text>
                 </View>
@@ -144,7 +144,7 @@ export default function ImportProducts() {
                 <Text variant="subtitle">{t('importer.updateExisting')}</Text>
                 <Text variant="caption">{t('importer.updateHint')}</Text>
               </View>
-              <Switch value={update} onValueChange={setUpdate} trackColor={{ true: colors.teal[500], false: colors.paper.line }} />
+              <Switch value={update} onValueChange={setUpdate} trackColor={{ true: colors.primary[500], false: colors.paper.line }} />
             </View>
           </Card>
           {validation.valid.slice(0, 5).map((r) => (
@@ -173,10 +173,10 @@ export default function ImportProducts() {
       {step === 'running' ? (
         <Card>
           <View style={{ gap: 12, alignItems: 'center', paddingVertical: 12 }}>
-            <IconBadge name="upload" hue="teal" size={56} />
+            <IconBadge name="upload" hue="primary" size={56} />
             <Text variant="subtitle">{t('importer.running', { done: progress.done, total: progress.total })}</Text>
             <View style={{ width: '100%', height: 10, borderRadius: 5, backgroundColor: colors.paper.sunk, overflow: 'hidden' }}>
-              <View style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%`, height: 10, backgroundColor: colors.teal[500] }} />
+              <View style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%`, height: 10, backgroundColor: colors.primary[500] }} />
             </View>
           </View>
         </Card>

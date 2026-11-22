@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { Text } from './Text';
 import { Icon } from './Icon';
 import { shadow } from './shadow';
-import colors from './colors.json';
+import colors from './colors';
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'bio', '0', 'del'] as const;
 
@@ -20,7 +20,7 @@ export function PinDots({ count, total, error, light = false }: { count: number;
               width: on ? 16 : 14,
               height: on ? 16 : 14,
               borderRadius: 8,
-              backgroundColor: error ? colors.rose[500] : on ? (light ? '#FFFFFF' : colors.teal[600]) : 'transparent',
+              backgroundColor: error ? colors.rose[500] : on ? (light ? '#FFFFFF' : colors.primary[600]) : 'transparent',
               borderWidth: on || error ? 0 : 2,
               borderColor: base + '0.35)',
             }}
@@ -58,14 +58,14 @@ export function PinPad({ value, onChange, maxLength = 6, onBiometric, disabled }
             onPress={() => press(k)}
             style={({ pressed }) => [
               { width: 76, height: 76, borderRadius: 38, alignItems: 'center', justifyContent: 'center' },
-              plain ? null : { backgroundColor: pressed ? colors.teal[50] : colors.paper.card, ...(shadow.soft as object) },
+              plain ? null : { backgroundColor: pressed ? colors.primary[50] : colors.paper.card, ...(shadow.soft as object) },
               plain && pressed ? { backgroundColor: colors.paper.sunk } : null,
             ]}
           >
             {k === 'del' ? (
               <Icon name="backspace" color={colors.ink.soft} size={28} />
             ) : k === 'bio' ? (
-              <Icon name="fingerprint" color={colors.teal[600]} size={30} />
+              <Icon name="fingerprint" color={colors.primary[600]} size={30} />
             ) : (
               <Text style={{ fontFamily: 'IBMPlexSansArabic_600SemiBold', fontSize: 28, lineHeight: 36, color: colors.ink.DEFAULT }}>{k}</Text>
             )}

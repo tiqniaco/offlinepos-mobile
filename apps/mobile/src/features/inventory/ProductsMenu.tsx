@@ -22,7 +22,7 @@ export function ProductsMenu({ visible, onClose }: { visible: boolean; onClose: 
   const items = [
     manage && { key: 'cat', icon: 'layers' as const, hue: 'amber' as const, title: t('products.categories'), onPress: () => go('/products/categories') },
     adjust && { key: 'count', icon: 'clipboard' as const, hue: 'sky' as const, title: t('products.stockCount'), onPress: () => go('/products/count') },
-    manage && { key: 'import', icon: 'upload' as const, hue: 'teal' as const, title: t('products.import'), onPress: () => go('/products/import') },
+    manage && { key: 'import', icon: 'upload' as const, hue: 'primary' as const, title: t('products.import'), onPress: () => go('/products/import') },
     {
       key: 'export',
       icon: 'download' as const,

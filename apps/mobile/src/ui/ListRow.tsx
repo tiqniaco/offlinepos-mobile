@@ -3,11 +3,11 @@ import { Text } from './Text';
 import { Icon, type IconName } from './Icon';
 import { IconBadge, type Hue } from './IconBadge';
 import { shadow } from './shadow';
-import colors from './colors.json';
+import colors from './colors';
 
 export function ListRow({
   icon,
-  hue = 'teal',
+  hue = 'primary',
   title,
   subtitle,
   value,

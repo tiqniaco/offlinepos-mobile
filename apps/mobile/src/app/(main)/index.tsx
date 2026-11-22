@@ -32,7 +32,7 @@ export default function Home() {
   const canManage = user.permissions.includes('users.manage');
 
   const tasks: SetupTask[] = [
-    { key: 'owner', title: t('home.taskOwner'), icon: 'users', hue: 'teal', done: true },
+    { key: 'owner', title: t('home.taskOwner'), icon: 'users', hue: 'primary', done: true },
     ...(canManage ? [{ key: 'team', title: t('home.taskTeam'), icon: 'users' as const, hue: 'amber' as const, done: users > 1, onPress: () => router.push('/settings/users') }] : []),
     { key: 'lock', title: t('home.taskLock'), icon: 'fingerprint', hue: 'sky', done: user.biometricEnabled, onPress: () => router.push('/settings/security') },
     { key: 'products', title: inv?.products ? t('home.taskProductsDone') : t('home.taskProducts'), icon: 'box', hue: 'rose', done: !!inv?.products, onPress: () => router.push('/(main)/products') },
@@ -53,7 +53,7 @@ export default function Home() {
       stats={
         inv && inv.products > 0
           ? [
-              { key: 'p', label: t('home.statProducts'), value: String(inv.products), icon: 'box' as const, hue: 'teal' as const, onPress: () => router.push('/(main)/products') },
+              { key: 'p', label: t('home.statProducts'), value: String(inv.products), icon: 'box' as const, hue: 'primary' as const, onPress: () => router.push('/(main)/products') },
               { key: 'l', label: t('home.statLow'), value: String(inv.lowStock), icon: 'warning' as const, hue: inv.lowStock ? ('amber' as const) : ('leaf' as const), onPress: () => router.push('/(main)/products') },
               ...(user.permissions.includes('cost.view')
                 ? [{ key: 'v', label: t('home.statValue'), value: money(inv.stockValueMinor, business?.currency ?? 'EGP', i18n.language), icon: 'layers' as const, hue: 'sky' as const }]

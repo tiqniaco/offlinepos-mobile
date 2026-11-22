@@ -87,8 +87,8 @@ export function ProductsListView(props: {
             returnKeyType="search"
             style={[{ flex: 1, minWidth: 0, height: '100%', fontSize: 16, fontFamily: 'IBMPlexSansArabic_500Medium', color: colors.ink.DEFAULT, textAlign: 'auto' }, Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null]}
           />
-          <Pressable testID="products-scan" onPress={p.onScan} style={({ pressed }) => ({ width: 42, height: 42, borderRadius: 12, backgroundColor: pressed ? colors.teal[100] : colors.teal[50], alignItems: 'center', justifyContent: 'center' })}>
-            <Icon name="scan" color={colors.teal[700]} />
+          <Pressable testID="products-scan" onPress={p.onScan} style={({ pressed }) => ({ width: 42, height: 42, borderRadius: 12, backgroundColor: pressed ? colors.primary[100] : colors.primary[50], alignItems: 'center', justifyContent: 'center' })}>
+            <Icon name="scan" color={colors.primary[700]} />
           </Pressable>
         </View>
 

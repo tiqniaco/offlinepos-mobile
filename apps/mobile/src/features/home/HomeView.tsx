@@ -95,7 +95,7 @@ export function HomeView({
               <Text variant="caption">{t('home.setupProgress', { done, total })}</Text>
             </View>
             <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.paper.sunk, overflow: 'hidden' }}>
-              <View style={{ width: `${total ? (done / total) * 100 : 0}%`, height: 8, borderRadius: 4, backgroundColor: colors.teal[500] }} />
+              <View style={{ width: `${total ? (done / total) * 100 : 0}%`, height: 8, borderRadius: 4, backgroundColor: colors.primary[500] }} />
             </View>
           </View>
           {tasks.map((task, i) => (

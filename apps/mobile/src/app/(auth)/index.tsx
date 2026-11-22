@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, Button, Hero, Logo, IconBadge, Card, colors, type IconName, type Hue } from '../../ui';
 
 const POINTS: { icon: IconName; hue: Hue; key: string; hint: string }[] = [
-  { icon: 'cloudOff', hue: 'teal', key: 'welcome.point1', hint: 'welcome.point1Hint' },
+  { icon: 'cloudOff', hue: 'primary', key: 'welcome.point1', hint: 'welcome.point1Hint' },
   { icon: 'book', hue: 'amber', key: 'welcome.point2', hint: 'welcome.point2Hint' },
   { icon: 'shield', hue: 'sky', key: 'welcome.point3', hint: 'welcome.point3Hint' },
 ];
@@ -24,8 +24,8 @@ export default function Welcome() {
             <Text style={{ color: '#FFFFFF', fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 38, lineHeight: 52 }}>{t('app.name')}</Text>
             <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 16, lineHeight: 26, textAlign: 'center', fontFamily: 'IBMPlexSansArabic_500Medium' }}>{t('app.tagline')}</Text>
           </View>
-          <View style={{ backgroundColor: 'rgba(242,169,59,0.22)', borderRadius: 99, paddingHorizontal: 14, paddingVertical: 6 }}>
-            <Text style={{ color: '#FFE7BF', fontSize: 13, lineHeight: 20, fontFamily: 'IBMPlexSansArabic_600SemiBold' }}>{t('welcome.badge')}</Text>
+          <View style={{ backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 99, paddingHorizontal: 14, paddingVertical: 6 }}>
+            <Text style={{ color: '#FFFFFF', fontSize: 13, lineHeight: 20, fontFamily: 'IBMPlexSansArabic_600SemiBold' }}>{t('welcome.badge')}</Text>
           </View>
         </View>
       </Hero>

@@ -50,11 +50,11 @@ export default function Security() {
       {bioAvailable ? (
         <Card>
           <View className="flex-row items-center gap-3">
-            <IconBadge name="fingerprint" hue="teal" />
+            <IconBadge name="fingerprint" hue="primary" />
             <Text variant="subtitle" className="flex-1">
               {t('security.biometric')}
             </Text>
-            <Switch value={bio} onValueChange={(v) => void toggleBio(v)} trackColor={{ true: colors.teal[500], false: colors.paper.line }} />
+            <Switch value={bio} onValueChange={(v) => void toggleBio(v)} trackColor={{ true: colors.primary[500], false: colors.paper.line }} />
           </View>
         </Card>
       ) : null}

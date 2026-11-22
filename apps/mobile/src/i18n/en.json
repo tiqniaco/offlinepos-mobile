@@ -153,7 +153,8 @@
     "audit": "Activity log",
     "sectionAccount": "Account & team",
     "sectionApp": "App",
-    "lockHint": "The screen locks; nobody gets in without a PIN"
+    "lockHint": "The screen locks; nobody gets in without a PIN",
+    "appearance": "Appearance"
   },
   "users": {
     "title": "Users",
@@ -480,5 +481,21 @@
       "duplicate_sku_in_file": "Code repeated in file",
       "larger_unit_incomplete": "Larger unit incomplete or count below 2"
     }
+  },
+  "appearance": {
+    "title": "Appearance",
+    "palette": "App colour",
+    "mode": "Display mode",
+    "light": "Light",
+    "lightHint": "Clean light background",
+    "dark": "Dark",
+    "darkHint": "Easy at night, saves battery",
+    "comfort": "Eye comfort",
+    "comfortHint": "Warm tones, less blue light",
+    "system": "Automatic",
+    "systemHint": "Follows your phone setting",
+    "preview": "Preview",
+    "sample": "Invoice INV-A-000123",
+    "default": "Default"
   }
 }
