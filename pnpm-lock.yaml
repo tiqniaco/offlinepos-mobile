@@ -45,6 +45,9 @@ importers:
       '@daftarak/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      aws4fetch:
+        specifier: ^1.0.20
+        version: 1.0.20
       hono:
         specifier: ^4.13.20
         version: 4.13.20
@@ -2934,6 +2937,9 @@ packages:
 
   await-lock@2.2.2:
     resolution: {integrity: sha512-aDczADvlvTGajTDjcjpJMqRkOF6Qdz3YbPZm/PyW6tKPkx2hlYBzxMhEywM/tU72HrVZjgl5VCdRuMlA7pZ8Gw==}
+
+  aws4fetch@1.0.20:
+    resolution: {integrity: sha512-/djoAN709iY65ETD6LKCtyyEI04XIBP5xVvfmNxsEP0uJB5tyaGBztSryRr4HqMStr9R06PisQE7m9zDTXKu6g==}
 
   babel-jest@29.7.0:
     resolution: {integrity: sha512-BrvGY3xZSwEcCzKvKsCi2GgHqDqsYkOP4/by5xCgIwGXQxIEh+8ew3gmrE1y7XRR6LHZIj6yLYnUi/mm2KXKBg==}
@@ -8786,7 +8792,7 @@ snapshots:
     optionalDependencies:
       babel-plugin-react-compiler: 1.0.0
 
-  '@vitest/mocker@5.1.1(vite@8.3.8(esbuild@0.28.2)(jiti@1.21.7)(terser@5.51.4)(tsx@4.23.15))':
+  '@vitest/mocker@5.1.1(vite@8.3.8(@types/node@18.19.130)(esbuild@0.28.2)(jiti@1.21.7)(terser@5.51.4)(tsx@4.23.15))':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@vitest/spy': 5.1.1
@@ -8879,6 +8885,8 @@ snapshots:
   asynckit@0.4.0: {}
 
   await-lock@2.2.2: {}
+
+  aws4fetch@1.0.20: {}
 
   babel-jest@29.7.0(@babel/core@7.29.13):
     dependencies:
@@ -12485,7 +12493,7 @@ snapshots:
   vitest@5.1.1(@types/node@18.19.130)(jsdom@26.1.0)(vite@8.3.8(@types/node@18.19.130)(esbuild@0.28.2)(jiti@1.21.7)(terser@5.51.4)(tsx@4.23.15)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.1.1(vite@8.3.8(esbuild@0.28.2)(jiti@1.21.7)(terser@5.51.4)(tsx@4.23.15))
+      '@vitest/mocker': 5.1.1(vite@8.3.8(@types/node@18.19.130)(esbuild@0.28.2)(jiti@1.21.7)(terser@5.51.4)(tsx@4.23.15))
       chai: 6.3.0
       es-module-lexer: 2.3.2
       expect-type: 1.4.0

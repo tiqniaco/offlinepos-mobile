@@ -20,6 +20,9 @@ export default defineConfig({
             BACKUP_WRAP_KEY: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8',
             OTP_PROVIDER: 'console',
             LICENCE_KID: '2026-01',
+            R2_ACCESS_KEY_ID: 'test-access-key',
+            R2_SECRET_ACCESS_KEY: 'test-secret-key',
+            REVENUECAT_WEBHOOK_SECRET: 'test-rc-secret',
           },
         },
       };

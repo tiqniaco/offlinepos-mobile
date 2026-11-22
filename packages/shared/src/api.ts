@@ -96,7 +96,24 @@ export const checkinSchema = z.object({
   appVersion: z.string().max(20),
   deviceTime: z.number().int(),
   anchor: anchorSchema.optional(),
+  /** A backup file is ready on the phone → the response carries a presigned PUT URL (PLAN.md §9.3). */
+  backupMeta: z.lazy(() => backupMetaSchema).optional(),
+  /** The upload of this backup finished → the server verifies and commits it. */
+  committedBackupId: z.string().optional(),
 });
+
+export const backupMetaSchema = z.object({
+  size: z.number().int().positive().max(2_000_000_000),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  counts: z.record(z.string(), z.number().int()).default({}),
+  schemaVersion: z.number().int().min(0),
+});
+export type BackupMeta = z.infer<typeof backupMetaSchema>;
+
+export const backupUploadSchema = z.object({ businessId: z.string(), deviceId: z.string(), meta: backupMetaSchema, kind: z.enum(['auto', 'manual']).default('manual') });
+
+export const backupPutSchema = z.object({ backupId: z.string(), url: z.string(), headers: z.record(z.string(), z.string()), expiresAt: z.number() });
+export type BackupPut = z.infer<typeof backupPutSchema>;
 
 export const checkinResponseSchema = z.object({
   licence: z.string(),
@@ -107,6 +124,8 @@ export const checkinResponseSchema = z.object({
   anchorReceipt: z
     .object({ chainSeq: z.number(), chainHead: z.string(), auditSeq: z.number(), auditHead: z.string(), serverTime: z.number(), sig: z.string() })
     .nullable(),
+  backupPut: backupPutSchema.nullable().optional(),
+  backupCommitted: z.boolean().optional(),
   notices: z.array(z.object({ kind: z.string(), textAr: z.string(), textEn: z.string() })),
 });
 export type CheckinResponse = z.infer<typeof checkinResponseSchema>;
@@ -131,5 +150,9 @@ export const API_ERROR_CODES = [
   'forbidden',
   'not_found',
   'internal',
+  'step_up_required',
+  'code_invalid',
+  'code_used',
+  'backup_not_uploaded',
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];

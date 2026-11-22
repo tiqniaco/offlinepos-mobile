@@ -1,5 +1,8 @@
 export interface Env {
   DB: D1Database;
+  BACKUPS: R2Bucket;
+  R2_ACCOUNT_ID: string;
+  R2_BUCKET: string;
   // vars
   OTP_PROVIDER: 'console' | 'smsmisr';
   LICENCE_KID: string;
@@ -12,6 +15,9 @@ export interface Env {
   ACCESS_TOKEN_SECRET: string;
   OTP_PEPPER: string;
   BACKUP_WRAP_KEY: string; // 32 bytes, base64url
+  R2_ACCESS_KEY_ID: string;
+  R2_SECRET_ACCESS_KEY: string;
+  REVENUECAT_WEBHOOK_SECRET: string;
   SMSMISR_USERNAME?: string;
   SMSMISR_PASSWORD?: string;
   SMSMISR_SENDER?: string;

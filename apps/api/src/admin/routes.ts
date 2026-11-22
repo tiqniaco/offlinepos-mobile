@@ -11,6 +11,7 @@ import { ApiError, body, clientIp } from '../lib/http';
 import { pbkdf2Hex, randomToken, safeEqual, sha256HexAsync } from '../lib/crypto';
 import type { Deps } from '../routes/v1';
 import { defaultDeps } from '../routes/v1';
+import { newActivationCode } from '../routes/phase6';
 
 const SESSION_TTL = 8 * 3_600_000;
 const MAX_FAILED = 5;
@@ -255,6 +256,75 @@ export function adminRoutes(deps: Deps = defaultDeps) {
       `SELECT l.id, l.action, l.target, l.details_json, l.at, u.email FROM admin_audit l JOIN admin_users u ON u.id = l.admin_id ORDER BY l.at DESC LIMIT 200`,
     ).all();
     return c.json({ entries: r.results });
+  });
+
+  // ── Activation codes (sales reps / cash payments) ──
+  app.post('/codes', async (c) => {
+    const now = deps.now();
+    const adminId = await requireAdmin(c, now);
+    const b = await body(c, z.object({ planCode: z.string(), days: z.number().int().min(1).max(3660), count: z.number().int().min(1).max(500), note: z.string().max(120).optional() }));
+    const plan = await c.env.DB.prepare(`SELECT code FROM plans WHERE code = ?1 AND is_free = 0`).bind(b.planCode).first();
+    if (!plan) throw new ApiError(400, 'invalid_request', 'plan');
+    const batch = uuidv7(now);
+    const codes: string[] = [];
+    while (codes.length < b.count) {
+      const code = newActivationCode();
+      if (!codes.includes(code)) codes.push(code);
+    }
+    await c.env.DB.batch(codes.map((code) => c.env.DB.prepare(`INSERT INTO activation_codes (code, plan_code, days, batch, note, created_by, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`).bind(code, b.planCode, b.days, batch, b.note ?? null, adminId, now)));
+    await audit(c.env, adminId, 'codes_generate', batch, { plan: b.planCode, days: b.days, count: b.count }, now);
+    return c.json({ batch, codes }, 201);
+  });
+
+  app.get('/codes', async (c) => {
+    await requireAdmin(c, deps.now());
+    const r = await c.env.DB.prepare(
+      `SELECT k.code, k.plan_code, k.days, k.batch, k.note, k.created_at, k.redeemed_at, k.revoked_at, b.name AS business_name
+       FROM activation_codes k LEFT JOIN businesses b ON b.id = k.redeemed_business_id ORDER BY k.created_at DESC LIMIT 500`,
+    ).all();
+    return c.json({ codes: r.results });
+  });
+
+  app.post('/codes/:code/revoke', async (c) => {
+    const now = deps.now();
+    const adminId = await requireAdmin(c, now);
+    const r = await c.env.DB.prepare(`UPDATE activation_codes SET revoked_at = ?2 WHERE code = ?1 AND redeemed_at IS NULL AND revoked_at IS NULL`).bind(c.req.param('code'), now).run();
+    if (r.meta.changes !== 1) throw new ApiError(404, 'not_found');
+    await audit(c.env, adminId, 'code_revoke', c.req.param('code'), null, now);
+    return c.json({ ok: true });
+  });
+
+  /** Dashboard: active, trials, paid by plan, MRR (monthly-equivalent), churn (30 days), requests per business/day. */
+  app.get('/metrics', async (c) => {
+    const now = deps.now();
+    await requireAdmin(c, now);
+    const d30 = now - 30 * DAY_MS;
+    const q = <T>(sql: string, ...args: unknown[]) => c.env.DB.prepare(sql).bind(...args).first<T>();
+    const total = await q<{ n: number }>(`SELECT COUNT(*) AS n FROM businesses`);
+    const active = await q<{ n: number }>(`SELECT COUNT(*) AS n FROM businesses WHERE last_seen_at > ?1`, d30);
+    const trials = await q<{ n: number }>(`SELECT COUNT(*) AS n FROM businesses WHERE status = 'trial' AND plan_expires_at > ?1`, now);
+    const paid = await c.env.DB.prepare(
+      `SELECT b.plan_code, b.billing_period, b.country, COUNT(*) AS n, p.monthly_egp, p.monthly_sar, p.yearly_egp, p.yearly_sar
+       FROM businesses b JOIN plans p ON p.code = b.plan_code
+       WHERE b.status IN ('active','past_due') AND b.plan_expires_at > ?1 AND p.is_free = 0
+       GROUP BY b.plan_code, b.billing_period, b.country`,
+    )
+      .bind(now)
+      .all<{ plan_code: string; billing_period: string | null; country: 'EG' | 'SA'; n: number; monthly_egp: number; monthly_sar: number; yearly_egp: number; yearly_sar: number }>();
+    const mrr = { EGP: 0, SAR: 0 };
+    const byPlan: Record<string, number> = {};
+    for (const r of paid.results) {
+      byPlan[r.plan_code] = (byPlan[r.plan_code] ?? 0) + r.n;
+      const cur = r.country === 'SA' ? 'SAR' : 'EGP';
+      const monthly = r.billing_period === 'yearly' ? Math.round((cur === 'SAR' ? r.yearly_sar : r.yearly_egp) / 12) : cur === 'SAR' ? r.monthly_sar : r.monthly_egp;
+      mrr[cur] += monthly * r.n;
+    }
+    const paidNow = Object.values(byPlan).reduce((a, b) => a + b, 0);
+    const lapsed = await q<{ n: number }>(`SELECT COUNT(*) AS n FROM businesses b JOIN plans p ON p.code = b.plan_code WHERE p.is_free = 0 AND b.status != 'trial' AND b.plan_expires_at BETWEEN ?1 AND ?2`, d30, now);
+    const churn = paidNow + (lapsed?.n ?? 0) ? (lapsed?.n ?? 0) / (paidNow + (lapsed?.n ?? 0)) : 0;
+    const today = Number(new Date(now).toISOString().slice(0, 10).replace(/-/g, ''));
+    const req = await q<{ avg: number | null; max: number | null }>(`SELECT AVG(count) AS avg, MAX(count) AS max FROM request_counters WHERE day >= ?1`, today - 7);
+    return c.json({ total: total?.n ?? 0, active30: active?.n ?? 0, trials: trials?.n ?? 0, paid: paidNow, byPlan, mrrMinor: mrr, churn30: churn, requestsPerBusinessDay: { avg: req?.avg ?? 0, max: req?.max ?? 0 } });
   });
 
   return app;

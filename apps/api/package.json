@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@daftarak/shared": "workspace:*",
+    "aws4fetch": "^1.0.20",
     "hono": "^4.13.20",
     "zod": "^4.6.7"
   },

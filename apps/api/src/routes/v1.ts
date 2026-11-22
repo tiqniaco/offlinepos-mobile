@@ -21,6 +21,7 @@ import { requestOtp, verifyOtp } from '../otp/service';
 import { providerFor, type OtpProvider } from '../otp/providers';
 import { createSession, requireSession, revokeSession, rotateRefresh } from '../auth/tokens';
 import { buildLicence, getPlan, signAnchorReceipt, type BusinessRow, type DeviceRow } from '../licence/issue';
+import { addPhase6Routes, commitBackup, startBackup } from './phase6';
 
 /** Injected in tests to control time and the OTP provider. */
 export interface Deps {
@@ -268,6 +269,11 @@ export function v1Routes(deps: Deps = defaultDeps) {
     ]);
     await countRequest(c.env, business.id, now);
 
+    // Backups ride on the daily check-in (no extra request): commit yesterday's upload, hand out today's PUT URL.
+    let backupCommitted: boolean | undefined;
+    if (b.committedBackupId) backupCommitted = await commitBackup(c.env, b.committedBackupId, business.id, now).catch(() => false);
+    const backupPut = b.backupMeta && !device.deactivated_at ? await startBackup(c.env, business.id, device.id, b.backupMeta, 'auto', now) : null;
+
     const notices: { kind: string; textAr: string; textEn: string }[] = [];
     if (Math.abs(b.deviceTime - now) > DAY_MS) {
       notices.push({ kind: 'clock', textAr: 'ساعة الموبايل مش مظبوطة، من فضلك اظبط التاريخ والوقت.', textEn: 'Your phone clock is wrong. Please fix date and time.' });
@@ -279,9 +285,12 @@ export function v1Routes(deps: Deps = defaultDeps) {
       accessToken: t.accessToken,
       accessExpiresAt: t.accessExpiresAt,
       anchorReceipt,
+      backupPut,
+      backupCommitted,
       notices,
     });
   });
 
+  addPhase6Routes(app, deps, registerDevice, countRequest);
   return app;
 }

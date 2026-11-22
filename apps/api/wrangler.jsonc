@@ -9,7 +9,10 @@
     // Create with: npx wrangler d1 create daftarak — then paste the id here.
     { "binding": "DB", "database_name": "daftarak", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
   ],
+  "r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "daftarak-backups" }],
   "vars": {
+    "R2_ACCOUNT_ID": "dev",
+    "R2_BUCKET": "daftarak-backups",
     "OTP_PROVIDER": "console",
     "LICENCE_KID": "dev",
     "ADMIN_ORIGIN": "http://localhost:5173",
@@ -22,7 +25,10 @@
       "d1_databases": [
         { "binding": "DB", "database_name": "daftarak", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
       ],
+      "r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "daftarak-backups" }],
       "vars": {
+        "R2_ACCOUNT_ID": "<cloudflare-account-id>",
+        "R2_BUCKET": "daftarak-backups",
         "OTP_PROVIDER": "smsmisr",
         "LICENCE_KID": "2026-01",
         "ADMIN_ORIGIN": "https://admin.daftarak.app",
@@ -32,6 +38,6 @@
     }
   }
   // Secrets (wrangler secret put …): LICENCE_SIGNING_KEY, ACCESS_TOKEN_SECRET, OTP_PEPPER,
-  // BACKUP_WRAP_KEY, SMSMISR_USERNAME, SMSMISR_PASSWORD, SMSMISR_SENDER, SMSMISR_TEMPLATE.
+  // BACKUP_WRAP_KEY, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, REVENUECAT_WEBHOOK_SECRET, SMSMISR_USERNAME, SMSMISR_PASSWORD, SMSMISR_SENDER, SMSMISR_TEMPLATE.
   // Local dev: put them in .dev.vars (git-ignored). See docs/dev-setup.md.
 }

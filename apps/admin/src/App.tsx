@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { call, fmtDate, fmtMoney, session, AdminApiError } from './api';
 
-type View = { name: 'businesses' } | { name: 'business'; id: string } | { name: 'plans' } | { name: 'audit' } | { name: 'settings' };
+type View = { name: 'dashboard' } | { name: 'codes' } | { name: 'businesses' } | { name: 'business'; id: string } | { name: 'plans' } | { name: 'audit' } | { name: 'settings' };
 
 const STATUS_AR: Record<string, string> = { trial: 'تجربة', active: 'مشترك', past_due: 'منتهي', suspended: 'موقوف' };
 const DAY = 86_400_000;
@@ -310,6 +310,96 @@ function Audit() {
   );
 }
 
+function Dashboard() {
+  const { data, error } = useLoad(() => call('/metrics'), []);
+  const tile = (label: string, value: string | number) => (
+    <div className="card" style={{ flex: 1, minWidth: 160 }}>
+      <div className="muted">{label}</div>
+      <div style={{ fontSize: 26, fontWeight: 700 }}>{value}</div>
+    </div>
+  );
+  return (
+    <>
+      <h2>لوحة الأرقام</h2>
+      {error ? <div className="err">{error}</div> : null}
+      {data ? (
+        <>
+          <div className="row" style={{ flexWrap: 'wrap', gap: 12 }}>
+            {tile('كل الأنشطة', data.total)}
+            {tile('نشطين آخر 30 يوم', data.active30)}
+            {tile('فترة تجربة', data.trials)}
+            {tile('مشتركين', data.paid)}
+            {tile('MRR ج.م', fmtMoney(data.mrrMinor.EGP))}
+            {tile('MRR ر.س', fmtMoney(data.mrrMinor.SAR))}
+            {tile('Churn 30 يوم', `${(data.churn30 * 100).toFixed(1)}%`)}
+            {tile('طلبات/نشاط/يوم (متوسط · أقصى)', `${Number(data.requestsPerBusinessDay.avg).toFixed(1)} · ${data.requestsPerBusinessDay.max}`)}
+          </div>
+          <div className="card">
+            <strong>المشتركين حسب الباقة</strong>
+            <div className="muted ltr">{Object.entries(data.byPlan).map(([k, v]) => `${k}: ${v}`).join(' · ') || '—'}</div>
+          </div>
+        </>
+      ) : null}
+    </>
+  );
+}
+
+function Codes() {
+  const { data, reload } = useLoad(() => call('/codes'), []);
+  const [plan, setPlan] = useState('basic');
+  const [days, setDays] = useState(365);
+  const [count, setCount] = useState(10);
+  const [note, setNote] = useState('');
+  const [fresh, setFresh] = useState<string[]>([]);
+  const gen = async () => {
+    const r = await call('/codes', { body: { planCode: plan, days, count, note: note || undefined } });
+    setFresh(r.codes);
+    reload();
+  };
+  const csv = () => {
+    const rows = [['code', 'plan', 'days', 'note', 'created', 'redeemed', 'business'], ...(data?.codes ?? []).map((k: any) => [k.code, k.plan_code, k.days, k.note ?? '', fmtDate(k.created_at), fmtDate(k.redeemed_at), k.business_name ?? ''])];
+    const blob = new Blob(['\ufeff' + rows.map((r) => r.join(',')).join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'activation-codes.csv';
+    a.click();
+  };
+  return (
+    <>
+      <h2>أكواد التفعيل</h2>
+      <div className="card row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        <select value={plan} onChange={(e) => setPlan(e.target.value)}>
+          <option value="basic">أساسي</option>
+          <option value="pro">احترافي</option>
+        </select>
+        <label>أيام <input type="number" value={days} onChange={(e) => setDays(Number(e.target.value))} style={{ width: 90 }} /></label>
+        <label>العدد <input type="number" value={count} onChange={(e) => setCount(Number(e.target.value))} style={{ width: 80 }} /></label>
+        <input placeholder="ملاحظة (اسم المندوب)" value={note} onChange={(e) => setNote(e.target.value)} />
+        <button className="btn" onClick={() => void gen()}>توليد</button>
+        <button onClick={csv}>تصدير CSV</button>
+      </div>
+      {fresh.length ? <div className="card ltr" style={{ fontFamily: 'monospace' }}>{fresh.join('  ')}</div> : null}
+      <div className="card">
+        <table>
+          <thead><tr><th>الكود</th><th>الباقة</th><th>أيام</th><th>ملاحظة</th><th>الحالة</th><th /></tr></thead>
+          <tbody>
+            {data?.codes.map((k: any) => (
+              <tr key={k.code}>
+                <td className="ltr" style={{ fontFamily: 'monospace' }}>{k.code}</td>
+                <td>{k.plan_code}</td>
+                <td>{k.days}</td>
+                <td className="muted">{k.note ?? ''}</td>
+                <td>{k.revoked_at ? 'ملغي' : k.redeemed_at ? `مستخدم — ${k.business_name ?? ''}` : 'متاح'}</td>
+                <td>{!k.redeemed_at && !k.revoked_at ? <button onClick={() => call(`/codes/${k.code}/revoke`, { body: {} }).then(reload)}>إلغاء</button> : null}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
 function Settings() {
   const { data, reload } = useLoad(() => call('/settings'), []);
   const ads = data?.ads_enabled !== 'false';
@@ -331,7 +421,7 @@ function Settings() {
 
 export function App() {
   const [authed, setAuthed] = useState(!!session.get());
-  const [view, setView] = useState<View>({ name: 'businesses' });
+  const [view, setView] = useState<View>({ name: 'dashboard' });
   if (!authed) return <Login onDone={() => setAuthed(true)} />;
   const nav = (v: View, label: string) => (
     <button className={view.name === v.name ? 'on' : ''} onClick={() => setView(v)}>
@@ -342,7 +432,9 @@ export function App() {
     <div className="shell">
       <aside className="side">
         <h1>دفترك</h1>
+        {nav({ name: 'dashboard' }, 'لوحة الأرقام')}
         {nav({ name: 'businesses' }, 'الأنشطة')}
+        {nav({ name: 'codes' }, 'أكواد التفعيل')}
         {nav({ name: 'plans' }, 'الباقات')}
         {nav({ name: 'settings' }, 'إعدادات')}
         {nav({ name: 'audit' }, 'سجل الإدارة')}
@@ -350,6 +442,8 @@ export function App() {
         <button onClick={() => call('/logout', { body: {} }).finally(() => { session.clear(); setAuthed(false); })}>خروج</button>
       </aside>
       <main>
+        {view.name === 'dashboard' && <Dashboard />}
+        {view.name === 'codes' && <Codes />}
         {view.name === 'businesses' && <Businesses open={(id) => setView({ name: 'business', id })} />}
         {view.name === 'business' && <BusinessDetail id={view.id} back={() => setView({ name: 'businesses' })} />}
         {view.name === 'plans' && <Plans />}
