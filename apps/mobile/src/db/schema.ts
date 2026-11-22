@@ -746,3 +746,27 @@ export const offers = sqliteTable(
   },
   (t) => [index('offers_active').on(t.active, t.type), uniqueIndex('offers_coupon').on(t.couponCode)],
 );
+
+/**
+ * Monthly sales roll-up per product (P), customer (C), cashier (U) and day (D, key = YYYYMMDD), kept in the posting transaction.
+ * Long-range reports read whole months from here and only scan lines for the partial edge months.
+ * Rebuildable from sales_lines at any time (rebuildRollup); a test checks rollup == recompute.
+ */
+export const salesRollup = sqliteTable(
+  'sales_rollup',
+  {
+    month: integer('month').notNull(),
+    dim: text('dim', { enum: ['P', 'C', 'U', 'D'] }).notNull(),
+    key: text('key').notNull(),
+    invoices: integer('invoices').notNull().default(0),
+    qtyMilli: integer('qty_milli').notNull().default(0),
+    salesMinor: integer('sales_minor').notNull().default(0),
+    netMinor: integer('net_minor').notNull().default(0),
+    taxMinor: integer('tax_minor').notNull().default(0),
+    discMinor: integer('disc_minor').notNull().default(0),
+    retsMinor: integer('rets_minor').notNull().default(0),
+    /** Σ unit_cost × base_qty (milli) — divide by 1000 for minor units. */
+    costMilli: integer('cost_milli').notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.dim, t.key, t.month] }), index('sales_rollup_month').on(t.dim, t.month)],
+);

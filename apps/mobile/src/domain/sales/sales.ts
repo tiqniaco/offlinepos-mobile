@@ -37,6 +37,7 @@ import { METHOD_ACCOUNT, postJournal, type JournalLineInput } from '../accountin
 import { postPartyLedger } from '../parties/customers';
 import { shiftIdFor } from '../shifts/shifts';
 import { assertVoidWindow } from '../vouchers/vouchers';
+import { rollupDoc } from '../reports/rollup';
 
 export interface SalesSettings {
   pricesIncludeVat: boolean;
@@ -321,6 +322,7 @@ export async function postSale(ctx: SalesCtx, draft: SaleDraft, pays: PaymentInp
     await postJournal(tx, ctx, { sourceType: 'sales_doc', sourceId: docId, businessDay: day, memo: number, lines: jl, at: t });
 
     await sealSalesDoc(tx, ctx, docId, 'SALES_INVOICE', t);
+    await rollupDoc(tx, docId, 1);
     if (draft.quotationId) await tx.update(salesDocs).set({ status: 'CONVERTED', updatedAt: t }).where(and(eq(salesDocs.id, draft.quotationId), eq(salesDocs.type, 'QUOTATION')));
     await appendAudit(tx, { action: 'sale.post', entity: 'sales_docs', entityId: docId, after: { number, total: priced.totalMinor, lines: draft.lines.length }, userId: ctx.user.id, deviceId: ctx.device.id, at: t });
     if (approver && (need.priceChanges.length || need.violations.length)) {
@@ -671,6 +673,7 @@ export async function postReturn(ctx: SalesCtx, invoiceId: string, items: { line
     if (cogs > 0) jl.push({ account: 'INVENTORY', debit: cogs }, { account: 'COGS', credit: cogs });
     await postJournal(tx, ctx, { sourceType: 'sales_doc', sourceId: docId, businessDay: day, memo: number, lines: jl, at: t });
     await sealSalesDoc(tx, ctx, docId, 'SALES_RETURN', t);
+    await rollupDoc(tx, docId, 1);
     await appendAudit(tx, { action: 'sale.return', entity: 'sales_docs', entityId: docId, after: { number, of: inv.number, total }, reason, userId: ctx.user.id, deviceId: ctx.device.id, at: t });
     return { docId, number, totalMinor: total, changeMinor: 0 };
   });
@@ -721,6 +724,7 @@ export async function voidSale(ctx: SalesCtx, docId: string, reason: string): Pr
       });
     }
     await tx.update(payments).set({ voided: true }).where(eq(payments.docId, docId));
+    await rollupDoc(tx, docId, -1);
     await tx.update(salesDocs).set({ status: 'VOIDED', voidReason: reason.trim(), voidedBy: ctx.user.id, voidedAt: t }).where(eq(salesDocs.id, docId));
     await appendChain(tx, ctx.device.id, 'VOID', docId, t, () => voidPayload({ docId, number: doc.number, reason: reason.trim(), by: ctx.user.id, at: t }));
     await appendAudit(tx, { action: 'sale.void', entity: 'sales_docs', entityId: docId, before: { status: 'POSTED', total: doc.totalMinor }, after: { status: 'VOIDED' }, reason, userId: ctx.user.id, deviceId: ctx.device.id, at: t });

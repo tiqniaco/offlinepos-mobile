@@ -71,7 +71,7 @@ export default function Offers() {
                 <Switch
                   value={r.active}
                   disabled={locked}
-                  onValueChange={(v) => ctx && void saveOffer(ctx, { ...toDef(r), active: v }).then(load, (e) => toast(errorMessage(t, e), 'error'))}
+                  onValueChange={(v) => { if (ctx) void saveOffer(ctx, { ...toDef(r), active: v }).then(load, (e) => toast(errorMessage(t, e), "error")); }}
                   trackColor={{ true: colors.leaf[500], false: colors.paper.line }}
                 />
               </View>
