@@ -1,0 +1,190 @@
+{
+  "app": {
+    "name": "Daftarak",
+    "tagline": "Your shop's ledger, on your phone, offline"
+  },
+  "common": {
+    "next": "Next",
+    "back": "Back",
+    "save": "Save",
+    "cancel": "Cancel",
+    "done": "Done",
+    "retry": "Try again",
+    "loading": "One moment…",
+    "yes": "Yes",
+    "no": "No",
+    "close": "Close",
+    "edit": "Edit",
+    "change": "Change"
+  },
+  "welcome": {
+    "title": "Welcome to Daftarak",
+    "body": "Sales, stock, customers and suppliers — all on your phone, working without internet.",
+    "start": "Let's start",
+    "point1": "100% offline",
+    "point2": "Invoices, printing, WhatsApp",
+    "point3": "Your data is encrypted on your phone"
+  },
+  "phone": {
+    "title": "Your mobile number",
+    "body": "We'll text you a 6-digit code. Internet is needed only this time.",
+    "label": "Mobile number",
+    "placeholder": "01xxxxxxxxx or 05xxxxxxxx",
+    "send": "Send code",
+    "invalid": "This number isn't valid. Use an Egyptian or Saudi mobile number."
+  },
+  "otp": {
+    "title": "Enter the code",
+    "body": "We sent the code to {{phone}}",
+    "resendIn": "You can request a new code in {{s}} s",
+    "resend": "Send a new code",
+    "verify": "Confirm",
+    "changePhone": "Change number"
+  },
+  "chooseBusiness": {
+    "title": "Your business",
+    "body": "This number already has a business.",
+    "useExisting": "Use “{{name}}” on this phone",
+    "existingWarning": "The old phone becomes read-only. Old data moves over once backup & restore ships (soon). Until then this phone starts empty.",
+    "createNew": "Create a new business"
+  },
+  "business": {
+    "title": "Tell us about your shop",
+    "name": "Shop or company name",
+    "namePlaceholder": "e.g. Al Nour Market",
+    "country": "Country",
+    "EG": "Egypt",
+    "SA": "Saudi Arabia",
+    "type": "Business type",
+    "shop": "Shop",
+    "shopHint": "Direct sales to customers",
+    "trading": "Trading company",
+    "tradingHint": "Wholesale and credit invoices",
+    "vat": "Registered for VAT?",
+    "vatHint": "If not, no tax is printed on your invoices.",
+    "vatNumber": "VAT number",
+    "vatRate": "Rate: {{rate}}%"
+  },
+  "owner": {
+    "title": "Your owner account",
+    "body": "The PIN locks the app on this phone. Every employee gets their own PIN.",
+    "name": "Your name",
+    "pin": "PIN (4 to 6 digits)",
+    "pinConfirm": "Repeat the PIN",
+    "mismatch": "The PINs don't match",
+    "weak": "That PIN is easy to guess, pick another",
+    "finish": "Done — open Daftarak",
+    "creating": "Setting up your Daftarak…"
+  },
+  "lock": {
+    "title": "Who's using the app?",
+    "enterPin": "Enter your PIN",
+    "wrong": "Wrong PIN",
+    "lockedFor": "Locked for now. Try again in {{time}}",
+    "biometric": "Unlock with biometrics",
+    "biometricPrompt": "Unlock Daftarak",
+    "switchUser": "Another user"
+  },
+  "home": {
+    "greeting": "Good morning, {{name}}",
+    "greetingEvening": "Good evening, {{name}}",
+    "todaySales": "Today's sales",
+    "nextPhaseTitle": "Selling and products arrive in the next update",
+    "nextPhaseBody": "The foundation is ready: account, lock, users and licence. Products, selling and printing come in the next phase."
+  },
+  "licence": {
+    "trial": "Trial: {{days}} days left",
+    "grace": "Your subscription ended. {{days}} days left before moving to the free plan.",
+    "free": "You're on the free plan",
+    "readOnly": "The app is view-only right now — you can view, print and export.",
+    "reason": {
+      "offline_too_long": "This phone hasn't been online for more than 30 days. Connect once to restore everything.",
+      "clock_rollback": "The phone clock went backwards. Fix date & time and connect once.",
+      "deactivated": "This account was opened on another phone, so this one is view-only.",
+      "suspended": "The account is suspended. Contact us.",
+      "no_licence": "Please sign in again with your mobile code.",
+      "invalid": "There is a problem with the app licence. Connect once.",
+      "wrong_device": "This licence belongs to another phone."
+    },
+    "checkNow": "Connect & refresh",
+    "limit": "You reached your plan's limit. Subscribe to increase it."
+  },
+  "tabs": {
+    "home": "Home",
+    "more": "More"
+  },
+  "more": {
+    "title": "More",
+    "users": "Users & permissions",
+    "security": "Lock & security",
+    "language": "Language",
+    "subscription": "Subscription",
+    "about": "About",
+    "lockNow": "Lock now",
+    "audit": "Activity log"
+  },
+  "users": {
+    "title": "Users",
+    "add": "New user",
+    "name": "Name",
+    "role": "Role",
+    "pin": "PIN",
+    "disable": "Disable user",
+    "enable": "Enable user",
+    "biometric": "Biometric unlock",
+    "changePin": "Change PIN",
+    "lastOwner": "At least one owner must stay active",
+    "noPermission": "You don't have permission for this. Ask the manager."
+  },
+  "security": {
+    "autoLock": "Auto-lock after",
+    "minutes": "{{n}} min",
+    "never": "Never",
+    "biometric": "Biometric unlock for my account"
+  },
+  "language": {
+    "ar": "العربية",
+    "en": "English",
+    "restart": "The app will restart to change direction."
+  },
+  "subscription": {
+    "plan": "Plan",
+    "status": "Status",
+    "lastCheck": "Last update",
+    "never": "Not yet",
+    "checking": "Updating…",
+    "updated": "Updated",
+    "offline": "No internet right now — we'll retry later. Your work continues normally."
+  },
+  "errors": {
+    "network": "No internet connection. Check it and try again.",
+    "invalid_phone": "This number isn't valid. Use an Egyptian or Saudi mobile number.",
+    "otp_cooldown": "Please wait before requesting a new code.",
+    "otp_rate_limited": "Too many codes requested. Try again in an hour.",
+    "otp_invalid": "Wrong code. Check it and try again.",
+    "otp_expired": "The code expired. Request a new one.",
+    "otp_too_many_attempts": "Too many tries. Request a new code.",
+    "otp_send_failed": "We couldn't send the SMS. Try again shortly.",
+    "unknown": "Something went wrong. Try again.",
+    "required": "This field is required",
+    "dbNotEncrypted": "This build has no database encryption, so it won't run to protect your data."
+  },
+  "audit": {
+    "intact": "The log is intact — nothing was edited",
+    "broken": "The log was edited at entry #{{seq}}",
+    "actions": {
+      "business_create": "Business created",
+      "device_register": "Device registered",
+      "user_create": "User added",
+      "user_update": "User updated",
+      "user_disable": "User disabled",
+      "user_pin_change": "PIN changed",
+      "role_create": "Role added",
+      "role_update": "Role updated",
+      "settings_change": "Setting changed",
+      "licence_mode_change": "Licence status changed",
+      "clock_rollback": "Phone clock went back",
+      "override_manager_pin": "Manager override"
+    }
+  }
+}
