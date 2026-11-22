@@ -1,0 +1,28 @@
+{
+  "name": "@daftarak/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply daftarak --local",
+    "db:migrate:remote": "wrangler d1 migrations apply daftarak --remote",
+    "admin:create": "node scripts/create-admin.mjs",
+    "keys:licence": "node scripts/gen-licence-key.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@daftarak/shared": "workspace:*",
+    "hono": "^4.13.20",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.9.0",
+    "@cloudflare/workers-types": "^5.20261121.1",
+    "typescript": "~6.0.3",
+    "vitest": "^5.1.1",
+    "wrangler": "^4.166.0"
+  }
+}

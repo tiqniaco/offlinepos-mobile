@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "daftarak-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "d1_databases": [
+    // Create with: npx wrangler d1 create daftarak — then paste the id here.
+    { "binding": "DB", "database_name": "daftarak", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
+  ],
+  "vars": {
+    "OTP_PROVIDER": "console",
+    "LICENCE_KID": "2026-01",
+    "ADMIN_ORIGIN": "http://localhost:5173",
+    "SMSMISR_BASE_URL": "https://smsmisr.com/api/OTP/",
+    "SMSMISR_ENVIRONMENT": "2"
+  }
+  // Secrets (wrangler secret put …): LICENCE_SIGNING_KEY, ACCESS_TOKEN_SECRET, OTP_PEPPER,
+  // BACKUP_WRAP_KEY, SMSMISR_USERNAME, SMSMISR_PASSWORD, SMSMISR_SENDER, SMSMISR_TEMPLATE.
+  // Local dev: put them in .dev.vars (git-ignored). See docs/dev-setup.md.
+}

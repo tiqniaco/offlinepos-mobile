@@ -1,0 +1,10 @@
+# Copy to .dev.vars for `wrangler dev` (never commit .dev.vars)
+LICENCE_SIGNING_KEY=<hex from scripts/gen-licence-key.mjs>
+ACCESS_TOKEN_SECRET=<random 32+ chars>
+OTP_PEPPER=<random 32+ chars>
+BACKUP_WRAP_KEY=<32 random bytes, base64url>
+# Only when OTP_PROVIDER=smsmisr
+SMSMISR_USERNAME=
+SMSMISR_PASSWORD=
+SMSMISR_SENDER=
+SMSMISR_TEMPLATE=
