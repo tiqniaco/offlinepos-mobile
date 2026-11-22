@@ -47,19 +47,19 @@ export async function pbkdf2Hex(password: string, saltHex: string, iterations = 
 }
 
 async function wrapKey(keyB64: string) {
-  return crypto.subtle.importKey('raw', base64urlDecode(keyB64), 'AES-GCM', false, ['encrypt', 'decrypt']);
+  return crypto.subtle.importKey('raw', new Uint8Array(base64urlDecode(keyB64)), 'AES-GCM', false, ['encrypt', 'decrypt']);
 }
 
 /** AES-256-GCM wrap of a secret (used for the per-business backup key). Output "iv.ciphertext" base64url. */
 export async function wrapSecret(plain: Uint8Array, wrapKeyB64: string): Promise<string> {
   const iv = new Uint8Array(12);
   crypto.getRandomValues(iv);
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await wrapKey(wrapKeyB64), plain);
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await wrapKey(wrapKeyB64), new Uint8Array(plain));
   return `${base64urlEncode(iv)}.${base64urlEncode(new Uint8Array(ct))}`;
 }
 
 export async function unwrapSecret(wrapped: string, wrapKeyB64: string): Promise<Uint8Array> {
   const [iv, ct] = wrapped.split('.');
-  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: base64urlDecode(iv!) }, await wrapKey(wrapKeyB64), base64urlDecode(ct!));
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: new Uint8Array(base64urlDecode(iv!)) }, await wrapKey(wrapKeyB64), new Uint8Array(base64urlDecode(ct!)));
   return new Uint8Array(pt);
 }
