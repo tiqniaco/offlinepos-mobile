@@ -15,9 +15,12 @@ Read in this order if you are new:
 11. [posting.md](posting.md) — sales posting, returns, void, hash chain, journal
 12. [printing.md](printing.md) — thermal raster printing, printers, PDF/WhatsApp
 13. [theming.md](theming.md)
+18. [backup.md](backup.md) — backup, restore, new phone
+19. [billing.md](billing.md) — subscriptions, activation codes, webhook
+20. [motion.md](motion.md) — native transitions, haptics
 16. [offers.md](offers.md) — offers, coupons, stacking rules
 17. [reports.md](reports.md) — reports, roll-up, speed bench
 15. [ads.md](ads.md) — AdMob rules and setup (free plan) — palettes (TIQNIA default) and light / dark / comfort modes
-14. [phases/](phases/) — phase-1 … phase-5 — acceptance checklist per phase
+14. [phases/](phases/) — phase-1 … phase-6 — acceptance checklist per phase
 
-Not written yet (later phases): backup/restore & server anchors (Phase 6), store release (Phase 7).
+Not written yet: store release guide (Phase 7).

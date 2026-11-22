@@ -748,6 +748,11 @@ D1 load at 10,000 businesses ≈ 10k check-ins/day (≈ 0.12 req/s) — far insi
 | D-48 | Monthly roll-up `sales_rollup` maintained at posting + covering index for reports | §4.4 "benchmarked in Phase 5" | needed for < 1 s at 100k invoices on phones |
 | D-49 | Report gating: P&L, cashier, discounts, slow stock, aging = `adv_reports` (Pro); expiring = `expiry` | §17.1 | matches plan features |
 | D-50 | Stock movement per product lives on the product screen, not the reports list | SPEC §5 list | it needs a product chosen first |
+| D-51 | Backup codec in TypeScript (@noble/ciphers AES-GCM + fflate gzip) run in 64 KB slices, not a custom native module | D-04 native backup-codec | testable in Node, no native build risk; measured slice cost ≪ 100 ms; native module stays an option if phones are too slow |
+| D-52 | Explicit `POST /backups/:id/commit` for manual backups; automatic ones commit through the next check-in | §9.3 (lazy HEAD) | deterministic retention, still 1 request/day for automatic backups |
+| D-53 | Passphrase-protected local export deferred; local `.obk` uses the business backup key | §9.5 | owner never manages keys (Q-09); passphrase variant in Phase 7 if asked |
+| D-54 | Motion & haptics work (owner request) delivered in Phase 6 | Phase 7 polish | owner asked for smooth native transitions now |
+| D-55 | Store billing via RevenueCat products named `daftarak_<plan>_<period>`; activation codes for cash/agents | §8.4 | matches owner's sales model (cash agents + stores) |
 | D-19 | Phase 1 is delivered in **three commits groups** (1a app foundation, 1b server/auth/licence, 1c onboarding + admin) inside one phase | one phase | it's the largest phase; you can review progress mid-way. Acceptance is still checked once at the end |
 
 No other deviations. The full stack in SPEC §2 is otherwise used as specified (Expo + Router + dev builds,

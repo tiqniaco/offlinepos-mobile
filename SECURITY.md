@@ -23,7 +23,10 @@ Legend: ✅ done & tested · 🟡 done, needs on-device verification · ⏳ late
 - ✅ Discounts/prices above role limits need a manager PIN, audited
 - ✅ Purchases, vouchers and closed shifts immutable + chained; tamper test covers them
 - ✅ Daily background chain check with a home-screen alert (owner/manager)
-- ⏳ Server anchors of the chain head (Phase 6) · screenshot block on sensitive screens (Phase 7)
+- ✅ Daily server anchors of the chain + audit heads with Ed25519-signed receipts; integrity screen detects rewrites before an anchor
+- ✅ Backups encrypted on the phone (AES-256-GCM, per-business key); key released only after a fresh step-up OTP, audit-logged
+- ✅ Remote sign-out of lost phones (sessions screen); restore deactivates the old phone
+- ✅ Refresh-token rotations serialized (no accidental reuse → no false session revocation) · screenshot block on sensitive screens (Phase 7)
 - ⏳ Play Integrity / App Attest (Phase 7)
 
 ## Server (Cloudflare Worker)
