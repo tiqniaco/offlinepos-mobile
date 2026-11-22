@@ -11,6 +11,7 @@ import { findByBarcode } from '../../domain/inventory/products';
 import { useInvCtx } from '../../features/inventory/useInvCtx';
 import { invErrorMessage } from '../../features/inventory/errors';
 import { useScanner } from '../../state/scanner';
+import { fx } from '../../ui/fx';
 import { toast } from '../../state/toast';
 import { qty } from '../../lib/format';
 
@@ -38,7 +39,11 @@ export default function StockCount() {
     async (raw: string): Promise<string | null> => {
       if (!ctx || !docId) return null;
       const hit = await findByBarcode(getDb(), raw);
-      if (!hit) return t('count.notFound');
+      if (!hit) {
+        fx.notFound();
+        return t('count.notFound');
+      }
+      fx.scan();
       await countItem(ctx, docId, hit.productId, hit.factorMilli, 'add');
       const ls = await countLines(getDb(), docId);
       setLines(ls);

@@ -28,3 +28,5 @@ export { fonts, FONT_FAMILIES, loadFontFamily, preloadAllFonts, applyTextSize, T
 export { PALETTES, buildTheme, type PaletteId, type Appearance } from './theme';
 export { PressableScale } from './PressableScale';
 export { haptic } from './haptics';
+export { fx } from './fx';
+export { playSound, preloadSounds, setSoundsEnabled } from './sounds';

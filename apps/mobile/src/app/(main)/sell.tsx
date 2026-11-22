@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { roleHas } from '@daftarak/shared';
 import { getDb } from '../../db/client';
-import { haptic } from '../../ui/haptics';
+import { fx } from '../../ui/fx';
 import { useCart } from '../../state/cart';
 import { useScanner } from '../../state/scanner';
 import { toast } from '../../state/toast';
@@ -84,7 +84,6 @@ export default function Sell() {
     async (productId: string, productUnitId: string | null) => {
       const line = await cartLineFor(getDb(), settings, productId, productUnitId, useCart.getState().priceTier);
       useCart.getState().add(line);
-      haptic.tap();
       return line.name;
     },
     [settings],
@@ -94,9 +93,11 @@ export default function Sell() {
     async (code: string): Promise<string | null> => {
       const hit = await findByBarcode(getDb(), code);
       if (!hit) {
+        fx.notFound();
         toast(t('pos.notFound', { code }), 'error', roleHas(user?.permissions ?? [], 'products.manage') ? { label: t('pos.addProduct'), onPress: () => router.push({ pathname: '/products/form', params: { barcode: code } }) } : undefined);
         return t('pos.notFound', { code });
       }
+      fx.scan();
       return addProduct(hit.productId, hit.productUnitId);
     },
     [addProduct, t, user],
@@ -139,7 +140,10 @@ export default function Sell() {
           const q = search.trim();
           if (!q) return;
           setSearch('');
-          if (hits.length === 1) void addProduct(hits[0]!.id, null);
+          if (hits.length === 1) {
+            fx.add();
+            void addProduct(hits[0]!.id, null);
+          }
           else void addByCode(q);
         }}
         onScan={() => {
@@ -147,10 +151,16 @@ export default function Sell() {
           router.push('/scan');
         }}
         onPickHit={(id) => {
+          fx.add();
           setSearch('');
           void addProduct(id, null);
         }}
-        onQty={(key, q) => cart.setQty(key, q)}
+        onQty={(key, q) => {
+          const cur = cart.lines.find((l) => l.key === key)?.qtyMilli ?? 0;
+          if (q > cur) fx.add();
+          else fx.remove();
+          cart.setQty(key, q);
+        }}
         onLine={setLineKey}
         onCustomer={() => setCustOpen(true)}
         onMenu={() => setMenu(true)}
@@ -186,6 +196,7 @@ export default function Sell() {
           setLineKey(null);
         }}
         onRemove={() => {
+          fx.remove();
           if (line) cart.remove(line.key);
           setLineKey(null);
         }}

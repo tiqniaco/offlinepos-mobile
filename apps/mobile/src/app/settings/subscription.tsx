@@ -7,7 +7,7 @@ import { accessToken } from '../../lib/session';
 import { errorMessage } from '../../lib/errors';
 import { openWhatsApp } from '../../features/export/whatsapp';
 import { TextField, Banner, Icon } from '../../ui';
-import { haptic } from '../../ui/haptics';
+import { fx } from '../../ui/fx';
 import { fonts } from '../../ui/fonts';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -47,7 +47,7 @@ export default function Subscription() {
     void storePlans().then(setPlans, () => setPlans([]));
   }, [business?.serverBusinessId]);
   const afterChange = async (text: string) => {
-    haptic.success();
+    fx.success();
     setOk(text);
     // The server learns about the purchase from the store webhook within seconds; the check-in brings the licence.
     for (const wait of [1500, 5000, 12000]) {

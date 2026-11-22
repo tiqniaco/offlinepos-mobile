@@ -6,6 +6,7 @@ import { useApp } from '../../state/app';
 import { reloadAppData } from '../../state/boot';
 import { applyFont, applyTheme, setTextSize, useTheme, type Appearance, type FontId, type PaletteId, type TextSize } from '../../ui';
 import { AppearanceView } from '../../features/settings/AppearanceView';
+import { playSound, setSoundsEnabled } from '../../ui/sounds';
 
 /** Palette + light/dark/comfort/system. Applies instantly to the whole app and is saved per device. */
 export default function AppearanceScreen() {
@@ -16,6 +17,7 @@ export default function AppearanceScreen() {
   const appearance = useTheme((s) => s.appearance);
   const font = useTheme((s) => s.font);
   const textSize = useTheme((s) => s.textSize);
+  const soundsOn = useApp((s) => s.settings.sounds ?? true);
   const setSize = async (z: TextSize) => {
     useTheme.setState({ returnTo: '/settings/appearance' });
     setTextSize(z);
@@ -42,6 +44,12 @@ export default function AppearanceScreen() {
       appearance={appearance}
       font={font}
       textSize={textSize}
+      sounds={soundsOn}
+      onSounds={(v) => {
+        setSoundsEnabled(v);
+        if (v) playSound('success');
+        void changeSetting(getDb(), 'sounds', v, { userId: user.id, deviceId: device.id }).then(reloadAppData);
+      }}
       onTextSize={(z) => void setSize(z)}
       lang={i18n.language}
       onPalette={(p) => void set(p, appearance)}

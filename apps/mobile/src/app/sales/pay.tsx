@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { LinearGradient } from 'expo-linear-gradient';
 import { settle, type PaymentInput, type PaymentMethod } from '@daftarak/shared';
-import { Screen, Text, Button, MoneyField, Chip, Card, Banner, Icon, colors, fonts, shadow, haptic } from '../../ui';
+import { Screen, Text, Button, MoneyField, Chip, Card, Banner, Icon, colors, fonts, shadow, fx } from '../../ui';
 import { useCart } from '../../state/cart';
 import { useApp } from '../../state/app';
 import { approvalsNeeded, postSale, priceDraft } from '../../domain/sales/sales';
@@ -73,6 +73,7 @@ export default function Pay() {
     try {
       settle(total, rows, !!draft.customerId);
     } catch (e) {
+      fx.error();
       return setErr(salesErrorMessage(t, e));
     }
     if (!approvedBy) {
@@ -84,11 +85,12 @@ export default function Pay() {
     try {
       const r = await postSale(ctx, draft, rows, { approvedBy });
       cart.clear();
-      haptic.success();
+      fx.sale();
       // Sale is committed. Printing runs afterwards and can never undo it.
       void printReceiptInBackground(r.docId);
       router.replace({ pathname: '/sales/done', params: { id: r.docId, change: String(r.changeMinor) } });
     } catch (e) {
+      fx.error();
       setErr(salesErrorMessage(t, e));
     } finally {
       setBusy(false);

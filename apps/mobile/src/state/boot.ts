@@ -4,6 +4,7 @@
  */
 import { Appearance, Platform } from 'react-native';
 import { applyFont, applyTheme, setTextSize } from '../ui/themeStore';
+import { preloadSounds, setSoundsEnabled } from '../ui/sounds';
 import { getDb, openDatabase, DbNotEncryptedError } from '../db/client';
 import { business } from '../db/schema';
 import { getCurrentDevice } from '../domain/device';
@@ -52,6 +53,8 @@ export async function boot(): Promise<void> {
   }
   const settings = await loadSettings(db);
   setTextSize(settings.textSize ?? 'md');
+  setSoundsEnabled(settings.sounds ?? true);
+  preloadSounds();
   await applyFont(settings.font ?? 'readex').catch(() => applyFont('readex'));
   applyTheme(settings.palette ?? 'tiqnia', settings.appearance ?? 'light', Appearance.getColorScheme() === 'dark');
   const lang = settings.language ?? 'ar';

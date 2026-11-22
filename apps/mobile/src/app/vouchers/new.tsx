@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import type { PaymentMethod } from '@daftarak/shared';
-import { haptic } from '../../ui/haptics';
+import { fx } from '../../ui/fx';
 import { Screen, Text, MoneyField, Button, Chip, Banner, TextField, Avatar, Icon, colors, fonts, shadow } from '../../ui';
 import { getDb } from '../../db/client';
 import { useApp } from '../../state/app';
@@ -60,7 +60,8 @@ export default function NewVoucher() {
     setBusy(true);
     try {
       const r = await postVoucher(ctx, { type, amountMinor: amount, method: cashOnly ? 'cash' : method, label, partyId: party?.id ?? null, categoryId: cat, note });
-      haptic.success();
+      if (type === 'RECEIPT' || type === 'SUPPLIER_REFUND' || type === 'CASH_IN') fx.cash();
+      else fx.success();
       router.replace({ pathname: '/vouchers/[id]', params: { id: r.id, fresh: '1' } });
     } catch (e) {
       setErr(e instanceof VoucherError ? t(`voucher.errors.${e.code}`) : e instanceof ShiftError ? t(`shift.errors.${e.code}`) : errorMessage(t, e));

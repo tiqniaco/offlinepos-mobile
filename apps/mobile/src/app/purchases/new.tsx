@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { formatQty, roleHas, type PaymentInput } from '@daftarak/shared';
 import { Screen, Text, TextField, Button, Card, Icon, Chip, Sheet, QtyField, MoneyField, Banner, Avatar, EmptyState, colors, fonts, shadow } from '../../ui';
 import { getDb } from '../../db/client';
-import { haptic } from '../../ui/haptics';
+import { fx } from '../../ui/fx';
 import { useApp } from '../../state/app';
 import { usePurchaseCart } from '../../state/purchaseCart';
 import { useScanner } from '../../state/scanner';
@@ -72,9 +72,11 @@ export default function NewPurchase() {
   const addByCode = async (code: string) => {
     const hit = await findByBarcode(getDb(), code);
     if (!hit) {
+      fx.notFound();
       toast(t('pos.notFound', { code }), 'error', roleHas(user.permissions, 'products.manage') ? { label: t('pos.addProduct'), onPress: () => router.push({ pathname: '/products/form', params: { barcode: code } }) } : undefined);
       return t('pos.notFound', { code });
     }
+    fx.scan();
     return add(hit.productId, hit.productUnitId);
   };
 
@@ -88,7 +90,7 @@ export default function NewPurchase() {
     try {
       const r = await postPurchase(ctx, { supplierId: cart.supplierId, supplierRef: cart.supplierRef, lines: cart.lines, pricesIncludeVat: cart.pricesIncludeVat, invoiceDiscountMinor: cart.invoiceDiscountMinor, dueDays }, pays.length ? pays : [{ method: 'cash', amountMinor: 0 }]);
       cart.clear();
-      haptic.success();
+      fx.success();
       setPayOpen(false);
       router.replace({ pathname: '/purchases/[id]', params: { id: r.docId, fresh: '1' } });
     } catch (e) {
@@ -118,7 +120,7 @@ export default function NewPurchase() {
       {hits.length ? (
         <Card padded={false}>
           {hits.map((h, i) => (
-            <Pressable key={h.id} onPress={() => { setSearch(''); void add(h.id, null); }} style={({ pressed }) => ({ padding: 12, borderTopWidth: i ? 1 : 0, borderTopColor: colors.paper.line, backgroundColor: pressed ? colors.paper.sunk : 'transparent' })}>
+            <Pressable key={h.id} onPress={() => { fx.add(); setSearch(''); void add(h.id, null); }} style={({ pressed }) => ({ padding: 12, borderTopWidth: i ? 1 : 0, borderTopColor: colors.paper.line, backgroundColor: pressed ? colors.paper.sunk : 'transparent' })}>
               <Text variant="subtitle">{h.name}</Text>
             </Pressable>
           ))}
@@ -165,7 +167,7 @@ export default function NewPurchase() {
         footer={
           <>
             <Button title={t('line.done')} onPress={() => { if (edit) cart.update(edit.key, edit); setEdit(null); }} />
-            <Button kind="danger" icon="trash" title={t('line.remove')} onPress={() => { if (edit) cart.remove(edit.key); setEdit(null); }} />
+            <Button kind="danger" icon="trash" title={t('line.remove')} onPress={() => { fx.remove(); if (edit) cart.remove(edit.key); setEdit(null); }} />
           </>
         }
       >

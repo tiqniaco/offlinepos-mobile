@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Screen, Text, Card, Button, Banner, IconBadge, SectionTitle, colors, fonts } from '../../ui';
-import { haptic } from '../../ui/haptics';
+import { fx } from '../../ui/fx';
 import { useApp } from '../../state/app';
 import { api } from '../../api/client';
 import { accessToken } from '../../lib/session';
@@ -40,7 +40,7 @@ export default function BackupScreen() {
       if (kind === 'cloud') await backupNow((v, stage) => setP({ v, stage }));
       else if (kind === 'local') await exportLocalBackup((v) => setP({ v, stage: 'build' }));
       else await exportAllToExcel();
-      haptic.success();
+      fx.success();
       if (kind === 'cloud') setMsg({ tone: 'success', text: t('backup.done') });
       load();
     } catch (e) {

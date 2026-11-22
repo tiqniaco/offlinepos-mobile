@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, Switch, View } from 'react-native';
 import { fonts } from '../../ui/fonts';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
+import { playSound } from '../../ui/sounds';
 import { Screen, Text, SectionTitle, Icon, Chip, PALETTES, FONT_FAMILIES, preloadAllFonts, buildTheme, colors, shadow, type PaletteId, type Appearance, type FontId, type TextSize } from '../../ui';
 
 const MODES: { id: Appearance; icon: 'globe' | 'shield' | 'book' | 'refresh' }[] = [
@@ -37,6 +38,8 @@ export function AppearanceView({
   font,
   textSize = 'md',
   onTextSize,
+  sounds = true,
+  onSounds,
   onPalette,
   onAppearance,
   onFont,
@@ -47,6 +50,8 @@ export function AppearanceView({
   font: FontId;
   textSize?: TextSize;
   onTextSize?: (z: TextSize) => void;
+  sounds?: boolean;
+  onSounds?: (on: boolean) => void;
   onPalette: (p: PaletteId) => void;
   onAppearance: (a: Appearance) => void;
   onFont: (f: FontId) => void;
@@ -123,6 +128,16 @@ export function AppearanceView({
             </Pressable>
           );
         })}
+      </View>
+
+      <SectionTitle>{t('appearance.sounds')}</SectionTitle>
+      <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 16, backgroundColor: colors.paper.card }, shadow.soft]}>
+        <View style={{ flex: 1 }}>
+          <Text variant="subtitle">{t('appearance.soundsOn')}</Text>
+          <Text variant="caption">{t('appearance.soundsHint')}</Text>
+        </View>
+        <Chip label={t('appearance.soundTry')} onPress={() => { playSound('scan'); setTimeout(() => playSound('sale'), 350); }} />
+        <Switch testID="sounds-switch" value={sounds} onValueChange={(v) => onSounds?.(v)} trackColor={{ true: colors.primary[500], false: colors.paper.line }} />
       </View>
 
       <SectionTitle>{t('appearance.textSize')}</SectionTitle>

@@ -557,7 +557,11 @@
       "sm": "Small",
       "md": "Medium",
       "lg": "Large"
-    }
+    },
+    "sounds": "Sounds",
+    "soundsOn": "Light action sounds",
+    "soundsHint": "Barcode beep, sale chime, saved, errors",
+    "soundTry": "Try"
   },
   "pos": {
     "title": "New sale",

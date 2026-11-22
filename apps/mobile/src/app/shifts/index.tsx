@@ -16,6 +16,7 @@ import { useBizCtx } from '../../features/sales/useSalesCtx';
 import { useCurrency } from '../../features/inventory/useInvCtx';
 import { money, dateTimeLabel } from '../../lib/format';
 import { errorMessage } from '../../lib/errors';
+import { fx } from '../../ui/fx';
 
 type Shift = NonNullable<Awaited<ReturnType<typeof currentShift>>>;
 
@@ -51,6 +52,7 @@ export default function Shifts() {
     setBusy(true);
     try {
       const r = await fn();
+      fx.success();
       after?.(r);
       await load();
     } catch (e) {

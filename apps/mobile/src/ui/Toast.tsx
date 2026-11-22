@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Pressable, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 import { haptic } from './haptics';
+import { fx } from './fx';
 import { fonts } from './fonts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useToast } from '../state/toast';
@@ -16,7 +17,7 @@ export function ToastHost() {
   const hide = useToast((s) => s.hide);
   const insets = useSafeAreaInsets();
   useEffect(() => {
-    if (t?.tone === 'error') haptic.error();
+    if (t?.tone === 'error') fx.error();
     else if (t?.tone === 'success') haptic.success();
   }, [t?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!t) return null;

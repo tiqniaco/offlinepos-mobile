@@ -15,7 +15,7 @@ import { applyRestore, stageRestore, type RestorePreview } from '../../features/
 import { setRestoreBusinessId } from '../../features/backup/restoreState';
 import { dayText } from '../../features/export/builders';
 import { errorMessage } from '../../lib/errors';
-import { haptic } from '../../ui/haptics';
+import { fx } from '../../ui/fx';
 
 type Backup = Awaited<ReturnType<typeof api.listBackups>>['backups'][number];
 type Step = 'list' | 'otp' | 'working' | 'preview' | 'installing';
@@ -83,7 +83,7 @@ export default function Restore() {
       await setSecret(SECURE_KEYS.refreshToken, auth.refreshToken);
       await storeLicence(getDb(), reg.registration.licence, reg.registration.serverTime);
       await refreshLicenceState(getDb());
-      haptic.success();
+      fx.success();
       await boot(); // restored users → lock screen
     } catch (e) {
       setErr(errorMessage(t, e));

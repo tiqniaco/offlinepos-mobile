@@ -3,7 +3,7 @@ import { fonts } from '../ui/fonts';
 import { Platform, Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import * as Haptics from 'expo-haptics';
+import { fx } from '../ui/fx';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, Button, Icon, colors } from '../ui';
 import { useScanner } from '../state/scanner';
@@ -28,7 +28,7 @@ export default function ScanScreen() {
     if (busy.current || (code === last.current.code && now - last.current.at < 1500)) return;
     last.current = { code, at: now };
     busy.current = true;
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+    if (!req?.continuous) fx.scan();
     try {
       if (!req?.continuous) {
         router.back();
