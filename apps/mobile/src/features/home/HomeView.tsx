@@ -32,6 +32,7 @@ export function HomeView({
   banner,
   tasks,
   onLock,
+  stats,
 }: {
   greeting: string;
   userName: string;
@@ -42,6 +43,7 @@ export function HomeView({
   banner?: React.ReactNode;
   tasks: SetupTask[];
   onLock: () => void;
+  stats?: { key: string; label: string; value: string; icon: IconName; hue: Hue; onPress?: () => void }[];
 }) {
   const { t } = useTranslation();
   const done = tasks.filter((x) => x.done).length;
@@ -72,6 +74,20 @@ export function HomeView({
 
       <View className="gap-4 px-5" style={{ marginTop: -14 }}>
         {banner}
+        {stats && stats.length ? (
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            {stats.map((st) => (
+              <Card key={st.key} onPress={st.onPress} style={{ flex: 1 }}>
+                <View style={{ gap: 8 }}>
+                  <IconBadge name={st.icon} hue={st.hue} size={38} />
+                  <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontFamily: 'IBMPlexSansArabic_700Bold', fontSize: 20, lineHeight: 28, color: colors.ink.DEFAULT }}>{st.value}</Text>
+                  <Text variant="caption" numberOfLines={1}>{st.label}</Text>
+                </View>
+              </Card>
+            ))}
+          </View>
+        ) : null}
+        {done < total || tasks.some((x) => x.soon) ? (
         <Card padded={false}>
           <View className="gap-3 px-4 pb-2 pt-4">
             <View className="flex-row items-center justify-between">
@@ -118,6 +134,7 @@ export function HomeView({
             </Pressable>
           ))}
         </Card>
+        ) : null}
 
         <Card>
           <View className="flex-row items-center gap-3">

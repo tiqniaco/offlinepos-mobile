@@ -16,6 +16,7 @@ import {
 import { useApp } from '../state/app';
 import { boot } from '../state/boot';
 import { useAutoLock } from '../hooks/useAutoLock';
+import { ToastHost } from '../ui/Toast';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -56,8 +57,11 @@ export default function RootLayout() {
           <Stack.Protected guard={status === 'ready'}>
             <Stack.Screen name="(main)" />
             <Stack.Screen name="settings" />
+            <Stack.Screen name="products" />
+            <Stack.Screen name="scan" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
           </Stack.Protected>
         </Stack>
+        <ToastHost />
       </View>
     </SafeAreaProvider>
   );

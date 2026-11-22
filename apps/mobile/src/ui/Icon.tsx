@@ -8,7 +8,7 @@ import { I18nManager, Platform } from 'react-native';
 import i18n from 'i18next';
 import colors from './colors.json';
 
-export type IconName = 'home' | 'more' | 'phone' | 'shield' | 'users' | 'lock' | 'globe' | 'card' | 'info' | 'chevron' | 'back' | 'fingerprint' | 'check' | 'store' | 'truck' | 'book' | 'cloudOff' | 'plus' | 'warning' | 'list' | 'backspace';
+export type IconName = 'home' | 'more' | 'phone' | 'shield' | 'users' | 'lock' | 'globe' | 'card' | 'info' | 'chevron' | 'back' | 'fingerprint' | 'check' | 'store' | 'truck' | 'book' | 'cloudOff' | 'plus' | 'warning' | 'list' | 'backspace' | 'scan' | 'camera' | 'image' | 'box' | 'tag' | 'search' | 'dots' | 'trash' | 'edit' | 'minus' | 'upload' | 'download' | 'refresh' | 'layers' | 'clipboard';
 
 const MIRRORED: IconName[] = ['chevron', 'back'];
 
@@ -58,6 +58,36 @@ export function Icon({ name, size = 24, color = colors.teal[600], tint }: { name
         return (<><Path d="M7 18h10.5a4 4 0 0 0 .7-7.9A6 6 0 0 0 7.1 9 4.5 4.5 0 0 0 7 18z" fill={fill} /><Path d="M7 18h10.5a4 4 0 0 0 .7-7.9A6 6 0 0 0 7.1 9 4.5 4.5 0 0 0 7 18zM3 3l18 18" {...p} /></>);
       case 'backspace':
         return (<><Path d="M9 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6-7z" fill={fill} /><Path d="M9 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6-7zM12 9.5l5 5M17 9.5l-5 5" {...p} /></>);
+      case 'scan':
+        return (<><Rect x="6" y="7" width="12" height="10" rx="1" fill={fill} /><Path d="M3 8V5.5A2.5 2.5 0 0 1 5.5 3H8M16 3h2.5A2.5 2.5 0 0 1 21 5.5V8M21 16v2.5a2.5 2.5 0 0 1-2.5 2.5H16M8 21H5.5A2.5 2.5 0 0 1 3 18.5V16M7 8v8M10 8v8M13 8v8M16.5 8v8" {...p} /></>);
+      case 'camera':
+        return (<><Rect x="3" y="6.5" width="18" height="13.5" rx="3" fill={fill} /><Path d="M8 6.5 9.5 4h5L16 6.5h2a3 3 0 0 1 3 3V17a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V9.5a3 3 0 0 1 3-3z" {...p} /><Circle cx="12" cy="13" r="3.5" {...p} /></>);
+      case 'image':
+        return (<><Rect x="3" y="4" width="18" height="16" rx="3" fill={fill} /><Rect x="3" y="4" width="18" height="16" rx="3" {...p} /><Circle cx="9" cy="9.5" r="1.8" {...p} /><Path d="m4 18 5.5-5.5 3.5 3.5 2.5-2.5L20 18" {...p} /></>);
+      case 'box':
+        return (<><Path d="M12 3 20 7v10l-8 4-8-4V7z" fill={fill} /><Path d="M12 3 20 7v10l-8 4-8-4V7zM4 7l8 4 8-4M12 11v10" {...p} /></>);
+      case 'tag':
+        return (<><Path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z" fill={fill} /><Path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z" {...p} /><Circle cx="8" cy="8" r="1.6" {...p} /></>);
+      case 'search':
+        return (<><Circle cx="11" cy="11" r="7" fill={fill} /><Circle cx="11" cy="11" r="7" {...p} /><Path d="m20 20-4-4" {...p} /></>);
+      case 'dots':
+        return (<><Circle cx="5" cy="12" r="1.8" fill={color} /><Circle cx="12" cy="12" r="1.8" fill={color} /><Circle cx="19" cy="12" r="1.8" fill={color} /></>);
+      case 'trash':
+        return (<><Path d="M6 7h12l-1 13H7z" fill={fill} /><Path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" {...p} /></>);
+      case 'edit':
+        return (<><Path d="M4 20h4L19 9l-4-4L4 16z" fill={fill} /><Path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4" {...p} /></>);
+      case 'minus':
+        return <Path d="M5 12h14" {...p} strokeWidth={2.2} />;
+      case 'upload':
+        return (<><Path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" fill={fill} /><Path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3M12 15V4M7.5 8.5 12 4l4.5 4.5" {...p} /></>);
+      case 'download':
+        return (<><Path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" fill={fill} /><Path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3M12 4v11M7.5 10.5 12 15l4.5-4.5" {...p} /></>);
+      case 'refresh':
+        return (<><Path d="M20 11a8 8 0 0 0-14.6-4.5M4 13a8 8 0 0 0 14.6 4.5M5 3v4h4M19 21v-4h-4" {...p} /></>);
+      case 'layers':
+        return (<><Path d="m12 3 9 5-9 5-9-5z" fill={fill} /><Path d="m12 3 9 5-9 5-9-5zM3 13l9 5 9-5M3 17.5l9 5 9-5" {...p} /></>);
+      case 'clipboard':
+        return (<><Rect x="5" y="4.5" width="14" height="16.5" rx="2.5" fill={fill} /><Path d="M9 4.5H7.5A2.5 2.5 0 0 0 5 7v11.5A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5V7a2.5 2.5 0 0 0-2.5-2.5H15M9 3h6v3H9zM8.5 11l2 2 4-4M8.5 16.5h7" {...p} /></>);
       case 'plus':
         return <Path d="M12 5v14M5 12h14" {...p} strokeWidth={2.2} />;
       case 'list':

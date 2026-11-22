@@ -405,6 +405,7 @@ export interface ProductListRow {
   imagePath: string | null;
   qtyMilli: number;
   unitName: string;
+  categoryColor: string | null;
 }
 
 export interface ListQuery {
@@ -444,10 +445,12 @@ export async function listProducts(db: Db, q: ListQuery = {}): Promise<ProductLi
       imagePath: products.imagePath,
       qtyMilli: sql<number>`coalesce(${stockLevels.qtyMilli}, 0)`,
       unitName: units.nameAr,
+      categoryColor: categories.color,
     })
     .from(products)
     .innerJoin(units, eq(units.id, products.baseUnitId))
     .leftJoin(stockLevels, eq(stockLevels.productId, products.id))
+    .leftJoin(categories, eq(categories.id, products.categoryId))
     .where(and(...conds))
     .orderBy(asc(products.name), asc(products.id))
     .limit(limit);

@@ -37,6 +37,7 @@ export default function MainLayout() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: t('tabs.home'), tabBarIcon: ({ focused }) => <TabIcon name="home" focused={focused} /> }} />
+      <Tabs.Screen name="products" options={{ title: t('tabs.products'), tabBarIcon: ({ focused }) => <TabIcon name="box" focused={focused} /> }} />
       <Tabs.Screen name="more" options={{ title: t('tabs.more'), tabBarIcon: ({ focused }) => <TabIcon name="more" focused={focused} /> }} />
     </Tabs>
   );

@@ -1,0 +1,32 @@
+import { Pressable, View } from 'react-native';
+import { Text } from './Text';
+import colors from './colors.json';
+
+export function Chip({ label, selected, onPress, count, dot, testID }: { label: string; selected?: boolean; onPress?: () => void; count?: number; dot?: string | null; testID?: string }) {
+  return (
+    <Pressable
+      testID={testID}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        height: 38,
+        paddingHorizontal: 14,
+        borderRadius: 19,
+        borderWidth: 1.5,
+        borderColor: selected ? colors.teal[600] : colors.paper.line,
+        backgroundColor: selected ? colors.teal[600] : colors.paper.card,
+        opacity: pressed ? 0.8 : 1,
+      })}
+    >
+      {dot ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: dot }} /> : null}
+      <Text style={{ fontFamily: 'IBMPlexSansArabic_600SemiBold', fontSize: 14, lineHeight: 20, color: selected ? '#FFFFFF' : colors.ink.soft }}>{label}</Text>
+      {count != null ? (
+        <View style={{ minWidth: 22, height: 20, paddingHorizontal: 6, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: selected ? 'rgba(255,255,255,0.25)' : colors.paper.sunk }}>
+          <Text style={{ fontSize: 12, lineHeight: 18, fontFamily: 'IBMPlexSansArabic_700Bold', color: selected ? '#FFFFFF' : colors.ink.soft }}>{count}</Text>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}

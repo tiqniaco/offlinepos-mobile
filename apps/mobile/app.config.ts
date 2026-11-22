@@ -15,6 +15,7 @@ const config: ExpoConfig = {
     supportsTablet: true,
     infoPlist: {
       NSFaceIDUsageDescription: 'لفتح دفترك بالبصمة بدل الرقم السري',
+      NSCameraUsageDescription: 'لقراءة الباركود وتصوير المنتجات',
       CFBundleAllowMixedLocalizations: true,
     },
   },
@@ -28,6 +29,7 @@ const config: ExpoConfig = {
     predictiveBackGestureEnabled: false,
     // Data stays on the phone and in our own encrypted backups (Phase 6), never in Google auto-backup.
     allowBackup: false,
+    permissions: ['CAMERA'],
   },
   plugins: [
     'expo-router',
@@ -36,6 +38,8 @@ const config: ExpoConfig = {
     ['expo-localization', { supportedLocales: { ios: ['ar', 'en'], android: ['ar', 'en'] } }],
     'expo-font',
     ['expo-local-authentication', { faceIDPermission: 'لفتح دفترك بالبصمة بدل الرقم السري' }],
+    ['expo-image-picker', { cameraPermission: 'لقراءة الباركود وتصوير المنتجات', photosPermission: 'لاختيار صورة المنتج' }],
+    'expo-document-picker',
     ['expo-splash-screen', { image: './assets/splash-icon.png', imageWidth: 160, backgroundColor: '#0E8C80' }],
   ],
   experiments: { typedRoutes: true },

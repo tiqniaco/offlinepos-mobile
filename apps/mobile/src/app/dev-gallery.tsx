@@ -11,6 +11,17 @@ import { HomeView } from '../features/home/HomeView';
 import { MoreView } from '../features/more/MoreView';
 import { Banner } from '../ui';
 import { dateLabel } from '../lib/format';
+import { ProductsListView } from '../features/inventory/ProductsListView';
+import { ProductDetailView } from '../features/inventory/ProductDetailView';
+
+const SAMPLE_PRODUCTS = [
+  { id: 'a', name: 'شاي العروسة 250 جم', variantLabel: null, retailPriceMinor: 2200, trackStock: true, lowStockMilli: 12000, imagePath: null, qtyMilli: 48000, unitName: 'قطعة', categoryColor: '#18A999' },
+  { id: 'b', name: 'زيت عافية 800 مل', variantLabel: null, retailPriceMinor: 7450, trackStock: true, lowStockMilli: 10000, imagePath: null, qtyMilli: 6000, unitName: 'زجاجة', categoryColor: '#F2A93B' },
+  { id: 'c', name: 'أرز الضحى 1 كيلو', variantLabel: null, retailPriceMinor: 3500, trackStock: true, lowStockMilli: 20000, imagePath: null, qtyMilli: 0, unitName: 'كيلو', categoryColor: '#F2A93B' },
+  { id: 'd', name: 'تيشيرت قطن', variantLabel: 'XL', retailPriceMinor: 25000, trackStock: true, lowStockMilli: null, imagePath: null, qtyMilli: 14000, unitName: 'قطعة', categoryColor: '#3B82C4' },
+  { id: 'e', name: 'جبنة دومتي 500 جم', variantLabel: null, retailPriceMinor: 6000, trackStock: true, lowStockMilli: 5000, imagePath: null, qtyMilli: 23000, unitName: 'علبة', categoryColor: '#D9534A' },
+  { id: 'f', name: 'كيس بلاستيك', variantLabel: null, retailPriceMinor: 50, trackStock: false, lowStockMilli: null, imagePath: null, qtyMilli: 0, unitName: 'قطعة', categoryColor: null },
+];
 
 const USERS: LockUser[] = [
   { id: '1', name: 'أحمد', color: '#18A999', roleName: 'المالك', biometricEnabled: true },
@@ -37,6 +48,77 @@ export default function DevGallery() {
         onPin={setPin}
         onSubmit={noop}
         onBiometric={noop}
+      />
+    );
+  if (view === 'products')
+    return (
+      <ProductsListView
+        rows={SAMPLE_PRODUCTS}
+        loading={false}
+        search=""
+        onSearch={noop}
+        onSubmitSearch={noop}
+        onScan={noop}
+        filter={{ kind: 'all' }}
+        onFilter={noop}
+        categories={[
+          { id: '1', name: 'مشروبات', color: '#18A999', products: 12 },
+          { id: '2', name: 'بقالة', color: '#F2A93B', products: 40 },
+          { id: '3', name: 'ملابس', color: '#3B82C4', products: 8 },
+        ]}
+        summary={{ products: 186, lowStock: 7, stockValueMinor: 4_525_000 }}
+        showValue
+        currency="EGP"
+        lang="ar"
+        selecting={false}
+        selected={new Set()}
+        onPressRow={noop}
+        onLongPressRow={noop}
+        onEndReached={noop}
+        onAdd={noop}
+        onImport={noop}
+        onMenu={noop}
+        onCancelSelect={noop}
+        onBulkPrice={noop}
+        onBulkCategory={noop}
+        canManage
+        topInset={0}
+      />
+    );
+  if (view === 'product')
+    return (
+      <ProductDetailView
+        id="a"
+        d={{
+          name: 'شاي العروسة 250 جم',
+          variantLabel: null,
+          categoryName: 'مشروبات',
+          imagePath: null,
+          retailPriceMinor: 2200,
+          wholesalePriceMinor: 2000,
+          costMinor: 1850,
+          trackStock: true,
+          lowStockMilli: 12000,
+          baseUnitName: 'قطعة',
+          larger: { name: 'كرتونة', factorMilli: 24000, retailPriceMinor: 50000 },
+          barcodes: ['6221234567890', '16221234567897'],
+          level: { qtyMilli: 52000, avgCostMinor: 1862, valueMinor: 96824 },
+          variants: [],
+          movements: [
+            { id: '1', type: 'ADJUST', qtyMilli: -2000, occurredAt: Date.now() - 3_600_000, reason: 'damaged' },
+            { id: '2', type: 'COUNT', qtyMilli: 6000, occurredAt: Date.now() - 86_400_000, reason: 'count' },
+            { id: '3', type: 'OPENING', qtyMilli: 48000, occurredAt: Date.now() - 3 * 86_400_000, reason: null },
+          ],
+        }}
+        currency="EGP"
+        lang="ar"
+        canManage
+        canAdjust
+        canSeeCost
+        onAdjust={noop}
+        onEdit={noop}
+        onAddVariant={noop}
+        onDelete={noop}
       />
     );
   if (view === 'more')
