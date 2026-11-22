@@ -26,3 +26,5 @@ export { EmptyState } from './EmptyState';
 export { useTheme, applyTheme, applyFont, setTextSize } from './themeStore';
 export { fonts, FONT_FAMILIES, loadFontFamily, preloadAllFonts, applyTextSize, TEXT_SIZES, type FontId, type TextSize } from './fonts';
 export { PALETTES, buildTheme, type PaletteId, type Appearance } from './theme';
+export { PressableScale } from './PressableScale';
+export { haptic } from './haptics';

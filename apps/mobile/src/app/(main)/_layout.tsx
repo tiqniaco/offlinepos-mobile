@@ -4,6 +4,7 @@ import { Tabs } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, colors, type IconName } from '../../ui';
+import { haptic } from '../../ui/haptics';
 
 function TabIcon({ name, focused }: { name: IconName; focused: boolean }) {
   return (
@@ -18,8 +19,10 @@ export default function MainLayout() {
   const insets = useSafeAreaInsets();
   return (
     <Tabs
+      screenListeners={{ tabPress: () => haptic.select() }}
       screenOptions={{
         headerShown: false,
+        animation: 'shift',
         tabBarActiveTintColor: colors.primary[700],
         tabBarInactiveTintColor: colors.ink.mute,
         tabBarStyle: {

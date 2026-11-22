@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { formatQty, roleHas, type PaymentInput } from '@daftarak/shared';
 import { Screen, Text, TextField, Button, Card, Icon, Chip, Sheet, QtyField, MoneyField, Banner, Avatar, EmptyState, colors, fonts, shadow } from '../../ui';
 import { getDb } from '../../db/client';
+import { haptic } from '../../ui/haptics';
 import { useApp } from '../../state/app';
 import { usePurchaseCart } from '../../state/purchaseCart';
 import { useScanner } from '../../state/scanner';
@@ -87,6 +88,7 @@ export default function NewPurchase() {
     try {
       const r = await postPurchase(ctx, { supplierId: cart.supplierId, supplierRef: cart.supplierRef, lines: cart.lines, pricesIncludeVat: cart.pricesIncludeVat, invoiceDiscountMinor: cart.invoiceDiscountMinor, dueDays }, pays.length ? pays : [{ method: 'cash', amountMinor: 0 }]);
       cart.clear();
+      haptic.success();
       setPayOpen(false);
       router.replace({ pathname: '/purchases/[id]', params: { id: r.docId, fresh: '1' } });
     } catch (e) {

@@ -1,5 +1,6 @@
 import { Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import Animated, { FadeInUp, FadeOutLeft, LinearTransition } from 'react-native-reanimated';
 import { normalizeDigits, type PricedCart } from '@daftarak/shared';
 import { Text, Icon, Button, EmptyState, colors, shadow, fonts } from '../../ui';
 import { money, qty } from '../../lib/format';
@@ -122,8 +123,8 @@ export function PosView(p: {
               const pl = totals?.lines.find((x) => x.key === l.key);
               const fresh = l.key === p.lastKey && i === 0;
               return (
+                <Animated.View key={l.key} entering={FadeInUp.springify().damping(18)} exiting={FadeOutLeft.duration(160)} layout={LinearTransition.springify().damping(20)}>
                 <Pressable
-                  key={l.key}
                   onPress={() => p.onLine(l.key)}
                   style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 18, backgroundColor: fresh ? colors.primary[50] : colors.paper.card, borderWidth: 1.5, borderColor: fresh ? colors.primary[200] : 'transparent', opacity: pressed ? 0.9 : 1 }, shadow.soft]}
                 >
@@ -147,6 +148,7 @@ export function PosView(p: {
                     <Stepper value={qty(l.qtyMilli)} onMinus={() => p.onQty(l.key, l.qtyMilli - 1000)} onPlus={() => p.onQty(l.key, l.qtyMilli + 1000)} />
                   </View>
                 </Pressable>
+                </Animated.View>
               );
             })}
           </ScrollView>

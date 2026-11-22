@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
-import { colors } from '../../ui';
+import { stackOptions } from '../../ui/motion';
 
 export default function VouchersLayout() {
-  return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.paper.DEFAULT } }} />;
+  return <Stack screenOptions={stackOptions()} />;
 }

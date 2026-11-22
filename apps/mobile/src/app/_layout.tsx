@@ -12,6 +12,7 @@ import { boot } from '../state/boot';
 import { useAutoLock } from '../hooks/useAutoLock';
 import { ToastHost } from '../ui/Toast';
 import { AdsProvider } from '../features/ads/AdsProvider';
+import { modalOptions, stackOptions } from '../ui/motion';
 import { PrintHost } from '../features/printing/PrintHost';
 import { colors, useTheme, applyTheme } from '../ui';
 
@@ -56,21 +57,21 @@ export default function RootLayout() {
       {/* Theme colours as CSS variables for NativeWind; `key` repaints every screen when the theme changes.
           Any touch counts as activity for the auto-lock timer. */}
       <View key={theme.version} style={[{ flex: 1, backgroundColor: colors.paper.DEFAULT }, vars(theme.vars)]} onTouchStart={touch}>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.paper.DEFAULT }, animation: 'fade' }}>
+        <Stack screenOptions={stackOptions()}>
           <Stack.Protected guard={__DEV__ && Platform.OS === 'web'}>
             <Stack.Screen name="dev-gallery" />
           </Stack.Protected>
           <Stack.Protected guard={status === 'fatal'}>
-            <Stack.Screen name="fatal" />
+            <Stack.Screen name="fatal" options={{ animation: 'fade', gestureEnabled: false }} />
           </Stack.Protected>
           <Stack.Protected guard={status === 'onboarding'}>
-            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(auth)" options={{ animation: 'fade', gestureEnabled: false }} />
           </Stack.Protected>
           <Stack.Protected guard={status === 'locked'}>
-            <Stack.Screen name="lock" />
+            <Stack.Screen name="lock" options={{ animation: 'fade', gestureEnabled: false }} />
           </Stack.Protected>
           <Stack.Protected guard={status === 'ready'}>
-            <Stack.Screen name="(main)" />
+            <Stack.Screen name="(main)" options={{ animation: 'fade', gestureEnabled: false }} />
             <Stack.Screen name="settings" />
             <Stack.Screen name="products" />
             <Stack.Screen name="sales" />
@@ -81,7 +82,7 @@ export default function RootLayout() {
             <Stack.Screen name="shifts" />
             <Stack.Screen name="offers" />
             <Stack.Screen name="reports" />
-            <Stack.Screen name="scan" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="scan" options={modalOptions} />
           </Stack.Protected>
         </Stack>
         <ToastHost />

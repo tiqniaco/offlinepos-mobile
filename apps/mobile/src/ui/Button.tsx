@@ -1,4 +1,5 @@
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
+import { PressableScale } from './PressableScale';
 import { fonts } from './fonts';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Text } from './Text';
@@ -42,16 +43,15 @@ export function Button({
     </View>
   );
   return (
-    <Pressable
+    <PressableScale
       testID={testID}
       accessibilityRole="button"
       accessibilityState={{ disabled: off, busy: loading }}
       onPress={off ? undefined : onPress}
+      feedback={off ? undefined : 'tap'}
+      scaleTo={0.975}
       className={`${className}`}
-      style={({ pressed }) => [
-        { borderRadius: 14, opacity: off ? 0.45 : 1, transform: [{ scale: pressed && !off ? 0.985 : 1 }] },
-        kind === 'primary' && !off ? shadow.lifted : null,
-      ]}
+      style={[{ borderRadius: 14, opacity: off ? 0.45 : 1 }, kind === 'primary' && !off ? shadow.lifted : null]}
     >
       {kind === 'primary' ? (
         <LinearGradient
@@ -78,6 +78,6 @@ export function Button({
           {content}
         </View>
       )}
-    </Pressable>
+    </PressableScale>
   );
 }

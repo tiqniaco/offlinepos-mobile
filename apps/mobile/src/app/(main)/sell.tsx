@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { roleHas } from '@daftarak/shared';
 import { getDb } from '../../db/client';
+import { haptic } from '../../ui/haptics';
 import { useCart } from '../../state/cart';
 import { useScanner } from '../../state/scanner';
 import { toast } from '../../state/toast';
@@ -83,6 +84,7 @@ export default function Sell() {
     async (productId: string, productUnitId: string | null) => {
       const line = await cartLineFor(getDb(), settings, productId, productUnitId, useCart.getState().priceTier);
       useCart.getState().add(line);
+      haptic.tap();
       return line.name;
     },
     [settings],
