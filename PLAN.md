@@ -1,6 +1,6 @@
 # PLAN.md — Offline-first Arabic POS (Phase 0)
 
-> Status: **Draft for approval.** No app code until this plan is approved.
+> Status: **v2 — owner answers to Phase 0 questions applied (see §17).** Waiting for "continue" to start Phase 1.
 > Source of truth: `SPEC.md`. This file explains *how* the spec will be built, and lists every place where
 > I propose to deviate from it or fill a gap the spec leaves open (§13) and the questions I need answered (§15).
 
@@ -488,11 +488,12 @@ sequenceDiagram
 | sig invalid / wrong device / `status = deactivated` | **read-only** | view, print, export, backup allowed |
 | `now ≤ expires_at` and status trial/active | **full** | trial banner with remaining days when trial |
 | `expires_at < now ≤ grace_until` (= +7 days) | **grace** | full use + persistent renew banner |
-| `now > grace_until` or `now > refresh_by` or `status = suspended` | **read-only** | |
+| paid plan or trial: `now > grace_until` | **free plan** (D-20) | full use within free limits, ads on; nothing above the limits is deleted or hidden — only *new* records beyond a limit are blocked |
+| `now > refresh_by` (no check-in for 30 days) or `status = suspended` | **read-only** | |
 | clock suspect (below) | **needs check-in** | everything except creating/posting documents |
 Read-only is enforced in `domain/licence/guard.canWrite()` called by every write service — not by the UI.
 Limits (`users`, `products`, `invoices_month`) are checked in the same guard with friendly upgrade sheets.
-Data is **never** deleted in any mode.
+Data is **never** deleted in any mode. The free plan has no expiry (it still needs the 30-day check-in).
 
 ### 8.3 Clock-rollback guard
 - `max_seen_time` = max(device now, last server_time) kept in the DB **and** SecureStore (both must be wiped to
@@ -704,7 +705,7 @@ D1 load at 10,000 businesses ≈ 10k check-ins/day (≈ 0.12 req/s) — far insi
 | D-04 | A small **local Expo native module `backup-codec`** (Kotlin/Swift: streaming gzip + AES-256-GCM file→file) | not specified | doing 50–200 MB of compression + encryption in JS would freeze the UI and be slow; native is ~100× faster and streams without loading the file into memory |
 | D-05 | **Moving weighted-average cost** for COGS/profit/stock valuation | costing method not specified | simplest correct method for small shops, works with ledger replay, matches Egyptian/Saudi common practice |
 | D-06 | **Variants = separate product rows** linked by `product_groups` | "optional variants" | each variant has its own barcode, price and stock; keeps POS/ledger/reporting simple |
-| D-07 | **OTP provider routed by country**: EG → SMS Misr, SA → Twilio (or WhatsApp Cloud API) | "SMS Misr (default)" | Saudi SMS requires registered sender IDs (CST); an Egyptian gateway is unlikely to deliver reliably to KSA. Interface unchanged |
+| D-07 | **SMS Misr for all numbers in v1** (owner has an account); provider is chosen per country prefix in config, so a Saudi provider (Twilio / WhatsApp Cloud API / local) can be switched on later without code changes | "SMS Misr (default)" | Saudi SMS requires registered sender IDs (CST); delivery of SMS Misr to +966 must be tested before the KSA launch (R-09) |
 | D-08 | PDF sharing via **system share sheet** (`expo-sharing`, user taps WhatsApp); `wa.me` used for **text** messages only | "expo-sharing + wa.me" | `wa.me` cannot attach files. Optional later: Android intent targeting WhatsApp directly with the PDF + phone |
 | D-09 | Onboarding asks **"مسجّل في ضريبة القيمة المضافة؟"** (VAT-registered?) and adds VAT number when yes; non-registered → no tax | "VAT auto-set (EG 14%, SA 15%)" | many small shops are below the VAT threshold; printing VAT on their receipts would be wrong. Rate is still auto-set from country |
 | D-10 | ZATCA Phase 2 will need a **separate XML-based PIH chain**; our JSON chain is not byte-reusable | "same structure ZATCA uses … integration reuses it" | ZATCA hashes the canonicalised UBL XML. The *mechanism* (per-device sequence, previous hash, posting hook) is reused; the hash input is not |
@@ -716,6 +717,8 @@ D1 load at 10,000 businesses ≈ 10k check-ins/day (≈ 0.12 req/s) — far insi
 | D-16 | **FTS5** + Arabic normalisation for search | not specified | fast name search at 50k+ products; Arabic spelling variants (ة/ه, ى/ي, hamza) must match |
 | D-17 | `business_day` (yyyymmdd, business time zone) denormalised on docs & lines; rollup tables only if benchmarks require | "indexed SQL aggregates" | the < 1 s at 100k invoices target; day boundaries by shop's time zone, not UTC |
 | D-18 | Store billing & activation codes: build **both**; activation-code redemption screen contains **no** price, link or mention of buying outside the app; final decision recorded after checking current Google Play Payments policy and App Store Guideline 3.1 at release time (Phase 6/7) | "check the current store rules before release" | rules differ by store and region and change often (e.g. US-only changes on iOS). Redeeming access bought elsewhere is generally tolerated when the app does not steer users to it, but this must be re-verified — see R-04 |
+| D-20 | **Free plan forever, with ads (Google AdMob) and limits**; paid plans remove ads and raise limits. When a trial or paid plan ends (after the 7-day grace) the business drops to the free plan, not read-only | trial → read-only (SPEC §6, §9) | owner request (§17). Read-only remains for: no check-in for 30 days, suspended account, deactivated device, invalid licence |
+| D-21 | Number inputs accept Arabic-Indic (٠-٩) and Persian (۰-۹) digits and **convert them to Latin digits** as you type; all display and print use Latin digits | Q-07 | owner decision (§17) |
 | D-19 | Phase 1 is delivered in **three commits groups** (1a app foundation, 1b server/auth/licence, 1c onboarding + admin) inside one phase | one phase | it's the largest phase; you can review progress mid-way. Acceptance is still checked once at the end |
 
 No other deviations. The full stack in SPEC §2 is otherwise used as specified (Expo + Router + dev builds,
@@ -822,14 +825,15 @@ Acceptance
 ### Phase 6 — Backup, restore, subscriptions
 Scope: backup-codec native module, daily automatic + manual backup, retention, restore with preview + step-up
 OTP, move to new phone (old deactivated), local export (encrypted + Excel); RevenueCat + webhook, activation
-codes, upgrade prompts at limits, anchoring + signed receipts, full integrity screen, admin dashboard (MRR,
+codes, free plan with AdMob ads (§18) and limits, upgrade prompts at limits, anchoring + signed receipts, full integrity screen, admin dashboard (MRR,
 active, trials, churn), session revoke.
 Acceptance
 - [ ] Full restore on a second emulator reproduces identical data (table dumps equal) and a verifiable chain.
 - [ ] Old device becomes read-only after the new device activates (next check-in).
 - [ ] Server requests per business/day measured (D1 counters over a 3-day simulated run) and ≤ 5.
 - [ ] Backup of a 100k-invoice DB completes without UI freeze (main-thread blocking < 100 ms).
-- [ ] docs: backup/restore, billing & activation codes, store-rule decision recorded.
+- [ ] Free plan: ads show only when online and only in allowed places (§18); a paid licence hides all ads at the next app start without network; limits block only new records, with an upgrade sheet.
+- [ ] docs: backup/restore, billing & activation codes, ads placement rules, store-rule decision recorded.
 
 ### Phase 7 — Polish & release
 Scope: sample data in onboarding, in-app tips, global search, local notifications (low stock, due payments,
@@ -844,7 +848,7 @@ Acceptance
 
 ---
 
-## 16. Open questions
+## 16. Open questions (original list — answers in §17)
 
 1. **Q-01 — Tax e-invoicing timing.** Will KSA customers include VAT-registered businesses already in a ZATCA
    Phase 2 wave (or Egyptian shops called for ETA e-receipt)? If yes, those markets need e-invoicing before
@@ -877,3 +881,68 @@ Acceptance
 14. **Q-14 — Calendar.** Gregorian only in v1, or also show Hijri dates for KSA receipts/reports?
 15. **Q-15 — VAT-inclusive default.** Proposed: prices include VAT by default for shops (EG & SA), exclusive for
     trading companies. OK?
+
+---
+
+## 17. Owner answers (Phase 0 review)
+
+| Q | Answer | Effect on the plan |
+|---|---|---|
+| Q-01 Tax e-invoicing | **Deferred** to a later phase | stays as "plan only" in Phase 7; R-01/R-02 remain open risks for KSA/EG launch |
+| Q-02 OTP | **SMS Misr account available** | D-07: SMS Misr for all numbers in v1; Saudi provider pluggable later |
+| Q-03 … Q-06, Q-08, Q-09, Q-12 … Q-15 | **Accepted as proposed** | 30-day max offline; void only by Manager/Owner while the shift is open; one automatic offer per line + coupon + manual within caps; images included in backups; server-escrowed backup key; Cloudflare Access on admin; Android 8+/iOS 16+, tablets two-pane POS; Gregorian only; VAT-inclusive for shops, exclusive for trading |
+| Q-04 Plans | "any names" → **placeholder plans below**, editable in super admin | seeded in Phase 1 |
+| Q-07 Digits | **Typing accepts Arabic or Latin digits; Arabic is converted to Latin** | D-21 |
+| Q-10 Name & logo | **My proposal accepted to draft** | §19 |
+| New | **Free plan with AdMob ads + limits; subscribe to remove ads** | D-20, §18 |
+
+### 17.1 Placeholder plans (all values editable in super admin; prices are placeholders, not advice)
+| | **مجاني Free** | **أساسي Basic** | **احترافي Pro** |
+|---|---|---|---|
+| Price / month | 0 | 149 EGP · 39 SAR | 299 EGP · 79 SAR |
+| Price / year | 0 | 1,490 EGP · 390 SAR | 2,990 EGP · 790 SAR |
+| Ads | **yes** | no | no |
+| Users on device | 1 | 3 | 10 |
+| Products | 100 | 3,000 | unlimited |
+| Customers + suppliers | 50 | unlimited | unlimited |
+| Invoices / month | 150 | 3,000 | unlimited |
+| Cloud backups kept | 3 | 7 daily | 30 daily |
+| Features | POS, stock, basic reports, printing, PDF/WhatsApp | + multi-unit, offers, expenses & shifts | + expiry/batches, advanced reports, custom roles |
+
+Trial: **14 days of Pro** automatically at sign-up, then Free (D-20). Limits and features travel in the signed
+licence (`limits`, `features`; `no_ads` is a feature flag), so everything is enforced offline.
+
+---
+
+## 18. Ads (AdMob) — free plan only
+
+- SDK: `react-native-google-mobile-ads` (Expo config plugin, works in dev builds) + Google **UMP** consent form
+  (shown only where required) + iOS App Tracking Transparency prompt (non-personalised ads if declined).
+- Shown **only if** the licence lacks `no_ads` **and** the phone is online. Offline → no ad, no empty box,
+  nothing blocks work. Ads never touch our server, so the ≤ 5 requests/day budget is unaffected.
+- **Allowed places:** anchored banner at the bottom of Home, Reports list, Products/Customers/Suppliers lists,
+  Settings. Interstitial at most **once every 15 minutes**, only after finishing a non-sale task (closing a report,
+  after exporting a PDF/Excel), never in the first 2 minutes after app start.
+- **Never:** POS, payment, receipt/printing, returns, lock screen, onboarding, restore, any form being filled —
+  selling must stay fast and ads must not cause accidental clicks (also an AdMob policy requirement).
+- Every ad slot has a small "إزالة الإعلانات" link → subscription screen.
+- `AdsProvider` component reads the licence once; ad unit IDs per platform in app config; test IDs in dev builds.
+- Store forms: Play "contains ads" + Data safety (advertising ID), App Store privacy labels; `AD_ID` permission
+  on Android only in builds where ads are enabled.
+- Remote kill switch: the check-in response can disable ads globally (e.g. policy issue) without an app update.
+- Delivered in **Phase 6** together with subscriptions (the limit/feature guard itself is built in Phase 1).
+
+---
+
+## 19. Name & logo (proposal)
+
+**دفترك — Daftarak** ("your ledger"). Every shop owner in Egypt and the Gulf knows the paper *daftar*;
+the app replaces it and, like the notebook, works without internet. Short, easy to say in both dialects,
+easy to write in English.
+Alternatives if the name is taken in the stores: **دفتر بلس**, **ميزان المحل**, **رصيدي**.
+Before release: search Google Play / App Store and the trademark registers in EG/SA for conflicts.
+
+Logo draft: `assets/brand/logo.svg` (preview `assets/brand/logo-preview.png`) — an open notebook on a teal
+gradient tile, an amber tick (paid/settled) on one page, ledger lines on the other, amber bookmark.
+Colours: teal `#18A999 → #0B6B63`, amber `#F2A93B`, warm paper `#FFFDF8 / #F1EADB` — matches §3.5, no purple.
+It stays readable at 48 px (launcher size). Final icon set (adaptive icon layers, splash) is produced in Phase 1.
