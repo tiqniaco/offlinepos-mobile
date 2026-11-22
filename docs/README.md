@@ -10,7 +10,9 @@ Read in this order if you are new:
 6. [api.md](api.md) — Worker API reference
 7. [otp.md](otp.md) — OTP rules and the SMS Misr provider
 8. [adding-a-module.md](adding-a-module.md) — how to add a feature the right way
-9. [phases/](phases/) — acceptance checklist per phase
+9. [ledger.md](ledger.md) — stock ledger, costing, transactions (`withTx`)
+10. [import-format.md](import-format.md) — Excel/CSV product import & export
+11. [phases/](phases/) — acceptance checklist per phase
 
-Not written yet (they belong to later phases): ledger & hash-chain of documents (Phase 3),
+Not written yet (they belong to later phases): hash-chain of documents (Phase 3),
 printing pipeline (Phase 3), backup/restore (Phase 6), store release (Phase 7).

@@ -727,6 +727,10 @@ D1 load at 10,000 businesses ≈ 10k check-ins/day (≈ 0.12 req/s) — far insi
 | D-27 | Admin session = bearer token in `sessionStorage` (CORS limited to the admin origin) | cookie implied | admin (Pages) and API (Workers) are different origins; avoids third-party-cookie problems |
 | D-28 | Logging in on a new phone with an existing business is allowed in Phase 1 via `/v1/devices/attach` (old phone deactivated) and **starts empty** with a clear warning | restore flow is Phase 6 | lets owners reinstall during testing; real data transfer comes with backup/restore |
 | D-29 | `expo start --web` shows onboarding screens only (no DB) | mobile-only product | design checks in CI/cloud without an emulator; not shipped |
+| D-30 | All write transactions go through **`withTx`** (BEGIN IMMEDIATE + write queue) instead of `db.transaction()` | not specified | Drizzle's expo-sqlite driver is synchronous; async callbacks committed early (found in Phase 2, fixed for Phase 1 code too) |
+| D-31 | DB integration tests run on **better-sqlite3** via Drizzle's sync driver (Vitest), not on a device | not specified | same execution model as expo-sqlite; lets CI test the real schema, triggers, ledger and import |
+| D-32 | Camera scanning with **react-native-vision-camera 5 + react-native-vision-camera-barcode-scanner** (ML Kit, official companion) | "react-native-vision-camera" | v5 moved code scanning into this companion package |
+| D-33 | Expiry/batch: Phase 2 adds the product flag and `batches` table; **expiry dates are entered with purchase invoices (Phase 4)** | "optional expiry/batch" in Phase 2 | stock enters with a known expiry only when it is bought; opening stock has no reliable expiry |
 | D-19 | Phase 1 is delivered in **three commits groups** (1a app foundation, 1b server/auth/licence, 1c onboarding + admin) inside one phase | one phase | it's the largest phase; you can review progress mid-way. Acceptance is still checked once at the end |
 
 No other deviations. The full stack in SPEC §2 is otherwise used as specified (Expo + Router + dev builds,

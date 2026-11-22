@@ -35,3 +35,25 @@ The audit screen (More → سجل العمليات) recomputes the chain and sho
 2. `pnpm db:generate` → new `src/db/migrations/NNNN_*.sql` + updated `migrations.js`.
 3. Triggers / FTS / views: `npx drizzle-kit generate --custom --name <name>` and write SQL by hand.
 4. Never edit a migration that has shipped. Migrations run automatically at app start.
+
+## Phase 2 tables (products & inventory)
+| Table | Purpose |
+|---|---|
+| `categories` | name, colour, sort (soft delete) |
+| `units` | Arabic/English name, `allows_fraction` (kg yes, piece no); seeded with 10 standard units |
+| `product_groups` | groups variants (size/colour); each variant is its own product row (D-06) |
+| `products` | name, SKU (unique live), category, base unit, cost/retail/wholesale (minor), tax override, track stock/expiry, low-stock alert (milli), image path, soft delete |
+| `product_units` | units a product is sold in; base row has `factor_milli = 1000`, a carton of 24 has 24000; optional price per unit |
+| `barcodes` | code → product unit (unique among live rows); scanning a carton code adds a carton |
+| `batches` | batch no. + expiry day (filled from purchases, Phase 4) |
+| `warehouses` | one default warehouse in v1 |
+| `stock_movements` | **append-only ledger** (triggers) — see `ledger.md` |
+| `stock_levels` | cache: qty, moving-average cost, value per product+warehouse |
+| `inventory_docs` / `inventory_lines` | OPENING / ADJUST / COUNT documents; posted = immutable (triggers) |
+| `products_fts` | FTS5 index over Arabic-normalised name, English name, SKU, barcodes |
+
+Indexes: see `0002_inventory.sql`; unique partial indexes `barcodes_code_live`, `products_sku_live`.
+
+## Testing the database
+`pnpm --filter @daftarak/mobile test:db` runs the real migrations on SQLite (better-sqlite3 through
+Drizzle's sync driver — the same execution model as expo-sqlite) and exercises the domain services.

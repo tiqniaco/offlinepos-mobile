@@ -28,8 +28,10 @@ jobs:
         run: pnpm --filter @daftarak/shared test
       - name: Tests — Worker (Vitest in workerd)
         run: pnpm --filter @daftarak/api test
-      - name: Tests — mobile (Jest)
-        run: pnpm --filter @daftarak/mobile test -- --ci
+      - name: Tests — mobile unit (Jest)
+        run: pnpm --filter @daftarak/mobile test:unit --ci
+      - name: Tests — mobile database (Vitest + SQLite)
+        run: pnpm --filter @daftarak/mobile test:db
       - name: Build admin
         run: pnpm --filter @daftarak/admin build
       - name: Bundle mobile (Android JS)
