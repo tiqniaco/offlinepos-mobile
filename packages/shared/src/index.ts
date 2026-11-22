@@ -16,3 +16,4 @@ export * from './zatca';
 export * from './escpos';
 export * from './purchasing';
 export * from './offers';
+export * from './backupCodec';

@@ -296,12 +296,18 @@ importers:
 
   packages/shared:
     dependencies:
+      '@noble/ciphers':
+        specifier: ^2.4.0
+        version: 2.4.0
       '@noble/curves':
         specifier: ^2.4.0
         version: 2.4.0
       '@noble/hashes':
         specifier: ^2.4.0
         version: 2.4.0
+      fflate:
+        specifier: ^0.8.3
+        version: 0.8.3
       zod:
         specifier: ^4.6.7
         version: 4.6.7
@@ -2011,6 +2017,10 @@ packages:
 
   '@neon-rs/load@0.0.4':
     resolution: {integrity: sha512-kTPhdZyTQxB+2wpiRcFWrDcejc4JI6tkPuS7UZCG4l6Zvc5kU/gGQ/ozvHTh1XR5tS+UlfAfGuPajjzQjCiHCw==}
+
+  '@noble/ciphers@2.4.0':
+    resolution: {integrity: sha512-AnjFn0Jv92laAkvMrghlFZq4qQCIN/4DxFV/eooqtC2YTjB7kBeLMS2T9KJX4Dn+ZVXLOwK0lSgqDtx9gvxtiw==}
+    engines: {node: '>= 20.19.0'}
 
   '@noble/curves@2.4.0':
     resolution: {integrity: sha512-P4/62zrgfH33CneE3Dn4WhJVA22YUU0eR51wKIan4NVRvwsA0YnPTwWGpNbpuacSujmSFLvyzpyuR30+fbq2Ew==}
@@ -8085,6 +8095,8 @@ snapshots:
 
   '@neon-rs/load@0.0.4':
     optional: true
+
+  '@noble/ciphers@2.4.0': {}
 
   '@noble/curves@2.4.0':
     dependencies:

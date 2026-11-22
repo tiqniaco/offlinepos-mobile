@@ -50,7 +50,9 @@ export type AuditAction =
   | 'expense_category.change'
   | 'shift.open'
   | 'shift.close'
-  | 'offer.change';
+  | 'offer.change'
+  | 'backup.create'
+  | 'backup.restore';
 
 export interface AuditInput {
   action: AuditAction;
