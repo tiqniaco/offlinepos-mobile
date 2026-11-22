@@ -18,7 +18,10 @@ Legend: ✅ done & tested · 🟡 done, needs on-device verification · ⏳ late
 - ✅ Licence verified offline with Ed25519; bound to device id; tampered tokens rejected (tests)
 - ✅ Clock-rollback guard (max seen time in DB + keystore; > 24 h back ⇒ no new records until online)
 - ✅ Android `allowBackup=false` (no Google auto-backup of the DB)
-- ⏳ Document hash chain + server anchors (Phase 3/6) · screenshot block on sensitive screens (Phase 3)
+- ✅ Document hash chain (sales, returns, voids, inventory docs) + verification screen; tamper test with triggers removed
+- ✅ Posted documents, payments, journal, ledgers immutable / append-only (triggers)
+- ✅ Discounts/prices above role limits need a manager PIN, audited
+- ⏳ Server anchors of the chain head (Phase 6) · screenshot block on sensitive screens (Phase 7)
 - ⏳ Play Integrity / App Attest (Phase 7)
 
 ## Server (Cloudflare Worker)

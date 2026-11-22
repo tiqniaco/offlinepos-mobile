@@ -57,3 +57,15 @@ Indexes: see `0002_inventory.sql`; unique partial indexes `barcodes_code_live`, 
 ## Testing the database
 `pnpm --filter @daftarak/mobile test:db` runs the real migrations on SQLite (better-sqlite3 through
 Drizzle's sync driver — the same execution model as expo-sqlite) and exercises the domain services.
+
+## Phase 3 tables (sales)
+| Table | Purpose |
+|---|---|
+| `customers` | minimal (name, mobile, price tier, credit limit); full UI in Phase 4; `customers_fts` |
+| `sales_docs` | INVOICE / RETURN / QUOTATION; DRAFT, PARKED, POSTED, VOIDED, CONVERTED; totals, payments summary, chain fields |
+| `sales_lines` | snapshots (name, unit), qty & base qty, prices, discounts, VAT, totals, cost snapshot, original line (returns) |
+| `payments` | money in/out per document (sale, refund; receipts etc. in Phase 4) |
+| `party_ledger` / `party_balances` | append-only customer/supplier ledger + cached balance |
+| `accounts`, `journal_entries`, `journal_lines` | background double-entry journal |
+| `integrity_chain` | per-device hash chain of posted documents |
+Triggers: `0005_sales_triggers.sql` (see posting.md).

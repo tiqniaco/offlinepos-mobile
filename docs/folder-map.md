@@ -11,12 +11,17 @@ apps/mobile/
     settings/              users, user-form, security, language, subscription, audit
     (main)/products.tsx    products tab;  products/  form, [id], adjust, count, categories, bulk, import, check
     scan.tsx               full-screen camera scanner (vision-camera + ML Kit)
+    (main)/sell.tsx        POS tab;  sales/  pay, done, index (invoices), [id], return, drafts
+    settings/              … printers, receipt, integrity
     fatal.tsx              shown if the DB can't be opened encrypted
     dev-gallery.tsx        DEV + web only: renders the pure views with sample data for design review
   src/features/            pure views (props in, no DB) + bigger shared UI:
     lock/LockView.tsx  home/HomeView.tsx  more/MoreView.tsx  LicenceBanner.tsx
     inventory/             ProductsListView, ProductRow, ProductDetailView, ProductsMenu, excel.ts (SheetJS),
                            images.ts (photo compress/save), useInvCtx, errors
+    sales/                 PosView, sheets (line, customer, discount, menu), ApproveSheet, useSalesCtx
+    printing/              ReceiptView, PrintHost (render→raster), drivers/ble|spp, actions, pdf, receiptData
+  src/state/cart.ts        current POS cart (zustand)
                            screens in src/app are thin containers that load data and render these
   src/state/app.ts         Zustand: app status, current user, licence, settings (UI mirror only)
   src/state/boot.ts        start-up sequence + background check-in
@@ -28,6 +33,10 @@ apps/mobile/
     licence/service.ts     store licence, clock guard (max seen time), daily check-in
     settings/settings.ts   typed settings read/write with audit
     onboarding.ts          create business / attach device, then one local transaction
+    sales/sales.ts         post sale, park, quotation, return, void, queries
+    integrity/chain.ts     hash chain append + verify
+    accounting/journal.ts  chart of accounts + balanced journal entries
+    parties/customers.ts   customers (minimal) + party ledger/balances
     inventory/             context, seed (units, warehouse), ledger (post/check/rebuild), products,
                            adjust (adjustments + counts), catalog (categories, units), import, search (FTS),
                            numbering; inventory.db.test.ts = SQLite integration tests
