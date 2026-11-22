@@ -2,6 +2,7 @@
  * App start (PLAN.md §3.1): open encrypted DB → settings & language → licence (offline) → lock screen.
  * The daily check-in runs in the background afterwards and never blocks start-up.
  */
+import { Platform } from 'react-native';
 import { getDb, openDatabase, DbNotEncryptedError } from '../db/client';
 import { business } from '../db/schema';
 import { getCurrentDevice } from '../domain/device';
@@ -15,6 +16,14 @@ let subscribed = false;
 
 export async function boot(): Promise<void> {
   const set = useApp.getState().set;
+  if (Platform.OS === 'web') {
+    // The product is mobile-only. Web is used ONLY to preview onboarding screens during design work:
+    // no database, no secure storage, nothing is saved.
+    initI18n('ar');
+    if (typeof document !== 'undefined') document.documentElement.dir = 'rtl';
+    set({ status: 'onboarding' });
+    return;
+  }
   try {
     await openDatabase();
   } catch (e) {

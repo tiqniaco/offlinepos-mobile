@@ -5,6 +5,8 @@ const colors = require('./src/ui/colors.json');
 module.exports = {
   content: ['./src/**/*.{ts,tsx}'],
   presets: [require('nativewind/preset')],
+  // Dark mode (Phase 7) will be switched by the app, not by the OS media query.
+  darkMode: 'class',
   theme: {
     extend: {
       colors,

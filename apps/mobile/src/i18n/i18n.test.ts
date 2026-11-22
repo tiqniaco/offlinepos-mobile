@@ -15,6 +15,9 @@ describe('translations', () => {
     needed.forEach((c) => expect(API_ERROR_CODES).toContain(c));
     needed.forEach((c) => expect((ar.errors as Record<string, string>)[c]).toBeTruthy());
   });
+  it('copy uses Latin digits only (owner decision D-21)', () => {
+    expect(JSON.stringify(ar)).not.toMatch(/[\u0660-\u0669\u06F0-\u06F9]/);
+  });
   it('app name is Arabic by default', () => {
     expect(ar.app.name).toBe('دفترك');
   });
