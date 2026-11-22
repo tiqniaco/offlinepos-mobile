@@ -26,10 +26,12 @@ export default function More() {
 
   account.unshift({ key: 'invoices', icon: 'card', hue: 'primary', title: t('more.invoices'), onPress: () => router.push('/sales') });
   const money: MoreItem[] = [
+    ...(can('reports.view') ? [{ key: 'reports', icon: 'chart' as const, hue: 'sky' as const, title: t('more.reports'), onPress: () => router.push('/reports') }] : []),
     ...(can('purchases.manage') ? [{ key: 'purchases', icon: 'cart' as const, hue: 'primary' as const, title: t('more.purchases'), onPress: () => router.push('/purchases') }] : []),
     { key: 'vouchers', icon: 'receipt', hue: 'leaf', title: t('more.vouchers'), onPress: () => router.push('/vouchers') },
     ...(can('expenses.manage') ? [{ key: 'expenses', icon: 'wallet' as const, hue: 'rose' as const, title: t('more.expenses'), onPress: () => router.push('/expenses') }] : []),
     { key: 'shifts', icon: 'clock', hue: 'ink', title: t('more.shifts'), onPress: () => router.push('/shifts') },
+    ...(can('products.manage') ? [{ key: 'offers', icon: 'tag' as const, hue: 'leaf' as const, title: t('more.offers'), onPress: () => router.push('/offers') }] : []),
   ];
   if (can('settings.manage')) account.push({ key: 'integrity', icon: 'shield', hue: 'leaf', title: t('more.integrity'), onPress: () => router.push('/settings/integrity') });
   const app: MoreItem[] = [

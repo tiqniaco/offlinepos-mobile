@@ -17,7 +17,11 @@ import {
   type Discount,
   type PaymentInput,
   type PricedCart,
+  applyOffers,
+  type OfferDef,
+  type OffersResult,
 } from '@daftarak/shared';
+import { loadOffers } from '../offers/offers';
 import { products, productUnits, salesDocs, salesLines, payments, units, journalEntries, journalLines, accounts } from '../../db/schema';
 import type { Db } from '../../db/types';
 import { withTx } from '../../db/tx';
@@ -59,6 +63,8 @@ export interface CartLine {
   catalogPriceMinor: number;
   taxRateBp: number;
   discount?: Discount | null;
+  /** For category-scoped offers. */
+  categoryId?: string | null;
 }
 
 export interface SaleDraft {
@@ -70,6 +76,8 @@ export interface SaleDraft {
   note?: string | null;
   /** Set when the cart came from a quotation (marked CONVERTED on posting). */
   quotationId?: string | null;
+  /** Coupon typed at the POS (validated again at posting). */
+  couponCode?: string | null;
 }
 
 export type SalesErrorCode =
@@ -83,7 +91,8 @@ export type SalesErrorCode =
   | 'has_returns'
   | 'return_too_much'
   | 'refund_mismatch'
-  | 'credit_refund_without_customer';
+  | 'credit_refund_without_customer'
+  | 'coupon_invalid';
 
 export class SalesError extends Error {
   constructor(
@@ -121,16 +130,35 @@ export async function cartLineFor(db: Db, s: SalesSettings, productId: string, p
     unitPriceMinor: price,
     catalogPriceMinor: price,
     taxRateBp: rate,
+    categoryId: p.categoryId ?? null,
   };
 }
 
-export function priceDraft(draft: SaleDraft, s: SalesSettings): PricedCart {
-  return priceCart({
-    lines: draft.lines.map((l) => ({ key: l.key, qtyMilli: l.qtyMilli, unitPriceMinor: l.unitPriceMinor, taxRateBp: l.taxRateBp, discount: l.discount })),
+export interface OfferCtx {
+  offers: OfferDef[];
+  day: number;
+}
+
+export type PricedDraft = PricedCart & { offers: OffersResult | null };
+
+/** Price a cart: automatic offers (best per line) → manual line discounts → coupon → invoice discount. */
+export function priceDraft(draft: SaleDraft, s: SalesSettings, oc?: OfferCtx | null): PricedDraft {
+  const res =
+    oc && (oc.offers.length || draft.couponCode)
+      ? applyOffers(
+          draft.lines.map((l) => ({ key: l.key, productId: l.productId, categoryId: l.categoryId ?? null, qtyMilli: l.qtyMilli, factorMilli: l.factorMilli, unitPriceMinor: l.unitPriceMinor, priceOverridden: l.unitPriceMinor !== l.catalogPriceMinor })),
+          oc.offers,
+          { day: oc.day, couponCode: draft.couponCode },
+        )
+      : null;
+  const cart = priceCart({
+    lines: draft.lines.map((l) => ({ key: l.key, qtyMilli: l.qtyMilli, unitPriceMinor: l.unitPriceMinor, taxRateBp: l.taxRateBp, discount: l.discount, offerDiscountMinor: res?.lines[l.key]?.discountMinor, offerId: res?.lines[l.key]?.offerId })),
     pricesIncludeVat: s.pricesIncludeVat,
     invoiceDiscount: draft.invoiceDiscount,
+    couponMinor: res?.coupon?.discountMinor,
     cashRoundingMinor: s.cashRoundingMinor,
   });
+  return { ...cart, offers: res };
 }
 
 /** What needs a manager: price changes without permission, discounts above the role caps. */
@@ -160,7 +188,9 @@ export async function postSale(ctx: SalesCtx, draft: SaleDraft, pays: PaymentInp
   requirePermission(ctx.user, 'sales.create');
   assertCanWrite();
   if (!draft.lines.length) throw new SalesError('empty_cart');
-  const priced = priceDraft(draft, ctx.settings);
+  const tPrice = now(ctx);
+  const priced = priceDraft(draft, ctx.settings, { offers: await loadOffers(ctx.db), day: businessDay(tPrice, ctx.timezone) });
+  if (draft.couponCode && priced.offers?.couponError) throw new SalesError('coupon_invalid', { reason: priced.offers.couponError });
   const need = approvalsNeeded(ctx.user, draft, priced);
   const approver = opts.approvedBy ?? null;
   if (need.priceChanges.length && !(approver && roleHas(approver.permissions, 'price.change'))) throw new SalesError('price_change_not_allowed', { keys: need.priceChanges });
@@ -220,6 +250,10 @@ export async function postSale(ctx: SalesCtx, draft: SaleDraft, pays: PaymentInp
       taxMinor: priced.taxMinor,
       roundingMinor: priced.roundingMinor,
       totalMinor: priced.totalMinor,
+      offerDiscountMinor: priced.offerDiscountMinor,
+      couponCode: priced.offers?.coupon?.code ?? null,
+      couponOfferId: priced.offers?.coupon?.offerId ?? null,
+      couponDiscountMinor: priced.couponMinor,
       paidMinor: settlement.paidMinor,
       creditMinor: settlement.creditMinor,
       changeMinor: settlement.changeMinor,
@@ -252,6 +286,8 @@ export async function postSale(ctx: SalesCtx, draft: SaleDraft, pays: PaymentInp
         taxMinor: pl.taxMinor,
         totalMinor: pl.totalMinor,
         unitCostMinor: costs[i],
+        offerId: pl.offerId,
+        offerDiscountMinor: pl.offerDiscountMinor,
         businessDay: day,
       });
     }

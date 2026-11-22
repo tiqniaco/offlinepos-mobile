@@ -20,12 +20,17 @@ export interface PricingLineInput {
   unitPriceMinor: number;
   taxRateBp: number;
   discount?: Discount | null;
+  /** Automatic offer discount for this line (from applyOffers), applied BEFORE the manual discount. */
+  offerDiscountMinor?: number;
+  offerId?: string | null;
 }
 
 export interface PricingInput {
   lines: PricingLineInput[];
   pricesIncludeVat: boolean;
   invoiceDiscount?: Discount | null;
+  /** Coupon amount (from applyOffers), applied after line offers and before the manual invoice discount. */
+  couponMinor?: number;
   /** Round the grand total to this step (e.g. 25 = 0.25). 0/undefined = no cash rounding. */
   cashRoundingMinor?: number;
 }
@@ -36,7 +41,12 @@ export interface PricedLine {
   unitPriceMinor: number;
   taxRateBp: number;
   grossMinor: number;
+  /** Automatic offer discount (not counted in role caps). */
+  offerDiscountMinor: number;
+  offerId: string | null;
+  /** Manual line discount (counted in role caps). */
   lineDiscountMinor: number;
+  /** Share of coupon + manual invoice discount. */
   invoiceDiscountMinor: number;
   /** Amount after all discounts, as priced (incl. VAT if pricesIncludeVat). */
   amountMinor: number;
@@ -48,7 +58,10 @@ export interface PricedLine {
 export interface PricedCart {
   lines: PricedLine[];
   grossMinor: number;
+  offerDiscountMinor: number;
   lineDiscountMinor: number;
+  couponMinor: number;
+  /** Manual invoice discount only (the coupon is separate). */
   invoiceDiscountMinor: number;
   netMinor: number;
   taxMinor: number;
@@ -89,13 +102,18 @@ export function priceCart(input: PricingInput): PricedCart {
     if (l.qtyMilli < 0) throw new PricingError('negative_qty', l.key);
     if (l.unitPriceMinor < 0) throw new PricingError('negative_price', l.key);
     const gross = lineAmount(l.unitPriceMinor, l.qtyMilli);
-    const lineDiscount = discountAmount(gross, l.discount, l.key);
-    return { l, gross, lineDiscount, after: gross - lineDiscount };
+    const offer = l.offerDiscountMinor ?? 0;
+    assertInt(offer, 'offer');
+    if (offer < 0 || offer > gross) throw new PricingError('bad_discount', l.key);
+    const lineDiscount = discountAmount(gross - offer, l.discount, l.key);
+    return { l, gross, offer, lineDiscount, after: gross - offer - lineDiscount };
   });
 
   const afterTotal = pre.reduce((s, x) => s + x.after, 0);
-  const invoiceDiscount = discountAmount(afterTotal, input.invoiceDiscount);
-  const shares = allocate(invoiceDiscount, pre.map((x) => x.after));
+  const coupon = Math.min(Math.max(0, input.couponMinor ?? 0), afterTotal);
+  assertInt(coupon, 'coupon');
+  const invoiceDiscount = discountAmount(afterTotal - coupon, input.invoiceDiscount);
+  const shares = allocate(coupon + invoiceDiscount, pre.map((x) => x.after));
 
   const lines: PricedLine[] = pre.map((x, i) => {
     const amount = x.after - shares[i]!;
@@ -113,6 +131,8 @@ export function priceCart(input: PricingInput): PricedCart {
       unitPriceMinor: x.l.unitPriceMinor,
       taxRateBp: x.l.taxRateBp,
       grossMinor: x.gross,
+      offerDiscountMinor: x.offer,
+      offerId: x.offer > 0 ? (x.l.offerId ?? null) : null,
       lineDiscountMinor: x.lineDiscount,
       invoiceDiscountMinor: shares[i]!,
       amountMinor: amount,
@@ -136,7 +156,9 @@ export function priceCart(input: PricingInput): PricedCart {
   return {
     lines,
     grossMinor: sum((l) => l.grossMinor),
+    offerDiscountMinor: sum((l) => l.offerDiscountMinor),
     lineDiscountMinor: sum((l) => l.lineDiscountMinor),
+    couponMinor: coupon,
     invoiceDiscountMinor: invoiceDiscount,
     netMinor: sum((l) => l.netMinor),
     taxMinor: sum((l) => l.taxMinor),
@@ -170,10 +192,10 @@ export interface CapViolation {
 export function discountViolations(cart: PricedCart, caps: DiscountCaps): CapViolation[] {
   const out: CapViolation[] = [];
   for (const l of cart.lines) {
-    const bp = effectiveBp(l.lineDiscountMinor, l.grossMinor);
+    const bp = effectiveBp(l.lineDiscountMinor, l.grossMinor - l.offerDiscountMinor);
     if (bp > caps.maxItemDiscountBp) out.push({ kind: 'item', key: l.key, bp, maxBp: caps.maxItemDiscountBp });
   }
-  const base = cart.grossMinor - cart.lineDiscountMinor;
+  const base = cart.grossMinor - cart.offerDiscountMinor - cart.lineDiscountMinor - cart.couponMinor;
   const ibp = effectiveBp(cart.invoiceDiscountMinor, base);
   if (ibp > caps.maxInvoiceDiscountBp) out.push({ kind: 'invoice', bp: ibp, maxBp: caps.maxInvoiceDiscountBp });
   return out;

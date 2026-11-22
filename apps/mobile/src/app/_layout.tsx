@@ -79,6 +79,8 @@ export default function RootLayout() {
             <Stack.Screen name="vouchers" />
             <Stack.Screen name="expenses" />
             <Stack.Screen name="shifts" />
+            <Stack.Screen name="offers" />
+            <Stack.Screen name="reports" />
             <Stack.Screen name="scan" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
           </Stack.Protected>
         </Stack>

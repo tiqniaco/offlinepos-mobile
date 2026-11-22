@@ -36,6 +36,10 @@ export function PosView(p: {
   topInset: number;
   lines: CartLine[];
   priced: PricedCart | null;
+  /** Offer names per line key, coupon label. */
+  offerNames?: Record<string, string>;
+  couponLabel?: string | null;
+  onCoupon?: () => void;
   lastKey: string | null;
   customerName: string | null;
   customerNote: string | null;
@@ -129,6 +133,14 @@ export function PosView(p: {
                       {money(l.unitPriceMinor, p.currency, p.lang)} / {l.unitName}
                       {pl && pl.lineDiscountMinor ? `  ·  −${money(pl.lineDiscountMinor, p.currency, p.lang)}` : ''}
                     </Text>
+                    {pl && pl.offerDiscountMinor ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: colors.leaf[50], borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1 }}>
+                        <Icon name="tag" size={13} color={colors.leaf[700]} />
+                        <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 12, lineHeight: 17, color: colors.leaf[700] }}>
+                          {p.offerNames?.[l.key] ?? t('offers.badge')} −{money(pl.offerDiscountMinor, p.currency, p.lang)}
+                        </Text>
+                      </View>
+                    ) : null}
                   </View>
                   <View style={{ alignItems: 'flex-end', gap: 6 }}>
                     <Text style={{ fontFamily: fonts.bold, fontSize: 16, lineHeight: 22, color: colors.ink.DEFAULT }}>{money(pl?.amountMinor ?? 0, p.currency, p.lang)}</Text>
@@ -166,12 +178,27 @@ export function PosView(p: {
         <View style={[{ backgroundColor: colors.paper.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 16, gap: 10 }, shadow.lifted]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
             <Text variant="caption">{t('pos.items', { n: lines.length })}</Text>
-            <Pressable onPress={p.onDiscount} hitSlop={8}>
-              <Text style={{ fontFamily: fonts.semibold, fontSize: 13.5, lineHeight: 20, color: colors.primary[700] }}>
-                {totals && totals.lineDiscountMinor + totals.invoiceDiscountMinor > 0 ? `${t('pos.discount')}: −${money(totals.lineDiscountMinor + totals.invoiceDiscountMinor, p.currency, p.lang)}` : `+ ${t('pos.invoiceDiscount')}`}
-              </Text>
-            </Pressable>
+            <View style={{ flexDirection: 'row', gap: 14 }}>
+              {p.onCoupon ? (
+                <Pressable testID="pos-coupon" onPress={p.onCoupon} hitSlop={8}>
+                  <Text style={{ fontFamily: fonts.semibold, fontSize: 13.5, lineHeight: 20, color: p.couponLabel ? colors.leaf[700] : colors.primary[700] }}>
+                    {p.couponLabel ?? `+ ${t('offers.coupon')}`}
+                  </Text>
+                </Pressable>
+              ) : null}
+              <Pressable onPress={p.onDiscount} hitSlop={8}>
+                <Text style={{ fontFamily: fonts.semibold, fontSize: 13.5, lineHeight: 20, color: colors.primary[700] }}>
+                  {totals && totals.lineDiscountMinor + totals.invoiceDiscountMinor > 0 ? `${t('pos.discount')}: −${money(totals.lineDiscountMinor + totals.invoiceDiscountMinor, p.currency, p.lang)}` : `+ ${t('pos.invoiceDiscount')}`}
+                </Text>
+              </Pressable>
+            </View>
           </View>
+          {totals && totals.offerDiscountMinor + totals.couponMinor > 0 ? (
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={{ fontFamily: fonts.semibold, fontSize: 13, lineHeight: 19, color: colors.leaf[700] }}>{t('offers.saved')}</Text>
+              <Text style={{ fontFamily: fonts.semibold, fontSize: 13, lineHeight: 19, color: colors.leaf[700] }}>−{money(totals.offerDiscountMinor + totals.couponMinor, p.currency, p.lang)}</Text>
+            </View>
+          ) : null}
           {totals && p.vatLabel ? (
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <Text variant="caption">{p.pricesIncludeVat ? `${p.vatLabel} (${t('pos.vatIncluded')})` : p.vatLabel}</Text>

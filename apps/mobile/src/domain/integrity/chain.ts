@@ -79,6 +79,10 @@ export function salesPayload(doc: SalesDoc, lines: SalesLine[], pays: Payment[])
       .map((p) => ({ id: p.id, kind: p.kind, dir: p.direction, method: p.method, label: p.label, amount: p.amountMinor, party: p.partyId })),
     // Added in Phase 4; omitted when null so documents posted before shifts keep their hash.
     ...(doc.shiftId ? { shift: doc.shiftId } : {}),
+    // Phase 5 offers/coupon — only when used, so older documents keep their hash.
+    ...(doc.offerDiscountMinor || doc.couponDiscountMinor
+      ? { offers: { total: doc.offerDiscountMinor, coupon: [doc.couponCode, doc.couponOfferId, doc.couponDiscountMinor], lines: [...lines].sort((a, b) => (a.id < b.id ? -1 : 1)).map((l) => [l.offerId, l.offerDiscountMinor]) } }
+      : {}),
   };
 }
 

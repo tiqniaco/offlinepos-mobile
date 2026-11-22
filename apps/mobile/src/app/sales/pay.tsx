@@ -14,6 +14,7 @@ import { useCurrency } from '../../features/inventory/useInvCtx';
 import { ApproveSheet } from '../../features/sales/ApproveSheet';
 import { MethodCard } from '../../features/sales/sheets';
 import { salesErrorMessage } from '../../features/sales/errors';
+import { useOfferCtx } from '../../features/sales/useOffers';
 import { money } from '../../lib/format';
 import { printReceiptInBackground } from '../../features/printing/autoPrint';
 
@@ -40,7 +41,8 @@ export default function Pay() {
   const wallets = useApp((s) => s.settings.wallets ?? []);
   const cart = useCart();
   const draft = cart.draft();
-  const priced = useMemo(() => priceDraft(draft, settings), [draft, settings]);
+  const oc = useOfferCtx();
+  const priced = useMemo(() => priceDraft(draft, settings, oc), [draft, settings, oc]);
   const total = priced.totalMinor;
   const [split, setSplit] = useState(false);
   const [rows, setRows] = useState<PaymentInput[]>([{ method: 'cash', amountMinor: total }]);

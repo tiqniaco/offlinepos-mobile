@@ -57,6 +57,20 @@
       "when": 1795378718028,
       "tag": "0007_phase4_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1795384732672,
+      "tag": "0008_offers",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1795384733294,
+      "tag": "0009_offers_triggers",
+      "breakpoints": true
     }
   ]
 }

@@ -413,6 +413,11 @@ export const salesDocs = sqliteTable(
     voidedAt: integer('voided_at'),
     printCount: integer('print_count').notNull().default(0),
     lastPrintedAt: integer('last_printed_at'),
+    /** Phase 5: automatic offers and coupon. */
+    offerDiscountMinor: integer('offer_discount_minor').notNull().default(0),
+    couponCode: text('coupon_code'),
+    couponOfferId: text('coupon_offer_id'),
+    couponDiscountMinor: integer('coupon_discount_minor').notNull().default(0),
   },
   (t) => [
     index('sales_docs_type_status_day').on(t.type, t.status, t.businessDay),
@@ -451,6 +456,8 @@ export const salesLines = sqliteTable(
     unitCostMinor: integer('unit_cost_minor'),
     originalLineId: text('original_line_id'),
     businessDay: integer('business_day'),
+    offerId: text('offer_id'),
+    offerDiscountMinor: integer('offer_discount_minor').notNull().default(0),
   },
   (t) => [index('sales_lines_doc').on(t.docId), index('sales_lines_product_day').on(t.productId, t.businessDay), index('sales_lines_day').on(t.businessDay), index('sales_lines_original').on(t.originalLineId)],
 );
@@ -709,4 +716,33 @@ export const shifts = sqliteTable(
     chainSeq: integer('chain_seq'),
   },
   (t) => [index('shifts_status').on(t.status, t.deviceId), uniqueIndex('shifts_number').on(t.number)],
+);
+
+// ─────────────────────────── Phase 5: offers ───────────────────────────
+
+/** Offers & coupons (SPEC §5 Offers). Rules are evaluated by the shared engine (applyOffers). */
+export const offers = sqliteTable(
+  'offers',
+  {
+    ...base,
+    ...master,
+    name: text('name').notNull(),
+    type: text('type', { enum: ['PERCENT', 'FIXED', 'BUY_X_GET_Y', 'QTY_PRICE', 'COUPON'] }).notNull(),
+    active: integer('active', { mode: 'boolean' }).notNull().default(true),
+    startsDay: integer('starts_day'),
+    endsDay: integer('ends_day'),
+    priority: integer('priority').notNull().default(0),
+    scopeJson: text('scope_json').notNull().default('{"all":true}'),
+    valueBp: integer('value_bp'),
+    valueMinor: integer('value_minor'),
+    minQtyMilli: integer('min_qty_milli'),
+    buyQtyMilli: integer('buy_qty_milli'),
+    getQtyMilli: integer('get_qty_milli'),
+    getProductId: text('get_product_id'),
+    tiersJson: text('tiers_json'),
+    couponCode: text('coupon_code'),
+    minTotalMinor: integer('min_total_minor'),
+    maxUses: integer('max_uses'),
+  },
+  (t) => [index('offers_active').on(t.active, t.type), uniqueIndex('offers_coupon').on(t.couponCode)],
 );

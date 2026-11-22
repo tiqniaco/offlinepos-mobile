@@ -3,20 +3,22 @@ import { Alert } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { roleHas, type PricedCart } from '@daftarak/shared';
+import { roleHas } from '@daftarak/shared';
 import { getDb } from '../../db/client';
 import { useCart } from '../../state/cart';
 import { useScanner } from '../../state/scanner';
 import { toast } from '../../state/toast';
 import { useApp } from '../../state/app';
 import { findByBarcode, listProducts } from '../../domain/inventory/products';
-import { cartLineFor, listDrafts, parkSale, priceDraft, saveQuotation } from '../../domain/sales/sales';
+import { cartLineFor, listDrafts, parkSale, priceDraft, saveQuotation, type PricedDraft } from '../../domain/sales/sales';
 import { getCustomer, partyBalance } from '../../domain/parties/customers';
 import { PosView, type SearchHit } from '../../features/sales/PosView';
 import { CustomerSheet, InvoiceDiscountSheet, LineSheet, PosMenu } from '../../features/sales/sheets';
 import { useSalesCtx, useSalesSettings } from '../../features/sales/useSalesCtx';
 import { useCurrency } from '../../features/inventory/useInvCtx';
 import { salesErrorMessage } from '../../features/sales/errors';
+import { useOfferCtx } from '../../features/sales/useOffers';
+import { Sheet, TextField, Button, Banner } from '../../ui';
 import { money } from '../../lib/format';
 
 /** Scan-first POS (SPEC §5): scan → item on top; rescan → qty +1; pay in ≤ 3 taps. */
@@ -36,16 +38,19 @@ export default function Sell() {
   const [menu, setMenu] = useState(false);
   const [parked, setParked] = useState(0);
   const [custNote, setCustNote] = useState<string | null>(null);
+  const oc = useOfferCtx();
+  const [couponOpen, setCouponOpen] = useState(false);
+  const [couponText, setCouponText] = useState('');
 
   const draft = cart.draft();
-  const priced: PricedCart | null = useMemo(() => {
+  const priced: PricedDraft | null = useMemo(() => {
     try {
-      return cart.lines.length ? priceDraft(draft, settings) : null;
+      return cart.lines.length ? priceDraft(draft, settings, oc) : null;
     } catch {
       return null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cart.lines, cart.invoiceDiscount, settings]);
+  }, [cart.lines, cart.invoiceDiscount, cart.couponCode, settings, oc]);
 
   useFocusEffect(
     useCallback(() => {
@@ -114,6 +119,9 @@ export default function Sell() {
         topInset={insets.top}
         lines={cart.lines}
         priced={priced}
+        offerNames={Object.fromEntries(Object.entries(priced?.offers?.lines ?? {}).map(([k, v]) => [k, v.name]))}
+        couponLabel={cart.couponCode ? `${t('offers.coupon')}: ${cart.couponCode}` : null}
+        onCoupon={oc.offers.some((o) => o.type === 'COUPON') || cart.couponCode ? () => { setCouponText(cart.couponCode ?? ''); setCouponOpen(true); } : undefined}
         lastKey={cart.lastAddedKey}
         customerName={cart.customerName}
         customerNote={custNote}
@@ -148,6 +156,20 @@ export default function Sell() {
         onPay={() => router.push('/sales/pay')}
         onDiscount={() => setDiscOpen(true)}
       />
+      <Sheet
+        visible={couponOpen}
+        onClose={() => setCouponOpen(false)}
+        title={t('offers.coupon')}
+        footer={
+          <>
+            <Button title={t('offers.apply')} disabled={!couponText.trim()} onPress={() => { cart.setCoupon(couponText.trim().toUpperCase()); setCouponOpen(false); }} />
+            {cart.couponCode ? <Button kind="ghost" title={t('offers.removeCoupon')} onPress={() => { cart.setCoupon(null); setCouponOpen(false); }} /> : null}
+          </>
+        }
+      >
+        <TextField label={t('offers.couponCode')} value={couponText} onChangeText={setCouponText} autoCapitalize="characters" ltr autoFocus />
+        {cart.couponCode && priced?.offers?.couponError ? <Banner tone="danger" text={t(`offers.couponErrors.${priced.offers.couponError}`)} /> : null}
+      </Sheet>
       <LineSheet
         line={line}
         canChangePrice={roleHas(user?.permissions ?? [], 'price.change')}

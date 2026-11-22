@@ -12,6 +12,8 @@ interface CartState {
   customerName: string | null;
   priceTier: 'retail' | 'wholesale';
   invoiceDiscount: Discount | null;
+  couponCode: string | null;
+  setCoupon: (code: string | null) => void;
   note: string | null;
   /** Parked/quotation doc this cart came from (replaced when parked again / converted on sale). */
   sourceId: string | null;
@@ -28,7 +30,7 @@ interface CartState {
   draft: () => SaleDraft;
 }
 
-const empty = { lines: [], customerId: null, customerName: null, priceTier: 'retail' as const, invoiceDiscount: null, note: null, sourceId: null, quotationId: null, lastAddedKey: null };
+const empty = { lines: [], customerId: null, customerName: null, priceTier: 'retail' as const, invoiceDiscount: null, couponCode: null, note: null, sourceId: null, quotationId: null, lastAddedKey: null };
 
 export const useCart = create<CartState>((set, get) => ({
   ...empty,
@@ -46,10 +48,11 @@ export const useCart = create<CartState>((set, get) => ({
   remove: (key) => set((s) => ({ lines: s.lines.filter((l) => l.key !== key) })),
   setCustomer: (customerId, customerName, tier) => set((s) => ({ customerId, customerName, priceTier: tier ?? s.priceTier })),
   setInvoiceDiscount: (invoiceDiscount) => set({ invoiceDiscount }),
-  load: (d, sourceId) => set({ ...empty, lines: d.lines, customerId: d.customerId ?? null, customerName: d.customerName ?? null, priceTier: d.priceTier, invoiceDiscount: d.invoiceDiscount ?? null, note: d.note ?? null, sourceId, quotationId: d.quotationId ?? null }),
+  setCoupon: (couponCode) => set({ couponCode }),
+  load: (d, sourceId) => set({ ...empty, lines: d.lines, customerId: d.customerId ?? null, customerName: d.customerName ?? null, priceTier: d.priceTier, invoiceDiscount: d.invoiceDiscount ?? null, couponCode: d.couponCode ?? null, note: d.note ?? null, sourceId, quotationId: d.quotationId ?? null }),
   clear: () => set({ ...empty }),
   draft: () => {
     const s = get();
-    return { lines: s.lines, customerId: s.customerId, customerName: s.customerName, priceTier: s.priceTier, invoiceDiscount: s.invoiceDiscount, note: s.note, quotationId: s.quotationId };
+    return { lines: s.lines, customerId: s.customerId, customerName: s.customerName, priceTier: s.priceTier, invoiceDiscount: s.invoiceDiscount, couponCode: s.couponCode, note: s.note, quotationId: s.quotationId };
   },
 }));

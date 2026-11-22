@@ -49,7 +49,8 @@ export type AuditAction =
   | 'voucher.void'
   | 'expense_category.change'
   | 'shift.open'
-  | 'shift.close';
+  | 'shift.close'
+  | 'offer.change';
 
 export interface AuditInput {
   action: AuditAction;
