@@ -34,7 +34,7 @@ export default function MovementReport() {
         date: Date.now(),
         ...(await bizHeader()),
         vatNumber: null,
-        partyLine: p?.name ?? '',
+        partyLine: p?.product.name ?? '',
         period: t('report.period', { from: dayText(range.from), to: dayText(range.to) }),
         summary: [
           { label: t('report.opening'), value: formatQty(mv.openingMilli) },
@@ -50,7 +50,7 @@ export default function MovementReport() {
           return { cells: { desc, qty: `${r.qty > 0 ? '+' : ''}${formatQty(r.qty)}`, bal: formatQty(r.balanceMilli) }, values: { desc, qty: r.qty / 1000, bal: r.balanceMilli / 1000 } };
         }),
         totals: [],
-        fileName: `movement-${p?.name ?? id}`,
+        fileName: `movement-${p?.product.name ?? id}`,
       });
     })();
   }, [id, range.from, range.to, t]);
