@@ -75,7 +75,7 @@ export default function Home() {
     ...(can('expenses.manage') ? [{ key: 'expense', icon: 'wallet' as const, hue: 'rose' as const, label: t('quick.expense'), onPress: () => router.push({ pathname: '/vouchers/new', params: { type: 'EXPENSE' } }) }] : []),
     { key: 'statement', icon: 'receipt', hue: 'sky', label: t('quick.statement'), onPress: () => router.push({ pathname: '/(main)/parties', params: { type: 'C' } }) },
     ...(can('parties.manage') ? [{ key: 'customer', icon: 'users' as const, hue: 'primary' as const, label: t('quick.newCustomer'), onPress: () => router.push({ pathname: '/parties/form', params: { type: 'C' } }) }] : []),
-    ...(can('products.manage') ? [{ key: 'product', icon: 'box' as const, hue: 'amber' as const, label: t('quick.newProduct'), onPress: () => router.push('/products/form') }] : []),
+    ...(can('reports.view') ? [{ key: 'reports', icon: 'chart' as const, hue: 'sky' as const, label: t('quick.reports'), onPress: () => router.push('/reports') }] : can('products.manage') ? [{ key: 'product', icon: 'box' as const, hue: 'amber' as const, label: t('quick.newProduct'), onPress: () => router.push('/products/form') }] : []),
     { key: 'shift', icon: 'clock', hue: 'ink', label: t('quick.shift'), onPress: () => router.push('/shifts') },
   ];
 

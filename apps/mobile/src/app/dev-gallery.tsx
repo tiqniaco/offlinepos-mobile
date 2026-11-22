@@ -14,7 +14,7 @@ import { AppearanceView } from '../features/settings/AppearanceView';
 import { PosView } from '../features/sales/PosView';
 import { ReceiptView } from '../features/printing/ReceiptView';
 import { DEFAULT_RECEIPT } from '../domain/settings/settings';
-import { priceCart, zatcaTlvBase64, zatcaTimestamp } from '@daftarak/shared';
+import { addDays, priceCart, zatcaTlvBase64, zatcaTimestamp } from '@daftarak/shared';
 import { View } from 'react-native';
 
 const SAMPLE_CART = [
@@ -65,6 +65,9 @@ import { statementDoc, balanceWords } from '../features/export/builders';
 import { ExportBar } from '../features/common/ExportBar';
 import { Screen, Card, Text as UText, colors as C, fonts as F } from '../ui';
 import { Segmented } from '../features/common/Segmented';
+import { DashboardView } from '../features/reports/DashboardView';
+import { ReportDocView } from '../features/reports/ReportDocView';
+import { REPORTS } from '../features/reports/defs';
 import type { Statement } from '../domain/parties/statement';
 
 const SAMPLE_STATEMENT: Statement = {
@@ -130,7 +133,10 @@ export default function DevGallery() {
       <PosView
         topInset={0}
         lines={view === 'pos' ? SAMPLE_CART : []}
-        priced={view === 'pos' ? priceCart({ lines: SAMPLE_CART, pricesIncludeVat: true }) : null}
+        priced={view === 'pos' ? priceCart({ lines: SAMPLE_CART.map((l) => ({ ...l, offerDiscountMinor: l.key === 'a' ? 2200 : 0, offerId: l.key === 'a' ? 'o' : null })), pricesIncludeVat: true, couponMinor: 1000 }) : null}
+        offerNames={{ a: 'اشتري 2 وخد 1' }}
+        couponLabel={view === 'pos' ? 'كوبون: EID10' : null}
+        onCoupon={noop}
         lastKey="c"
         customerName={view === 'pos' ? 'محمود علي' : null}
         customerNote={view === 'pos' ? 'عليه 125.00 ج.م' : null}
@@ -282,6 +288,46 @@ export default function DevGallery() {
         </View>
         <ExportBar build={() => statementDoc(SAMPLE_STATEMENT, SAMPLE_BIZ, true)} />
         <StatementTable st={SAMPLE_STATEMENT} />
+      </Screen>
+    );
+  if (view === 'reports')
+    return (
+      <DashboardView
+        d={{
+          todaySalesMinor: 486_050, todayInvoices: 23, todayProfitMinor: 121_400, monthSalesMinor: 9_843_200, monthProfitMinor: 2_311_000,
+          receivablesMinor: 173_960, payablesMinor: 340_000, lowStock: 7, stockValueMinor: 18_420_000,
+          last30: Array.from({ length: 30 }, (_, i) => ({ day: addDays(20261024, i), salesMinor: 250_000 + Math.round(Math.sin(i / 3) * 90_000) + i * 4000 })),
+          topItems: [
+            { name: 'شاي العروسة 250 جم', qtyMilli: 184_000, salesMinor: 404_800 },
+            { name: 'زيت عافية 800 مل', qtyMilli: 61_000, salesMinor: 454_450 },
+            { name: 'أرز الضحى 1 كيلو', qtyMilli: 95_000, salesMinor: 332_500 },
+          ],
+        }}
+        currency="EGP"
+        lang="ar"
+        showProfit
+        reports={REPORTS}
+        locked={(r) => r.id === 'expiring'}
+        onOpen={noop}
+      />
+    );
+  if (view === 'report')
+    return (
+      <Screen back title="المبيعات بالصنف" subtitle="من 2026-11-01 إلى 2026-11-22">
+        <Segmented value="month" onChange={noop} options={[{ value: 'week', label: 'آخر 7 أيام' }, { value: 'month', label: 'الشهر ده' }, { value: 'year', label: 'السنة دي' }]} />
+        <ExportBar build={() => statementDoc(SAMPLE_STATEMENT, SAMPLE_BIZ, false)} kinds={['pdf', 'excel', 'print', 'whatsapp']} />
+        <ReportDocView
+          d={{
+            title: 'المبيعات بالصنف', businessName: 'سوبر ماركت النور', fileName: 'x',
+            summary: [{ label: 'المبيعات', value: '98,432.00', strong: true }, { label: 'الربح', value: '23,110.00' }],
+            columns: [{ key: 'name', label: 'الصنف' }, { key: 'qty', label: 'الكمية', num: true }, { key: 'sales', label: 'المبيعات', num: true }, { key: 'profit', label: 'الربح', num: true }],
+            rows: [
+              ['زيت عافية 800 مل', '610', '45,445.00', '8,905.00'], ['شاي العروسة 250 جم', '1,840', '40,480.00', '7,360.00'], ['أرز الضحى 1 كيلو', '950', '33,250.00', '5,700.00'],
+              ['جبنة دومتي 500 جم', '312', '18,720.00', '4,120.00'], ['تيشيرت قطن XL', '41', '10,250.00', '3,690.00'], ['سكر 1 كيلو', '420', '12,600.00', '1,890.00'],
+            ].map(([name, qty, sales, profit]) => ({ cells: { name: name!, qty: qty!, sales: sales!, profit: profit! } })),
+            totals: [{ label: 'المبيعات', value: '98,432.00', strong: true }, { label: 'الضريبة', value: '12,088.00' }, { label: 'الخصومات', value: '2,140.00' }, { label: 'الربح', value: '23,110.00', strong: true }],
+          }}
+        />
       </Screen>
     );
   if (view === 'statement58')

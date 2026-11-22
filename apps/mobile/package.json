@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "test:unit": "jest",
-    "test:db": "vitest run --config vitest.db.config.ts"
+    "test:db": "vitest run --config vitest.db.config.ts",
+    "bench:reports": "tsx scripts/bench-reports.ts"
   },
   "dependencies": {
     "@daftarak/shared": "workspace:*",

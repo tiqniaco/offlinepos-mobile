@@ -744,6 +744,10 @@ D1 load at 10,000 businesses ≈ 10k check-ins/day (≈ 0.12 req/s) — far insi
 | D-44 | Purchase return leaves stock at the moving average; difference to the invoice value → Stock adjustments; non-stock items → Expenses | §6 | keeps inventory account == stock valuation |
 | D-45 | AdMob SDK + UMP wired in Phase 4 (test IDs, policy tested); store forms & real IDs in Phase 6/7 | Phase 6 | owner asked to be fully prepared now |
 | D-46 | Text size setting (small/medium/large) and compact type scale delivered in Phase 4 | Phase 7 font size | owner asked for smaller text now |
+| D-47 | Single `offers` table with JSON scope/tiers instead of `offers` + `offer_rules` + `coupons` | §4.3 | one row per offer is simpler; coupon uses derived from posted invoices |
+| D-48 | Monthly roll-up `sales_rollup` maintained at posting + covering index for reports | §4.4 "benchmarked in Phase 5" | needed for < 1 s at 100k invoices on phones |
+| D-49 | Report gating: P&L, cashier, discounts, slow stock, aging = `adv_reports` (Pro); expiring = `expiry` | §17.1 | matches plan features |
+| D-50 | Stock movement per product lives on the product screen, not the reports list | SPEC §5 list | it needs a product chosen first |
 | D-19 | Phase 1 is delivered in **three commits groups** (1a app foundation, 1b server/auth/licence, 1c onboarding + admin) inside one phase | one phase | it's the largest phase; you can review progress mid-way. Acceptance is still checked once at the end |
 
 No other deviations. The full stack in SPEC §2 is otherwise used as specified (Expo + Router + dev builds,

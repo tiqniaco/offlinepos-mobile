@@ -80,3 +80,11 @@ Triggers: `0005_sales_triggers.sql` (see posting.md).
 | `shifts` | cash shifts; closed shift immutable and chained |
 New system accounts: `OWNER` (3200), `CASH_OVER_SHORT` (6200). Triggers: `0007_phase4_triggers.sql`.
 Sales documents and payments now carry `shift_id`; the sales chain payload includes it only when set (old hashes stay valid).
+
+## Phase 5 tables
+| Table | Purpose |
+|---|---|
+| `offers` | offers & coupons (type, dates, scope JSON, values, tiers, coupon code) |
+| `sales_rollup` | monthly sales totals per product / customer / cashier / day, kept at posting (reports) |
+New columns: `sales_docs.offer_discount_minor, coupon_code, coupon_offer_id, coupon_discount_minor`; `sales_lines.offer_id, offer_discount_minor`.
+Indexes: `sales_lines_report` (covering), `sales_docs_status`, `sales_docs_cashier_day`.
