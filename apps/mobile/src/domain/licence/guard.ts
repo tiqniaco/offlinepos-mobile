@@ -2,11 +2,11 @@
  * Licence guard: the single place write services ask "may I write?" (PLAN.md §8.2).
  * The UI reads the same state to show banners, but enforcement lives here, not in buttons.
  */
-import { computeLicenceState, verifyLicence, type LicenceState, withinLimit, type PlanLimits } from '@daftarak/shared';
+import { computeLicenceState, verifyLicence, type LicenceState, withinLimit, type PlanLimits, type Feature } from '@daftarak/shared';
 import { LICENCE_PUBLIC_KEYS } from '../../config/licenceKeys';
 
 export class LicenceError extends Error {
-  constructor(public readonly reason: LicenceState['reason'] | 'limit', public readonly limit?: keyof PlanLimits) {
+  constructor(public readonly reason: LicenceState['reason'] | 'limit' | 'feature', public readonly limit?: keyof PlanLimits | Feature) {
     super(reason);
     this.name = 'LicenceError';
   }
@@ -43,4 +43,14 @@ export function assertCanWrite(): void {
 export function assertWithinLimit(limit: keyof PlanLimits, currentCount: number): void {
   assertCanWrite();
   if (!withinLimit(current!.limits[limit], currentCount)) throw new LicenceError('limit', limit);
+}
+
+/** Throws LicenceError('feature') when the plan lacks a feature (e.g. expenses & shifts on the free plan). */
+export function assertFeature(f: Feature): void {
+  assertCanWrite();
+  if (!current!.features.includes(f)) throw new LicenceError('feature', f);
+}
+
+export function hasFeature(f: Feature): boolean {
+  return !!current?.features.includes(f);
 }

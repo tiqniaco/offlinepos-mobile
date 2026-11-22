@@ -42,11 +42,28 @@ const config: ExpoConfig = {
     ['expo-image-picker', { cameraPermission: 'لقراءة الباركود وتصوير المنتجات', photosPermission: 'لاختيار صورة المنتج' }],
     'expo-document-picker',
     ['react-native-ble-plx', { isBackgroundEnabled: false, modes: [], bluetoothAlwaysPermission: 'للطباعة على طابعة الفواتير بالبلوتوث', neverForLocation: true }],
+    // AdMob (free plan only, PLAN.md §18). Google's public TEST app ids unless real ids are provided at build time.
+    [
+      'react-native-google-mobile-ads',
+      {
+        androidAppId: process.env.ADMOB_ANDROID_APP_ID ?? 'ca-app-pub-3940256099942544~3347511713',
+        iosAppId: process.env.ADMOB_IOS_APP_ID ?? 'ca-app-pub-3940256099942544~1458002511',
+        delayAppMeasurementInit: true,
+        userTrackingUsageDescription: 'بنستخدمه عشان الإعلانات في الباقة المجانية تكون مناسبة ليك. تقدر ترفض وهيظهر إعلانات عامة.',
+      },
+    ],
     ['expo-splash-screen', { image: './assets/splash-icon.png', imageWidth: 160, backgroundColor: '#0F4CC7' }],
   ],
   experiments: { typedRoutes: true },
   extra: {
     apiUrl: process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:8787',
+    // Real ad unit ids are injected at release build time; empty → Google test units.
+    admob: {
+      bannerAndroid: process.env.ADMOB_BANNER_ANDROID ?? '',
+      bannerIos: process.env.ADMOB_BANNER_IOS ?? '',
+      interstitialAndroid: process.env.ADMOB_INTERSTITIAL_ANDROID ?? '',
+      interstitialIos: process.env.ADMOB_INTERSTITIAL_IOS ?? '',
+    },
   },
 };
 

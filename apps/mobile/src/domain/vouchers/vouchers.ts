@@ -10,7 +10,7 @@ import type { Db } from '../../db/types';
 import { withTx } from '../../db/tx';
 import { appendAudit } from '../audit/audit';
 import { requirePermission, type SessionUser } from '../auth/users';
-import { assertCanWrite } from '../licence/guard';
+import { assertCanWrite, assertFeature } from '../licence/guard';
 import { nextDocNumber } from '../inventory/numbering';
 import { appendChain, chainHead, voidPayload, voucherPayload } from '../integrity/chain';
 import { METHOD_ACCOUNT, postJournal, type AccountKey, type JournalLineInput } from '../accounting/journal';
@@ -96,6 +96,7 @@ export async function postVoucher(ctx: VoucherCtx, input: VoucherInput): Promise
   const rule = RULES[input.type];
   requirePermission(ctx.user, rule.perm);
   assertCanWrite();
+  if (input.type === 'EXPENSE' || input.type === 'CASH_IN' || input.type === 'CASH_OUT') assertFeature('expenses_shifts');
   if (!Number.isSafeInteger(input.amountMinor) || input.amountMinor <= 0) throw new VoucherError('invalid_amount');
   const partyType = input.type === 'OPENING_BALANCE' ? (input.partyType ?? null) : rule.party;
   if (partyType && !input.partyId) throw new VoucherError('party_required');

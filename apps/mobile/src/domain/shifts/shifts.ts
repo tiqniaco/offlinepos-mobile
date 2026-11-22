@@ -10,7 +10,7 @@ import type { Db } from '../../db/types';
 import { withTx } from '../../db/tx';
 import { appendAudit } from '../audit/audit';
 import { requirePermission, type SessionUser } from '../auth/users';
-import { assertCanWrite } from '../licence/guard';
+import { assertCanWrite, assertFeature } from '../licence/guard';
 import { nextDocNumber } from '../inventory/numbering';
 import { appendChain, shiftPayload } from '../integrity/chain';
 import { postJournal } from '../accounting/journal';
@@ -45,7 +45,7 @@ export async function shiftIdFor(tx: Db, deviceId: string, required = false): Pr
 
 export async function openShift(ctx: ShiftCtx, openingFloatMinor: number, note?: string | null): Promise<string> {
   requirePermission(ctx.user, 'sales.create');
-  assertCanWrite();
+  assertFeature('expenses_shifts');
   if (!Number.isSafeInteger(openingFloatMinor) || openingFloatMinor < 0) throw new ShiftError('invalid_amount');
   return withTx(ctx.db, async (tx) => {
     if (await currentShift(tx, ctx.device.id)) throw new ShiftError('shift_open');

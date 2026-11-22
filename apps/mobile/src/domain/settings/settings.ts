@@ -7,7 +7,7 @@ import { settings } from '../../db/schema';
 import { appendAudit } from '../audit/audit';
 import { assertCanWrite } from '../licence/guard';
 
-export type SettingKey = keyof BusinessSettings | 'language' | 'palette' | 'appearance' | 'font' | 'textSize' | 'printer' | 'receipt' | 'cashRoundingMinor';
+export type SettingKey = keyof BusinessSettings | 'language' | 'palette' | 'appearance' | 'font' | 'textSize' | 'printer' | 'receipt' | 'cashRoundingMinor' | 'requireShift' | 'reminderDays' | 'reminderTemplate';
 /** palette/appearance are personal display settings (src/ui/theme.ts). */
 export type AppSettings = BusinessSettings & { language: 'ar' | 'en'; palette: 'tiqnia' | 'teal' | 'emerald' | 'sunset' | 'graphite'; appearance: 'light' | 'dark' | 'comfort' | 'system';
   font: 'readex' | 'alexandria' | 'almarai' | 'plex';
@@ -16,6 +16,12 @@ export type AppSettings = BusinessSettings & { language: 'ar' | 'en'; palette: '
   printer: import('../../features/printing/types').PrinterConfig | null;
   receipt: ReceiptTemplate;
   cashRoundingMinor: number;
+  /** Selling and cash movements need an open cash shift. */
+  requireShift: boolean;
+  /** A customer is "late" when the oldest unpaid amount is older than this (days). */
+  reminderDays: number;
+  /** WhatsApp reminder text; {name} {amount} {business} {days}. */
+  reminderTemplate: string;
 };
 
 /** Receipt template options (SPEC §3). */

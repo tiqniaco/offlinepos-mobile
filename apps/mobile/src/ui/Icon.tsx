@@ -8,9 +8,9 @@ import { I18nManager, Platform } from 'react-native';
 import i18n from 'i18next';
 import colors from './colors';
 
-export type IconName = 'home' | 'more' | 'phone' | 'shield' | 'users' | 'lock' | 'globe' | 'card' | 'info' | 'chevron' | 'back' | 'fingerprint' | 'check' | 'store' | 'truck' | 'book' | 'cloudOff' | 'plus' | 'warning' | 'list' | 'backspace' | 'scan' | 'camera' | 'image' | 'box' | 'tag' | 'search' | 'dots' | 'trash' | 'edit' | 'minus' | 'upload' | 'download' | 'refresh' | 'layers' | 'clipboard';
+export type IconName = 'home' | 'more' | 'phone' | 'shield' | 'users' | 'lock' | 'globe' | 'card' | 'info' | 'chevron' | 'back' | 'fingerprint' | 'check' | 'store' | 'truck' | 'book' | 'cloudOff' | 'plus' | 'warning' | 'list' | 'backspace' | 'scan' | 'camera' | 'image' | 'box' | 'tag' | 'search' | 'dots' | 'trash' | 'edit' | 'minus' | 'upload' | 'download' | 'refresh' | 'layers' | 'clipboard' | 'whatsapp' | 'cash' | 'receipt' | 'clock' | 'cart' | 'printer' | 'file' | 'sheet' | 'arrowIn' | 'arrowOut' | 'calendar' | 'bell' | 'wallet' | 'chart';
 
-const MIRRORED: IconName[] = ['chevron', 'back'];
+const MIRRORED: IconName[] = ['chevron', 'back', 'arrowIn', 'arrowOut'];
 
 export function Icon({ name, size = 22, color = colors.primary[600], tint }: { name: IconName; size?: number; color?: string; tint?: string }) {
   const fill = tint ?? color + '26'; // ~15% alpha of the stroke colour
@@ -88,6 +88,34 @@ export function Icon({ name, size = 22, color = colors.primary[600], tint }: { n
         return (<><Path d="m12 3 9 5-9 5-9-5z" fill={fill} /><Path d="m12 3 9 5-9 5-9-5zM3 13l9 5 9-5M3 17.5l9 5 9-5" {...p} /></>);
       case 'clipboard':
         return (<><Rect x="5" y="4.5" width="14" height="16.5" rx="2.5" fill={fill} /><Path d="M9 4.5H7.5A2.5 2.5 0 0 0 5 7v11.5A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5V7a2.5 2.5 0 0 0-2.5-2.5H15M9 3h6v3H9zM8.5 11l2 2 4-4M8.5 16.5h7" {...p} /></>);
+      case 'whatsapp':
+        return (<><Path d="M12 3.5a8.5 8.5 0 0 0-7.4 12.7L3.5 20.5l4.4-1.1A8.5 8.5 0 1 0 12 3.5z" fill={fill} /><Path d="M12 3.5a8.5 8.5 0 0 0-7.4 12.7L3.5 20.5l4.4-1.1A8.5 8.5 0 1 0 12 3.5z" {...p} /><Path d="M9 8.5c.3-.4.8-.4 1 0l.8 1.6c.1.3 0 .6-.2.8l-.5.5c.6 1.2 1.6 2.2 2.8 2.8l.5-.5c.2-.2.5-.3.8-.2l1.6.8c.4.2.4.7 0 1-.6.7-1.5 1-2.4.7A7.4 7.4 0 0 1 8.4 11c-.3-.9 0-1.8.6-2.5z" {...p} strokeWidth={1.4} /></>);
+      case 'cash':
+        return (<><Rect x="2.5" y="6" width="19" height="12" rx="2.5" fill={fill} /><Rect x="2.5" y="6" width="19" height="12" rx="2.5" {...p} /><Circle cx="12" cy="12" r="2.6" {...p} /><Path d="M6 9.5v.01M18 14.5v.01" {...p} strokeWidth={2.4} /></>);
+      case 'wallet':
+        return (<><Path d="M4 7.5h15a1.5 1.5 0 0 1 1.5 1.5v9.5A1.5 1.5 0 0 1 19 20H5.5A2.5 2.5 0 0 1 3 17.5v-10" fill={fill} /><Path d="M17 7.5V5.5A1.5 1.5 0 0 0 15.5 4H5.5a2.5 2.5 0 0 0 0 5H19a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 20H5.5A2.5 2.5 0 0 1 3 17.5v-11M16.5 14h.01" {...p} /></>);
+      case 'receipt':
+        return (<><Path d="M5.5 3h13v18l-2.2-1.5-2.1 1.5-2.2-1.5-2.2 1.5-2.1-1.5-2.2 1.5z" fill={fill} /><Path d="M5.5 3h13v18l-2.2-1.5-2.1 1.5-2.2-1.5-2.2 1.5-2.1-1.5-2.2 1.5zM9 8h6M9 11.5h6M9 15h3.5" {...p} /></>);
+      case 'clock':
+        return (<><Circle cx="12" cy="12" r="9" fill={fill} /><Circle cx="12" cy="12" r="9" {...p} /><Path d="M12 7v5l3.5 2" {...p} /></>);
+      case 'cart':
+        return (<><Path d="M6 6.5h14l-1.6 7.2a2 2 0 0 1-2 1.6H9a2 2 0 0 1-2-1.6z" fill={fill} /><Path d="M2.5 3.5h2.3L7 13.7a2 2 0 0 0 2 1.6h7.4a2 2 0 0 0 2-1.6L20 6.5H5.6" {...p} /><Circle cx="9.5" cy="19.5" r="1.3" {...p} /><Circle cx="16.5" cy="19.5" r="1.3" {...p} /></>);
+      case 'printer':
+        return (<><Rect x="3" y="9" width="18" height="8" rx="2" fill={fill} /><Path d="M7 9V3.5h10V9M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" {...p} /><Rect x="7" y="14" width="10" height="7" rx="1" {...p} /></>);
+      case 'file':
+        return (<><Path d="M6 2.5h8l4.5 4.5v13a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 20V4A1.5 1.5 0 0 1 6 2.5z" fill={fill} /><Path d="M6 2.5h8l4.5 4.5v13a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 20V4A1.5 1.5 0 0 1 6 2.5zM13.5 2.5V7.5h5M8 13h8M8 16.5h5" {...p} /></>);
+      case 'sheet':
+        return (<><Rect x="3.5" y="3.5" width="17" height="17" rx="2.5" fill={fill} /><Rect x="3.5" y="3.5" width="17" height="17" rx="2.5" {...p} /><Path d="M3.5 9h17M3.5 14.5h17M9.5 9v11.5" {...p} /></>);
+      case 'arrowIn':
+        return (<><Circle cx="12" cy="12" r="9" fill={fill} /><Path d="M15.5 8.5 8.5 15.5M8.5 9v6.5H15" {...p} /></>);
+      case 'arrowOut':
+        return (<><Circle cx="12" cy="12" r="9" fill={fill} /><Path d="M8.5 15.5l7-7M9 8.5h6.5V15" {...p} /></>);
+      case 'calendar':
+        return (<><Rect x="3.5" y="5" width="17" height="15.5" rx="2.5" fill={fill} /><Rect x="3.5" y="5" width="17" height="15.5" rx="2.5" {...p} /><Path d="M3.5 10h17M8 3v4M16 3v4" {...p} /></>);
+      case 'bell':
+        return (<><Path d="M6 10a6 6 0 0 1 12 0c0 5 2 6.5 2 6.5H4S6 15 6 10z" fill={fill} /><Path d="M6 10a6 6 0 0 1 12 0c0 5 2 6.5 2 6.5H4S6 15 6 10zM10 19.5a2.2 2.2 0 0 0 4 0" {...p} /></>);
+      case 'chart':
+        return (<><Rect x="3.5" y="3.5" width="17" height="17" rx="3" fill={fill} /><Path d="M7.5 16v-4M12 16V8M16.5 16v-6" {...p} strokeWidth={2.2} /></>);
       case 'plus':
         return <Path d="M12 5v14M5 12h14" {...p} strokeWidth={2.2} />;
       case 'list':

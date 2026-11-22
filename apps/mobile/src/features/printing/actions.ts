@@ -16,6 +16,10 @@ import { renderReceiptBytes } from './PrintHost';
 import { currentPrinter, driverFor } from './printerConfig';
 import { receiptHtml } from './pdf';
 import { PrintError, type PrinterConfig } from './types';
+import { formatMinor, formatQty } from '@daftarak/shared';
+import { openWhatsApp } from '../export/whatsapp';
+import { getSale } from '../../domain/sales/sales';
+import { getParty } from '../../domain/parties/parties';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const t = (k: string, o?: Record<string, unknown>) => (i18n.t as any)(k, o) as string;
@@ -59,4 +63,27 @@ export async function sharePdf(docId: string): Promise<void> {
   } catch {
     toast(t('errors.unknown'), 'error');
   }
+}
+
+/** WhatsApp text of an invoice/return to the customer's number (or any chat if none). */
+export async function whatsappInvoice(docId: string): Promise<void> {
+  const db = getDb();
+  const data = await buildReceiptData(docId);
+  const s = await getSale(db, docId);
+  const mobile = s?.doc.customerId ? ((await getParty(db, 'C', s.doc.customerId))?.mobile ?? null) : null;
+  const cur = data.currency === 'SAR' ? 'ر.س' : 'ج.م';
+  const lines = [
+    `*${data.businessName}*`,
+    `${data.title} ${data.number}`,
+    data.customerName ? data.customerName : '',
+    '',
+    ...data.lines.map((l) => `• ${l.name} — ${formatQty(l.qtyMilli)} × ${formatMinor(l.priceMinor)} = ${formatMinor(l.totalMinor)}`),
+    '',
+    data.discountMinor ? `${t('pos.discount')}: -${formatMinor(data.discountMinor)}` : '',
+    `*${t('pos.total')}: ${formatMinor(data.totalMinor)} ${cur}*`,
+    data.creditMinor ? `${t('invoice.credit')}: ${formatMinor(data.creditMinor)}` : '',
+    data.customerBalanceMinor ? `${t('report.balanceNow')}: ${formatMinor(data.customerBalanceMinor)}` : '',
+    data.template.footer ?? '',
+  ].filter((x, i, a) => x !== '' || (i > 0 && a[i - 1] !== ''));
+  await openWhatsApp(mobile, lines.join('\n'));
 }

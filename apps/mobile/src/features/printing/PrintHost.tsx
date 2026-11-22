@@ -12,11 +12,14 @@ import { buildReceiptBytes } from '@daftarak/shared';
 import { ReceiptView } from './ReceiptView';
 import { b64decode } from './base64';
 import type { ReceiptData } from './receiptData';
+import { ReportView } from '../export/ReportView';
+import type { ReportDoc } from '../export/report';
 import { PrintError } from './types';
 
 interface Job {
   id: number;
-  data: ReceiptData;
+  data: ReceiptData | null;
+  report?: ReportDoc;
   dots: number;
   openDrawer: boolean;
   resolve: (bytes: Uint8Array) => void;
@@ -29,6 +32,15 @@ let chain: Promise<unknown> = Promise.resolve();
 
 /** Render a receipt to ESC/POS bytes (queued: one render at a time). */
 export function renderReceiptBytes(data: ReceiptData, dots: number, openDrawer: boolean): Promise<Uint8Array> {
+  return renderJob({ data }, dots, openDrawer);
+}
+
+/** Render any ReportDoc (statement, voucher, shift…) to ESC/POS bytes. */
+export function renderReportBytes(report: ReportDoc, dots: number): Promise<Uint8Array> {
+  return renderJob({ data: null, report }, dots, false);
+}
+
+function renderJob(content: { data: ReceiptData | null; report?: ReportDoc }, dots: number, openDrawer: boolean): Promise<Uint8Array> {
   const run = () =>
     new Promise<Uint8Array>((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -38,7 +50,7 @@ export function renderReceiptBytes(data: ReceiptData, dots: number, openDrawer: 
       useJobs.setState({
         job: {
           id: ++seq,
-          data,
+          ...content,
           dots,
           openDrawer,
           resolve: (b) => {
@@ -102,7 +114,7 @@ export function PrintHost() {
   return (
     <View pointerEvents="none" style={{ position: 'absolute', left: -20000, top: 0 }}>
       <View ref={ref} collapsable={false}>
-        <ReceiptView d={job.data} dots={job.dots} />
+        {job.report ? <ReportView d={job.report} dots={job.dots} /> : job.data ? <ReceiptView d={job.data} dots={job.dots} /> : null}
       </View>
     </View>
   );

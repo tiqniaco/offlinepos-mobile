@@ -12,9 +12,9 @@ export function Chip({ label, selected, onPress, count, dot, testID }: { label: 
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
-        height: 38,
-        paddingHorizontal: 14,
-        borderRadius: 19,
+        height: 34,
+        paddingHorizontal: 12,
+        borderRadius: 17,
         borderWidth: 1.5,
         borderColor: selected ? colors.primary[600] : colors.paper.line,
         backgroundColor: selected ? colors.primary[600] : colors.paper.card,
@@ -22,7 +22,7 @@ export function Chip({ label, selected, onPress, count, dot, testID }: { label: 
       })}
     >
       {dot ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: dot }} /> : null}
-      <Text style={{ fontFamily: fonts.semibold, fontSize: 14, lineHeight: 20, color: selected ? '#FFFFFF' : colors.ink.soft }}>{label}</Text>
+      <Text style={{ fontFamily: fonts.semibold, fontSize: 14.5, lineHeight: 20, color: selected ? '#FFFFFF' : colors.ink.soft }}>{label}</Text>
       {count != null ? (
         <View style={{ minWidth: 22, height: 20, paddingHorizontal: 6, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: selected ? 'rgba(255,255,255,0.25)' : colors.paper.sunk }}>
           <Text style={{ fontSize: 12, lineHeight: 18, fontFamily: fonts.bold, color: selected ? '#FFFFFF' : colors.ink.soft }}>{count}</Text>

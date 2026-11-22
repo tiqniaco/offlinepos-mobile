@@ -25,6 +25,12 @@ export default function More() {
   if (can('settings.manage')) account.push({ key: 'audit', icon: 'list', hue: 'ink', title: t('more.audit'), onPress: () => router.push('/settings/audit') });
 
   account.unshift({ key: 'invoices', icon: 'card', hue: 'primary', title: t('more.invoices'), onPress: () => router.push('/sales') });
+  const money: MoreItem[] = [
+    ...(can('purchases.manage') ? [{ key: 'purchases', icon: 'cart' as const, hue: 'primary' as const, title: t('more.purchases'), onPress: () => router.push('/purchases') }] : []),
+    { key: 'vouchers', icon: 'receipt', hue: 'leaf', title: t('more.vouchers'), onPress: () => router.push('/vouchers') },
+    ...(can('expenses.manage') ? [{ key: 'expenses', icon: 'wallet' as const, hue: 'rose' as const, title: t('more.expenses'), onPress: () => router.push('/expenses') }] : []),
+    { key: 'shifts', icon: 'clock', hue: 'ink', title: t('more.shifts'), onPress: () => router.push('/shifts') },
+  ];
   if (can('settings.manage')) account.push({ key: 'integrity', icon: 'shield', hue: 'leaf', title: t('more.integrity'), onPress: () => router.push('/settings/integrity') });
   const app: MoreItem[] = [
     { key: 'printers', icon: 'clipboard', hue: 'amber', title: t('more.printers'), onPress: () => router.push('/settings/printers') },
@@ -40,6 +46,7 @@ export default function More() {
       roleName={user.roleName}
       businessName={business?.name ?? ''}
       account={account}
+      money={money}
       app={app}
       onLock={() => useApp.getState().lock()}
       footer={`${t('app.name')} ${APP_VERSION} · ${t('more.about')} · ${device?.code ?? ''}`}

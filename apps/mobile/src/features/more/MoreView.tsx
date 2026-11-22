@@ -1,6 +1,7 @@
 import { View } from 'react-native';
 import { fonts } from '../../ui/fonts';
 import { useTranslation } from 'react-i18next';
+import { AdBanner } from '../ads/AdBanner';
 import { Screen, Text, Card, Avatar, ListGroup, ListRow, SectionTitle, colors } from '../../ui';
 
 export interface MoreItem {
@@ -21,6 +22,7 @@ export function MoreView({
   roleName,
   businessName,
   account,
+  money = [],
   app,
   onLock,
   footer,
@@ -30,6 +32,7 @@ export function MoreView({
   roleName: string;
   businessName: string;
   account: MoreItem[];
+  money?: MoreItem[];
   app: MoreItem[];
   onLock: () => void;
   footer: string;
@@ -46,7 +49,7 @@ export function MoreView({
     <Screen title={t('more.title')}>
       <Card>
         <View className="flex-row items-center gap-3">
-          <Avatar name={userName} color={userColor} size={56} />
+          <Avatar name={userName} color={userColor} size={46} />
           <View className="flex-1 gap-0.5">
             <Text style={{ fontFamily: fonts.bold, fontSize: 18, lineHeight: 27, color: colors.ink.DEFAULT }}>{userName}</Text>
             <Text variant="caption">{businessName}</Text>
@@ -56,6 +59,12 @@ export function MoreView({
           </View>
         </View>
       </Card>
+      {money.length ? (
+        <>
+          <SectionTitle>{t('more.sectionMoney')}</SectionTitle>
+          {group(money)}
+        </>
+      ) : null}
       {account.length ? (
         <>
           <SectionTitle>{t('more.sectionAccount')}</SectionTitle>
@@ -64,6 +73,7 @@ export function MoreView({
       ) : null}
       <SectionTitle>{t('more.sectionApp')}</SectionTitle>
       {group(app)}
+      <AdBanner place="settings" />
       <ListGroup>
         <ListRow testID="lock-now" icon="lock" hue="rose" title={t('more.lockNow')} subtitle={t('more.lockHint')} onPress={onLock} last />
       </ListGroup>

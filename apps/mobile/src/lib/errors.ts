@@ -10,7 +10,7 @@ export function errorMessage(t: TFunction, e: unknown): string {
     const msg = t(key);
     return msg === key ? t('errors.unknown') : msg;
   }
-  if (e instanceof LicenceError) return e.reason === 'limit' ? t('licence.limit') : t(`licence.reason.${e.reason}`, { defaultValue: t('licence.readOnly') });
+  if (e instanceof LicenceError) return e.reason === 'limit' ? t('licence.limit') : e.reason === 'feature' ? t('licence.feature') : t(`licence.reason.${e.reason}`, { defaultValue: t('licence.readOnly') });
   if (e instanceof PermissionError) return t('users.noPermission');
   return t('errors.unknown');
 }

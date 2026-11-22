@@ -12,7 +12,7 @@ import { qrSvg } from './qr';
 
 let fontCss: string | null = null;
 
-async function embeddedFontCss(): Promise<string> {
+export async function embeddedFontCss(): Promise<string> {
   if (fontCss) return fontCss;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -30,7 +30,7 @@ async function embeddedFontCss(): Promise<string> {
   return fontCss;
 }
 
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+export const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
 export async function receiptHtml(d: ReceiptData): Promise<string> {
   const t = i18n.t.bind(i18n);

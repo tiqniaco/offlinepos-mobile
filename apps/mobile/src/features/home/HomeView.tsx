@@ -1,7 +1,9 @@
 import { Pressable, ScrollView, View } from 'react-native';
 import { fonts } from '../../ui/fonts';
 import { useTranslation } from 'react-i18next';
-import { Text, Hero, Avatar, Card, IconBadge, Icon, Button, colors, type IconName, type Hue } from '../../ui';
+import { Text, Hero, Avatar, Card, IconBadge, Icon, Button, SectionTitle, colors, type IconName, type Hue } from '../../ui';
+import { ActionTiles, type Tile } from '../common/ActionTiles';
+import { AdBanner } from '../ads/AdBanner';
 
 export interface SetupTask {
   key: string;
@@ -35,6 +37,8 @@ export function HomeView({
   onLock,
   stats,
   onSell,
+  quick,
+  alerts,
 }: {
   greeting: string;
   userName: string;
@@ -47,6 +51,8 @@ export function HomeView({
   onLock: () => void;
   stats?: { key: string; label: string; value: string; icon: IconName; hue: Hue; onPress?: () => void }[];
   onSell?: () => void;
+  quick?: Tile[];
+  alerts?: React.ReactNode;
 }) {
   const { t } = useTranslation();
   const done = tasks.filter((x) => x.done).length;
@@ -54,19 +60,19 @@ export function HomeView({
   return (
     <ScrollView className="flex-1 bg-paper" contentContainerStyle={{ paddingBottom: 28 }} showsVerticalScrollIndicator={false}>
       <Hero>
-        <View className="gap-5 px-5 pb-8 pt-4">
+        <View className="gap-4 px-4 pb-7 pt-3">
           <View className="flex-row items-center gap-3">
-            <Avatar name={userName} color={userColor} size={46} ring />
+            <Avatar name={userName} color={userColor} size={40} ring />
             <View className="flex-1">
               <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 20, fontFamily: fonts.medium }}>{dateLabel}</Text>
               <Text style={{ color: '#FFFFFF', fontSize: 19, lineHeight: 28, fontFamily: fonts.bold }}>{greeting}</Text>
             </View>
-            <Pressable testID="home-lock" accessibilityRole="button" onPress={onLock} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)', opacity: pressed ? 0.7 : 1 })}>
+            <Pressable testID="home-lock" accessibilityRole="button" onPress={onLock} style={({ pressed }) => ({ width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)', opacity: pressed ? 0.7 : 1 })}>
               <Icon name="lock" color="#FFFFFF" tint="rgba(255,255,255,0.2)" />
             </Pressable>
           </View>
           <View className="gap-2">
-            <Text style={{ color: '#FFFFFF', fontSize: 30, lineHeight: 42, fontFamily: fonts.bold }}>{businessName}</Text>
+            <Text style={{ color: '#FFFFFF', fontSize: 27, lineHeight: 38, fontFamily: fonts.bold }}>{businessName}</Text>
             <View className="flex-row flex-wrap gap-2">
               <Chip dot="#7CE0A0">{t('home.offline')}</Chip>
               {planChip ? <Chip>{planChip}</Chip> : null}
@@ -75,21 +81,28 @@ export function HomeView({
         </View>
       </Hero>
 
-      <View className="gap-4 px-5" style={{ marginTop: -14 }}>
+      <View className="gap-3 px-4" style={{ marginTop: -14 }}>
         {banner}
         {onSell ? <Button testID="home-sell" icon="scan" title={t('home.startSale')} onPress={onSell} /> : null}
         {stats && stats.length ? (
-          <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
             {stats.map((st) => (
               <Card key={st.key} onPress={st.onPress} style={{ flex: 1 }}>
                 <View style={{ gap: 8 }}>
-                  <IconBadge name={st.icon} hue={st.hue} size={38} />
-                  <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontFamily: fonts.bold, fontSize: 20, lineHeight: 28, color: colors.ink.DEFAULT }}>{st.value}</Text>
+                  <IconBadge name={st.icon} hue={st.hue} size={32} />
+                  <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontFamily: fonts.bold, fontSize: 18, lineHeight: 26, color: colors.ink.DEFAULT }}>{st.value}</Text>
                   <Text variant="caption" numberOfLines={1}>{st.label}</Text>
                 </View>
               </Card>
             ))}
           </View>
+        ) : null}
+        {alerts}
+        {quick && quick.length ? (
+          <>
+            <SectionTitle>{t('quick.title')}</SectionTitle>
+            <ActionTiles tiles={quick} columns={4} />
+          </>
         ) : null}
         {done < total || tasks.some((x) => x.soon) ? (
         <Card padded={false}>
@@ -142,13 +155,14 @@ export function HomeView({
 
         <Card>
           <View className="flex-row items-center gap-3">
-            <IconBadge name="shield" hue="sky" size={48} />
+            <IconBadge name="shield" hue="sky" size={38} />
             <View className="flex-1">
               <Text style={{ fontFamily: fonts.bold, fontSize: 16, lineHeight: 24, color: colors.ink.DEFAULT }}>{t('home.safeTitle')}</Text>
               <Text variant="caption">{t('home.safeBody')}</Text>
             </View>
           </View>
         </Card>
+        <AdBanner place="home" />
       </View>
     </ScrollView>
   );

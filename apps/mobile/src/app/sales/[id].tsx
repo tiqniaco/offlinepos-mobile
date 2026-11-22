@@ -12,7 +12,7 @@ import { salesErrorMessage } from '../../features/sales/errors';
 import { useApp } from '../../state/app';
 import { toast } from '../../state/toast';
 import { money, qty, dateTimeLabel } from '../../lib/format';
-import { printReceipt, sharePdf } from '../../features/printing/actions';
+import { printReceipt, sharePdf, whatsappInvoice } from '../../features/printing/actions';
 
 function Row({ label, value, strong, color }: { label: string; value: string; strong?: boolean; color?: string }) {
   return (
@@ -91,7 +91,10 @@ export default function SaleDetail() {
           <Button kind="secondary" compact icon="clipboard" title={t('invoice.reprint')} onPress={() => void printReceipt(id)} />
         </View>
         <View style={{ flex: 1 }}>
-          <Button kind="secondary" compact icon="upload" title="PDF" onPress={() => void sharePdf(id)} />
+          <Button kind="secondary" compact icon="whatsapp" title={t('share.whatsapp')} onPress={() => void whatsappInvoice(id)} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Button kind="secondary" compact icon="file" title="PDF" onPress={() => void sharePdf(id)} />
         </View>
       </View>
       {canReturn ? <Button icon="refresh" title={t('invoice.return')} onPress={() => router.push({ pathname: '/sales/return', params: { id } })} /> : null}

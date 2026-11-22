@@ -7,9 +7,9 @@ import colors from './colors';
 
 export function EmptyState({ icon, hue = 'primary', title, body, children }: { icon: IconName; hue?: Hue; title: string; body?: string; children?: React.ReactNode }) {
   return (
-    <View style={{ alignItems: 'center', gap: 10, paddingVertical: 36, paddingHorizontal: 12 }}>
+    <View style={{ alignItems: 'center', gap: 10, paddingVertical: 28, paddingHorizontal: 12 }}>
       <View style={{ padding: 14, borderRadius: 32, backgroundColor: colors.paper.card }}>
-        <IconBadge name={icon} hue={hue} size={72} />
+        <IconBadge name={icon} hue={hue} size={60} />
       </View>
       <Text style={{ fontFamily: fonts.bold, fontSize: 19, lineHeight: 28, color: colors.ink.DEFAULT, textAlign: 'center' }}>{title}</Text>
       {body ? (

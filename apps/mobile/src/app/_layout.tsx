@@ -11,6 +11,7 @@ import { useApp } from '../state/app';
 import { boot } from '../state/boot';
 import { useAutoLock } from '../hooks/useAutoLock';
 import { ToastHost } from '../ui/Toast';
+import { AdsProvider } from '../features/ads/AdsProvider';
 import { PrintHost } from '../features/printing/PrintHost';
 import { colors, useTheme, applyTheme } from '../ui';
 
@@ -73,11 +74,21 @@ export default function RootLayout() {
             <Stack.Screen name="settings" />
             <Stack.Screen name="products" />
             <Stack.Screen name="sales" />
+            <Stack.Screen name="parties" />
+            <Stack.Screen name="purchases" />
+            <Stack.Screen name="vouchers" />
+            <Stack.Screen name="expenses" />
+            <Stack.Screen name="shifts" />
             <Stack.Screen name="scan" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
           </Stack.Protected>
         </Stack>
         <ToastHost />
-        {status === 'ready' ? <PrintHost /> : null}
+        {status === 'ready' ? (
+          <>
+            <PrintHost />
+            <AdsProvider />
+          </>
+        ) : null}
       </View>
     </SafeAreaProvider>
   );
