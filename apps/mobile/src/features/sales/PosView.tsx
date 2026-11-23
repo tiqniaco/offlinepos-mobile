@@ -33,9 +33,12 @@ function Stepper({ value, onMinus, onPlus }: { value: string; onMinus: () => voi
   );
 }
 
-/** Pure view of the POS (previewed in the dev gallery). Container: src/app/(main)/sell.tsx */
+/** Pure view of the POS (previewed in the dev gallery). Container: src/app/sales/pos.tsx */
 export function PosView(p: {
   topInset: number;
+  /** Safe area under the pay bar (the POS is a full page, no tab bar). */
+  bottomInset?: number;
+  onBack?: () => void;
   lines: CartLine[];
   priced: PricedCart | null;
   /** Offer names per line key, coupon label. */
@@ -75,9 +78,14 @@ export function PosView(p: {
   const showHits = p.search.trim().length > 0 && p.hits.length > 0;
   const noHits = !!p.searched && p.search.trim().length > 0 && p.hits.length === 0;
   return (
-    <View style={{ flex: 1, backgroundColor: colors.paper.DEFAULT, paddingTop: p.topInset }}>
+    <View style={{ flex: 1, backgroundColor: colors.paper.DEFAULT, paddingTop: p.topInset, paddingBottom: p.bottomInset ?? 0 }}>
       <View style={{ paddingHorizontal: 16, paddingTop: 8, gap: 10 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          {p.onBack ? (
+            <Pressable testID="pos-back" accessibilityRole="button" hitSlop={8} onPress={p.onBack} style={({ pressed }) => [{ width: 44, height: 48, borderRadius: 16, backgroundColor: colors.paper.card, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.8 : 1 }, shadow.soft]}>
+              <Icon name="back" size={20} color={colors.ink.DEFAULT} />
+            </Pressable>
+          ) : null}
           <Pressable testID="pos-customer" onPress={p.onCustomer} style={({ pressed }) => [{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, height: 48, borderRadius: 16, paddingHorizontal: 12, backgroundColor: colors.paper.card, opacity: pressed ? 0.85 : 1 }, shadow.soft]}>
             <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: p.customerName ? colors.primary[50] : colors.paper.sunk, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="users" size={18} color={p.customerName ? colors.primary[600] : colors.ink.mute} />

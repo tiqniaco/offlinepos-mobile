@@ -51,7 +51,7 @@ export function QuickSheet() {
           testID="quick-sell"
           feedback="tap"
           scaleTo={0.97}
-          onPress={nav(() => router.push('/(main)/sell'))}
+          onPress={nav(() => router.push('/sales/pos'))}
           style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 18, backgroundColor: colors.primary[600] }, shadow.soft]}
         >
           <View style={{ width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)' }}>

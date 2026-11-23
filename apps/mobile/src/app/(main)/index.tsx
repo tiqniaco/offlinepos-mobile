@@ -184,7 +184,7 @@ export default function Home() {
       onSearch={() => router.push('/search')}
       onInbox={() => router.push('/inbox')}
       unread={unread}
-      onSell={can('sales.create') ? () => router.push('/(main)/sell') : undefined}
+      onSell={can('sales.create') ? () => router.push('/sales/pos') : undefined}
       quick={quick}
       alerts={alerts}
       stats={

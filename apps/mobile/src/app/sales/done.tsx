@@ -38,7 +38,7 @@ export default function Done() {
   };
   const ch = Number(change ?? 0);
   return (
-    <Screen footer={<Button testID="done-new" icon="plus" title={t('done.newSale')} onPress={() => router.dismissTo('/(main)/sell')} />}>
+    <Screen footer={<Button testID="done-new" icon="plus" title={t('done.newSale')} onPress={() => router.dismissTo('/sales/pos')} />}>
       <View style={{ alignItems: 'center', gap: 10, paddingTop: 24 }}>
         <IconBadge name="check" hue="leaf" size={72} />
         <Text style={{ fontFamily: fonts.bold, fontSize: 26, lineHeight: 36, color: colors.ink.DEFAULT }}>{t('done.title')}</Text>

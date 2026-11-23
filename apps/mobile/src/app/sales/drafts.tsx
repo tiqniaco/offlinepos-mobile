@@ -39,7 +39,7 @@ export default function Drafts() {
       // A held sale stays held until the resumed cart is posted (postSale removes it) or held again (replaced).
       useCart.getState().load(d, type === 'QUOTATION' ? null : id);
       if (router.canGoBack()) router.back();
-      else router.dismissTo('/(main)/sell');
+      else router.dismissTo('/sales/pos');
     } catch (e) {
       toast(salesErrorMessage(t, e), 'error');
     } finally {

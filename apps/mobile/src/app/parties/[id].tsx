@@ -78,7 +78,7 @@ export default function PartyDetail() {
     ...(type === 'C' && can('parties.manage') ? [{ key: 'receipt', icon: 'arrowIn' as const, hue: 'leaf' as const, label: t('parties.collect'), onPress: () => router.push({ pathname: '/vouchers/new', params: { type: 'RECEIPT', partyId: id } }) }] : []),
     ...(type === 'S' && can('purchases.manage') ? [{ key: 'pay', icon: 'arrowOut' as const, hue: 'amber' as const, label: t('parties.pay'), onPress: () => router.push({ pathname: '/vouchers/new', params: { type: 'PAYMENT', partyId: id } }) }] : []),
     ...(type === 'C' && can('sales.create')
-      ? [{ key: 'sell', icon: 'scan' as const, hue: 'primary' as const, label: t('parties.sell'), onPress: () => { useCart.getState().setCustomer(p.id, p.name, p.priceTier ?? 'retail'); router.push('/(main)/sell'); } }]
+      ? [{ key: 'sell', icon: 'scan' as const, hue: 'primary' as const, label: t('parties.sell'), onPress: () => { useCart.getState().setCustomer(p.id, p.name, p.priceTier ?? 'retail'); router.push('/sales/pos'); } }]
       : []),
     ...(type === 'C' && can('parties.manage') ? [{ key: 'crefund', icon: 'arrowOut' as const, hue: 'amber' as const, label: t('voucher.title.CUSTOMER_REFUND'), onPress: () => router.push({ pathname: '/vouchers/new', params: { type: 'CUSTOMER_REFUND', partyId: id } }) }] : []),
     ...(type === 'S' && can('purchases.manage') ? [{ key: 'srefund', icon: 'arrowIn' as const, hue: 'leaf' as const, label: t('voucher.title.SUPPLIER_REFUND'), onPress: () => router.push({ pathname: '/vouchers/new', params: { type: 'SUPPLIER_REFUND', partyId: id } }) }] : []),

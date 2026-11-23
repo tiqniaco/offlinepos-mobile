@@ -84,8 +84,6 @@ export default function MainLayout() {
       <Tabs.Screen name="new" options={{ title: '', tabBarButton: () => <PlusButton /> }} listeners={{ tabPress: (e) => e.preventDefault() }} />
       <Tabs.Screen name="parties" options={{ title: t('tabs.parties'), tabBarIcon: ({ focused }) => <TabIcon name="users" focused={focused} /> }} />
       <Tabs.Screen name="more" options={{ title: t('tabs.more'), tabBarIcon: ({ focused }) => <TabIcon name="more" focused={focused} /> }} />
-      {/* Sale is opened from «+», the home button and search; it stays a tab route (keeps the cart while switching). */}
-      <Tabs.Screen name="sell" options={{ href: null, title: t('tabs.sell') }} />
     </Tabs>
       <QuickSheet />
     </>

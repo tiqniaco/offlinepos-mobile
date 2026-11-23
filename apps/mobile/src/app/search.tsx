@@ -41,7 +41,7 @@ export default function Search() {
 
   const actions: Action[] = useMemo(
     () => [
-      { key: 'sell', icon: 'scan', hue: 'primary', label: t('home.startSale'), words: 'بيع فاتورة كاشير sale', perm: 'sales.create', go: () => router.replace('/(main)/sell') },
+      { key: 'sell', icon: 'scan', hue: 'primary', label: t('home.startSale'), words: 'بيع فاتورة كاشير sale', perm: 'sales.create', go: () => router.push('/sales/pos') },
       { key: 'collect', icon: 'arrowIn', hue: 'leaf', label: t('quick.collect'), words: 'تحصيل قبض سند receipt', perm: 'parties.manage', go: () => router.replace({ pathname: '/vouchers/new', params: { type: 'RECEIPT' } }) },
       { key: 'purchase', icon: 'cart', hue: 'primary', label: t('quick.purchase'), words: 'شراء مشتريات مورد purchase', perm: 'purchases.manage', go: () => router.replace('/purchases/new') },
       { key: 'expense', icon: 'wallet', hue: 'rose', label: t('quick.expense'), words: 'مصروف مصاريف expense', perm: 'expenses.manage', go: () => router.replace({ pathname: '/vouchers/new', params: { type: 'EXPENSE' } }) },

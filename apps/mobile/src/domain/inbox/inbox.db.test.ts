@@ -22,7 +22,7 @@ describe('inbox', () => {
     expect(await unreadCount(db)).toBe(0);
     await saveAnnouncements(db, Array.from({ length: 120 }, (_, i) => msg(`m${i}`, 100 + i)));
     expect(await listInbox(db)).toHaveLength(100);
-    expect(safeUrl('/(main)/sell')).toBe('/(main)/sell');
+    expect(safeUrl('/(main)/sell')).toBe('/sales/pos');
     expect(safeUrl('/settings/../x')).toBeNull();
   });
 });

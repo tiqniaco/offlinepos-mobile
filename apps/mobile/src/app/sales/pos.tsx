@@ -172,6 +172,8 @@ export default function Sell() {
     <>
       <PosView
         topInset={insets.top}
+        bottomInset={insets.bottom}
+        onBack={() => (router.canGoBack() ? router.back() : router.replace('/(main)'))}
         lines={cart.lines}
         priced={priced}
         tip={
