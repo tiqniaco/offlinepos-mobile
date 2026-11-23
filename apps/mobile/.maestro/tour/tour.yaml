@@ -36,28 +36,35 @@ appId: app.daftarak
 - tapOn: { id: owner-finish }
 - extendedWaitUntil: { visible: { id: home-sell }, timeout: 60000 }
 - takeScreenshot: shots/b01-home
-- scroll
+- swipe: { start: "50%, 62%", end: "50%, 22%" }
 - takeScreenshot: shots/b02-home-scrolled
 # Sample data so lists, invoices and reports have content
-- scrollUntilVisible: { element: { text: "جرّب ببيانات تجريبية.*" }, direction: DOWN, timeout: 10000, optional: true }
+- swipe: { start: "50%, 62%", end: "50%, 22%" }
+- swipe: { start: "50%, 62%", end: "50%, 22%" }
 - tapOn: { text: "جرّب ببيانات تجريبية.*", optional: true }
 - waitForAnimationToEnd: { timeout: 8000 }
-- scroll
+- swipe: { start: "50%, 62%", end: "50%, 22%" }
 - takeScreenshot: shots/b03-home-after-sample
-- scrollUntilVisible: { element: { id: home-plan-card }, direction: DOWN, timeout: 10000, optional: true }
+- swipe: { start: "50%, 62%", end: "50%, 22%" }
+- swipe: { start: "50%, 62%", end: "50%, 22%" }
 - takeScreenshot: shots/b03b-home-plan-card
 # Ad slot (free plan; forced on in this screenshot build, labelled, with «remove ads — upgrade»)
-- scrollUntilVisible: { element: { id: ads-remove }, direction: DOWN, timeout: 15000, optional: true }
+- swipe: { start: "50%, 62%", end: "50%, 22%" }
+- swipe: { start: "50%, 62%", end: "50%, 22%" }
+- swipe: { start: "50%, 62%", end: "50%, 22%" }
+- swipe: { start: "50%, 62%", end: "50%, 22%" }
 - waitForAnimationToEnd: { timeout: 5000 }
 - takeScreenshot: shots/b04-home-ad
 - tapOn: { id: ads-remove, optional: true }
 - waitForAnimationToEnd
 - takeScreenshot: shots/b05-ad-to-plans
-- scrollUntilVisible: { element: { id: manual-pro }, direction: DOWN, timeout: 8000, optional: true }
+- swipe: { start: "50%, 62%", end: "50%, 22%" }
+- swipe: { start: "50%, 62%", end: "50%, 22%" }
+- swipe: { start: "50%, 62%", end: "50%, 22%" }
 - tapOn: { id: manual-pro, optional: true }
 - waitForAnimationToEnd
 - takeScreenshot: shots/b06-upgrade
-- scroll
+- swipe: { start: "50%, 62%", end: "50%, 22%" }
 - takeScreenshot: shots/b07-upgrade-bottom
 - launchApp: { stopApp: false }
 - openLink: "daftarak://"
@@ -70,7 +77,10 @@ appId: app.daftarak
 - waitForAnimationToEnd
 - takeScreenshot: shots/c00b-quick-sheet-closed
 - launchApp: { stopApp: false }
-- scrollUntilVisible: { element: { id: home-sell }, direction: UP, timeout: 8000, optional: true }
+- swipe: { start: "50%, 25%", end: "50%, 70%" }
+- swipe: { start: "50%, 25%", end: "50%, 70%" }
+- swipe: { start: "50%, 25%", end: "50%, 70%" }
+- swipe: { start: "50%, 25%", end: "50%, 70%" }
 - tapOn: { id: home-sell }
 - waitForAnimationToEnd: { timeout: 8000 }
 - takeScreenshot: shots/c01-sell-empty
@@ -102,7 +112,7 @@ appId: app.daftarak
 - openLink: "daftarak://products"
 - waitForAnimationToEnd
 - takeScreenshot: shots/d01-products
-- scroll
+- swipe: { start: "50%, 62%", end: "50%, 22%" }
 - takeScreenshot: shots/d02-products-scrolled
 - openLink: "daftarak://parties"
 - waitForAnimationToEnd
@@ -112,7 +122,7 @@ appId: app.daftarak
 - openLink: "daftarak://more"
 - waitForAnimationToEnd
 - takeScreenshot: shots/f01-more
-- scroll
+- swipe: { start: "50%, 62%", end: "50%, 22%" }
 - takeScreenshot: shots/f02-more-scrolled
 - openLink: "daftarak://"
 # Forms with the keyboard open (the field at the bottom must stay visible)
@@ -122,16 +132,16 @@ appId: app.daftarak
 - tapOn: { text: "مثلاً.*", optional: true }
 - inputText: "منتج اختبار"
 - takeScreenshot: shots/g02-product-form-keyboard
-- scroll
-- scroll
+- swipe: { start: "50%, 62%", end: "50%, 22%" }
+- swipe: { start: "50%, 62%", end: "50%, 22%" }
 - takeScreenshot: shots/g03-product-form-bottom-keyboard
 - back
 - back
 - openLink: "daftarak://parties/form?type=C"
 - waitForAnimationToEnd
 - takeScreenshot: shots/g04-customer-form
-- scroll
-- scroll
+- swipe: { start: "50%, 62%", end: "50%, 22%" }
+- swipe: { start: "50%, 62%", end: "50%, 22%" }
 - takeScreenshot: shots/g05-customer-form-bottom
 - back
 # Every other screen (top + scrolled)

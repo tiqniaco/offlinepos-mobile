@@ -5,7 +5,7 @@ appId: app.daftarak
 - openLink: "daftarak://${ROUTE}"
 - waitForAnimationToEnd: { timeout: 4000 }
 - takeScreenshot: shots/${NAME}
-- scroll
+- swipe: { start: "50%, 62%", end: "50%, 22%" }
 - waitForAnimationToEnd: { timeout: 2000 }
 - takeScreenshot: shots/${NAME}-b
 - back
