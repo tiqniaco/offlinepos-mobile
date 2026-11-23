@@ -1,7 +1,0 @@
-{
-  "name": "sms-consent",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Local Expo module: Android SMS User Consent API (reads the OTP code after the user taps Allow).",
-  "main": "index.ts"
-}
