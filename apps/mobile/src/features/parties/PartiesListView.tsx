@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Text, TextField, Chip, Avatar, Icon, EmptyState, Fab, colors, fonts, shadow } from '../../ui';
 import { Segmented } from '../common/Segmented';
 import { balanceLabel, partyColor } from './format';
-import { money } from '../../lib/format';
+import { money, phoneLabel } from '../../lib/format';
 import { AdBanner } from '../ads/AdBanner';
 
 export interface PartyListItem {
@@ -118,7 +118,7 @@ export function PartiesListView({
                   <View style={{ flex: 1, gap: 1 }}>
                     <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 16, lineHeight: 22, color: colors.ink.DEFAULT }}>{item.name}</Text>
                     <Text variant="caption" numberOfLines={1}>
-                      {item.lateDays != null ? t('parties.lateDays', { n: item.lateDays }) : item.mobile ? `+${item.mobile}` : t('parties.noMobile')}
+                      {item.lateDays != null ? t('parties.lateDays', { n: item.lateDays }) : item.mobile ? phoneLabel(item.mobile, { isolate: true }) : t('parties.noMobile')}
                     </Text>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>

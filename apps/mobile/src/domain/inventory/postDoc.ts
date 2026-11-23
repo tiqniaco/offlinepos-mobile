@@ -6,13 +6,15 @@ import { eq } from 'drizzle-orm';
 import { businessDay } from '@daftarak/shared';
 import { inventoryDocs, inventoryLines } from '../../db/schema';
 import type { Db } from '../../db/types';
-import { appendChain, inventoryPayload } from '../integrity/chain';
+import { appendChain, chainHead, inventoryPayload } from '../integrity/chain';
 import { postJournal } from '../accounting/journal';
-import type { InvCtx } from './context';
+import { InventoryError, type InvCtx } from './context';
 import { nextDocNumber } from './numbering';
 
 /** valueMinor = Σ (qty × unit cost) of the posted movements, signed (+ stock in, − stock out). */
 export async function finalizeInventoryDoc(tx: Db, ctx: InvCtx, docId: string, now: number, valueMinor: number): Promise<string> {
+  // Opening stock, adjustments and counts: same clock check as sales (the transaction rolls back).
+  if (now < (await chainHead(tx, ctx.device.id)).postedAt) throw new InventoryError('clock_behind');
   const draft = (await tx.select().from(inventoryDocs).where(eq(inventoryDocs.id, docId)).limit(1))[0]!;
   const lines = await tx.select().from(inventoryLines).where(eq(inventoryLines.docId, docId));
   const number = await nextDocNumber(tx, ctx.device, 'INVENTORY', 'STK');

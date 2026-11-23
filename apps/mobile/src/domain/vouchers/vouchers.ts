@@ -185,6 +185,7 @@ export async function voidVoucher(ctx: VoucherCtx, id: string, reason: string): 
     const t = ctx.now?.() ?? Date.now();
     const v = (await tx.select().from(vouchers).where(eq(vouchers.id, id)).limit(1))[0];
     if (!v || v.status !== 'POSTED') throw new VoucherError('not_voidable');
+    if (t < (await chainHead(tx, ctx.device.id)).postedAt) throw new VoucherError('clock_behind');
     await assertVoidWindow(tx, v.shiftId, v.businessDay, t, ctx.timezone);
     const day = businessDay(t, ctx.timezone);
     const eff = effects({ type: v.type, amountMinor: v.amountMinor, method: v.method, partyType: v.partyType, partyId: v.partyId, sign: v.sign });

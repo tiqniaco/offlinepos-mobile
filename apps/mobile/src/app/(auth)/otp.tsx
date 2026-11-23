@@ -11,6 +11,7 @@ import { deviceInfo } from '../../domain/onboarding';
 import i18n from '../../i18n';
 import { useSmsOtp } from '../../features/auth/useSmsOtp';
 import { SmsOtpHint } from '../../features/auth/SmsOtpHint';
+import { phoneLabel } from '../../lib/format';
 
 export default function OtpScreen() {
   const { t } = useTranslation();
@@ -70,7 +71,7 @@ export default function OtpScreen() {
       step={2}
       stepLabel={t('onboarding.step', { n: 2, total: 4 })}
       title={t('otp.title')}
-      subtitle={t('otp.body', { phone: `+${phone}` })}
+      subtitle={t('otp.body', { phone: phoneLabel(phone, { isolate: true }) })}
       footer={<Button testID="otp-verify" title={t('otp.verify')} loading={busy} disabled={code.length !== 6} onPress={() => verify()} />}
     >
       <Card>

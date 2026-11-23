@@ -183,9 +183,20 @@ export async function chainHead(tx: Db, deviceId: string): Promise<{ seq: number
   return last ? { seq: last.chainSeq, hash: last.hash, postedAt: last.postedAt } : { seq: 0, hash: GENESIS_HASH, postedAt: 0 };
 }
 
-/** Append one entry. `buildPayload(seq)` receives the sequence number so it can be part of the hash. */
+/** The phone clock is behind the last posted document: posting would break the time order of the chain. */
+export class ClockBehindError extends Error {
+  readonly code = 'clock_behind' as const;
+  constructor() {
+    super('clock_behind');
+    this.name = 'ClockBehindError';
+  }
+}
+
+/** Append one entry. `buildPayload(seq)` receives the sequence number so it can be part of the hash.
+ *  Last line of defence for every posting path: refuses a time before the chain head (the caller's tx rolls back). */
 export async function appendChain(tx: Db, deviceId: string, docType: ChainDocType, docId: string, postedAt: number, buildPayload: (seq: number) => unknown | Promise<unknown>) {
   const head = await chainHead(tx, deviceId);
+  if (postedAt < head.postedAt) throw new ClockBehindError();
   const seq = head.seq + 1;
   const hash = chainHash(await buildPayload(seq), head.hash);
   await tx.insert(integrityChain).values({ deviceId, chainSeq: seq, docType, docId, hash, prevHash: head.hash, postedAt });

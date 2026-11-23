@@ -12,7 +12,7 @@ import { appendAudit } from '../audit/audit';
 import { requirePermission, type SessionUser } from '../auth/users';
 import { assertCanWrite, assertFeature } from '../licence/guard';
 import { nextDocNumber } from '../inventory/numbering';
-import { appendChain, shiftPayload } from '../integrity/chain';
+import { appendChain, chainHead, shiftPayload } from '../integrity/chain';
 import { postJournal } from '../accounting/journal';
 
 export interface ShiftCtx {
@@ -24,7 +24,7 @@ export interface ShiftCtx {
 }
 
 export class ShiftError extends Error {
-  constructor(public readonly code: 'shift_open' | 'no_shift' | 'shift_required' | 'invalid_amount' | 'not_yours') {
+  constructor(public readonly code: 'shift_open' | 'no_shift' | 'shift_required' | 'invalid_amount' | 'not_yours' | 'clock_behind') {
     super(code);
     this.name = 'ShiftError';
   }
@@ -116,6 +116,7 @@ export async function closeShift(ctx: ShiftCtx, countedCashMinor: number, note?:
     if (!s) throw new ShiftError('no_shift');
     if (s.userId !== ctx.user.id) requirePermission(ctx.user, 'shift.manage');
     const t = nowOf(ctx);
+    if (t < (await chainHead(tx, ctx.device.id)).postedAt) throw new ShiftError('clock_behind');
     const day = businessDay(t, ctx.timezone);
     const sum = await shiftSummary(tx, s.id);
     const diff = countedCashMinor - sum.expectedCashMinor;

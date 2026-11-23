@@ -11,7 +11,7 @@ import { getDb } from '../db/client';
 import { useApp } from '../state/app';
 import { searchAll, type SearchResults } from '../domain/search/search';
 import { useCurrency } from '../features/inventory/useInvCtx';
-import { money } from '../lib/format';
+import { money, phoneLabel } from '../lib/format';
 
 interface Action {
   key: string;
@@ -103,12 +103,12 @@ export default function Search() {
             </Group>
             <Group title={t('parties.customers')} n={r.customers.length}>
               {r.customers.map((c) => (
-                <Row key={c.id} icon="users" hue="primary" title={c.name} sub={c.mobile ? `+${c.mobile}` : undefined} right={c.balanceMinor ? fmt(c.balanceMinor) : undefined} onPress={() => router.replace({ pathname: '/parties/[id]', params: { id: c.id, type: 'C' } })} />
+                <Row key={c.id} icon="users" hue="primary" title={c.name} sub={c.mobile ? phoneLabel(c.mobile, { isolate: true }) : undefined} right={c.balanceMinor ? fmt(c.balanceMinor) : undefined} onPress={() => router.replace({ pathname: '/parties/[id]', params: { id: c.id, type: 'C' } })} />
               ))}
             </Group>
             <Group title={t('parties.suppliers')} n={r.suppliers.length}>
               {r.suppliers.map((s) => (
-                <Row key={s.id} icon="truck" hue="amber" title={s.name} sub={s.mobile ? `+${s.mobile}` : undefined} right={s.balanceMinor ? fmt(s.balanceMinor) : undefined} onPress={() => router.replace({ pathname: '/parties/[id]', params: { id: s.id, type: 'S' } })} />
+                <Row key={s.id} icon="truck" hue="amber" title={s.name} sub={s.mobile ? phoneLabel(s.mobile, { isolate: true }) : undefined} right={s.balanceMinor ? fmt(s.balanceMinor) : undefined} onPress={() => router.replace({ pathname: '/parties/[id]', params: { id: s.id, type: 'S' } })} />
               ))}
             </Group>
             <Group title={t('more.invoices')} n={r.invoices.length}>

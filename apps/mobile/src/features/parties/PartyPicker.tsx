@@ -6,6 +6,7 @@ import { getDb } from '../../db/client';
 import { listParties, owed, type PartyRow } from '../../domain/parties/parties';
 import { balanceLabel, partyColor } from './format';
 import { useLastParty } from '../../state/lastParty';
+import { phoneLabel } from '../../lib/format';
 
 /** Pick a customer or supplier (search, balance shown); "add new" opens the full form. */
 export function PartyPicker({ visible, type, currency, lang, onClose, onPick }: { visible: boolean; type: 'C' | 'S'; currency: 'EGP' | 'SAR'; lang: string; onClose: () => void; onPick: (p: PartyRow) => void }) {
@@ -41,7 +42,7 @@ export function PartyPicker({ visible, type, currency, lang, onClose, onPick }: 
       <ListGroup>
         {rows.map((r, i) => {
           const b = balanceLabel(type, owed(type, r.balanceMinor), currency, lang);
-          return <ListRow key={r.id} leading={<Avatar name={r.name} color={partyColor(r.id)} size={34} />} title={r.name} subtitle={r.balanceMinor ? `${b.tag} ${b.text}` : r.mobile ? `+${r.mobile}` : undefined} onPress={() => onPick(r)} last={i === rows.length - 1} />;
+          return <ListRow key={r.id} leading={<Avatar name={r.name} color={partyColor(r.id)} size={34} />} title={r.name} subtitle={r.balanceMinor ? `${b.tag} ${b.text}` : r.mobile ? phoneLabel(r.mobile, { isolate: true }) : undefined} onPress={() => onPick(r)} last={i === rows.length - 1} />;
         })}
       </ListGroup>
     </Sheet>

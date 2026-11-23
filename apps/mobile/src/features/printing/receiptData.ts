@@ -6,6 +6,7 @@ import { business, users } from '../../db/schema';
 import { getSale } from '../../domain/sales/sales';
 import { partyBalance } from '../../domain/parties/customers';
 import { loadSettings, DEFAULT_RECEIPT, type ReceiptTemplate } from '../../domain/settings/settings';
+import { phoneLabel } from '../../lib/format';
 
 export interface ReceiptData {
   kind: 'INVOICE' | 'RETURN' | 'QUOTATION';
@@ -58,7 +59,8 @@ export async function buildReceiptData(docId: string): Promise<ReceiptData> {
     date: d.postedAt ?? d.createdAt,
     businessName: b.name,
     address: b.address,
-    phones: JSON.parse(b.phonesJson) as string[],
+    // Shop phones print in the local form customers dial ("01012345678"), however they were saved.
+    phones: (JSON.parse(b.phonesJson) as string[]).map((p) => phoneLabel(p)).filter(Boolean),
     vatNumber: vatOn ? b.vatNumber : null,
     logoPath: b.logoPath,
     cashier,

@@ -23,7 +23,9 @@ export type InventoryErrorCode =
   | 'negative_blocked'
   | 'feature_unavailable'
   | 'unit_required'
-  | 'empty_count';
+  | 'empty_count'
+  | 'clock_behind'
+  | 'gram_base_unit';
 
 export class InventoryError extends Error {
   constructor(

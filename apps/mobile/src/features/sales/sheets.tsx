@@ -7,7 +7,7 @@ import { Sheet, Text, Button, QtyField, MoneyField, TextField, Chip, ListGroup, 
 import type { CartLine } from '../../domain/sales/sales';
 import { createCustomer, searchCustomers } from '../../domain/parties/customers';
 import { getDb } from '../../db/client';
-import { money } from '../../lib/format';
+import { money, phoneLabel } from '../../lib/format';
 import type { PartyCtx } from '../../domain/parties/customers';
 import { toast } from '../../state/toast';
 import { errorMessage } from '../../lib/errors';
@@ -139,7 +139,7 @@ export function CustomerSheet({ visible, ctx, canAdd, currency, lang, onClose, o
                 key={c.id}
                 leading={<Avatar name={c.name} color={colors.primary[500]} size={40} />}
                 title={c.name}
-                subtitle={[c.mobile ? `+${c.mobile}` : null, Number(c.balanceMinor) ? t('pos.customerBalance', { amount: money(Number(c.balanceMinor), currency, lang) }) : null].filter(Boolean).join('  ·  ') || undefined}
+                subtitle={[c.mobile ? phoneLabel(c.mobile, { isolate: true }) : null, Number(c.balanceMinor) ? t('pos.customerBalance', { amount: money(Number(c.balanceMinor), currency, lang) }) : null].filter(Boolean).join('  ·  ') || undefined}
                 value={c.priceTier === 'wholesale' ? t('customer.wholesale') : undefined}
                 onPress={() => onPick({ id: c.id, name: c.name, priceTier: c.priceTier })}
                 last={i === rows.length - 1}

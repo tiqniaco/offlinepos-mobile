@@ -33,6 +33,7 @@ describe('cloud backups', () => {
     await c.env.DB.prepare(`UPDATE businesses SET plan_code = 'basic' WHERE id = ?1`).bind(business.id).run();
     for (let i = 0; i < 9; i++) {
       c.advance(60_000);
+      await c.env.DB.prepare(`DELETE FROM rate_counters WHERE key LIKE 'backup-upload:%'`).run(); // the daily cap has its own test
       const u = await c.call('POST', '/v1/backups/upload-url', { businessId: business.id, deviceId: reg.deviceId, meta }, h);
       expect(u.status).toBe(200);
       expect(u.json.url).toContain('X-Amz-Signature');

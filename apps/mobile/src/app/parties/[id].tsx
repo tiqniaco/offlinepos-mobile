@@ -17,7 +17,7 @@ import { useCurrency } from '../../features/inventory/useInvCtx';
 import { useBizCtx } from '../../features/sales/useSalesCtx';
 import { useCart } from '../../state/cart';
 import { dayText } from '../../features/export/builders';
-import { money } from '../../lib/format';
+import { money, phoneLabel } from '../../lib/format';
 import { errorMessage } from '../../lib/errors';
 import { toast } from '../../state/toast';
 
@@ -129,7 +129,7 @@ export default function PartyDetail() {
         <LinearGradient colors={colors.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 16, gap: 2 }}>
           <Text style={{ color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 21, lineHeight: 30 }}>{p.name}</Text>
           <Text style={{ color: 'rgba(255,255,255,0.8)', fontFamily: fonts.medium, fontSize: 13, lineHeight: 20 }}>
-            {[p.mobile ? `+${p.mobile}` : null, p.address].filter(Boolean).join('  ·  ') || t(type === 'C' ? 'parties.customer' : 'parties.supplier')}
+            {[p.mobile ? phoneLabel(p.mobile, { isolate: true }) : null, p.address].filter(Boolean).join('  ·  ') || t(type === 'C' ? 'parties.customer' : 'parties.supplier')}
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, marginTop: 10 }}>
             <View style={{ flex: 1 }}>

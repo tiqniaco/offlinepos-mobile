@@ -5,12 +5,34 @@ import { useTranslation } from 'react-i18next';
 import { asc, desc } from 'drizzle-orm';
 import { Screen, Text, Banner, colors } from '../../ui';
 import { getDb } from '../../db/client';
-import { auditLog } from '../../db/schema';
+import { auditLog, users } from '../../db/schema';
+import { useApp } from '../../state/app';
 import { verifyAuditRowsChunked, type ChainCheck } from '../../domain/audit/audit';
 import { errorMessage } from '../../lib/errors';
-import { dateTimeLabel } from '../../lib/format';
+import { dateTimeLabel, ltr, money } from '../../lib/format';
 
 type Row = typeof auditLog.$inferSelect;
+
+const parse = (j: string | null): Record<string, unknown> | null => {
+  if (!j) return null;
+  try {
+    const v = JSON.parse(j) as unknown;
+    return v && typeof v === 'object' ? (v as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+};
+const str = (v: unknown) => (typeof v === 'string' && v ? v : null);
+const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+/** What the entry was about: document number / name and the amount, from the stored before/after. */
+function details(r: Row) {
+  const a = parse(r.afterJson);
+  const b = parse(r.beforeJson);
+  const label = str(a?.number) ?? str(a?.name) ?? str(b?.number) ?? str(b?.name) ?? str(a?.code) ?? null;
+  const amount = num(a?.total) ?? num(a?.amount) ?? num(a?.credit) ?? null;
+  return { label, amount };
+}
 
 /** Read-only view of the audit log + chain check. There is deliberately no edit or delete. */
 export default function Audit() {
@@ -18,6 +40,8 @@ export default function Audit() {
   const [rows, setRows] = useState<Row[]>([]);
   const [check, setCheck] = useState<ChainCheck | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [names, setNames] = useState<Map<string, string>>(new Map());
+  const currency = useApp((s) => s.business?.currency ?? 'EGP');
   useEffect(() => {
     let alive = true;
     // Start after the screen transition; the chain check yields to the UI between chunks.
@@ -26,7 +50,11 @@ export default function Audit() {
         try {
           const db = getDb();
           const recent = await db.select().from(auditLog).orderBy(desc(auditLog.seq)).limit(200);
-          if (alive) setRows(recent);
+          const us = await db.select({ id: users.id, name: users.name }).from(users);
+          if (alive) {
+            setNames(new Map(us.map((u) => [u.id, u.name])));
+            setRows(recent);
+          }
           const all = await db.select().from(auditLog).orderBy(asc(auditLog.seq));
           const r = await verifyAuditRowsChunked(all);
           if (alive) setCheck(r);
@@ -57,8 +85,13 @@ export default function Audit() {
               </View>
               <View className="flex-1 border-b py-3" style={{ borderColor: colors.paper.line + '99' }}>
                 <Text variant="subtitle">{t(`audit.actions.${item.action.replace('.', '_')}`, { defaultValue: item.action })}</Text>
+                {(() => {
+                  const d = details(item);
+                  const parts = [t(`audit.entities.${item.entity}`, { defaultValue: '' }), d.label ? ltr(d.label) : null, d.amount != null ? money(d.amount, currency, i18n.language) : null].filter(Boolean);
+                  return parts.length ? <Text variant="body">{parts.join(' · ')}</Text> : null;
+                })()}
                 <Text variant="caption">
-                  {dateTimeLabel(i18n.language, item.at)} · #{item.seq}
+                  {[item.userId ? (names.get(item.userId) ?? t('audit.unknownUser')) : t('audit.system'), dateTimeLabel(i18n.language, item.at), `#${item.seq}`].join(' · ')}
                 </Text>
               </View>
             </View>

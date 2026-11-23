@@ -75,7 +75,12 @@ export async function countItem(ctx: InvCtx, docId: string, productId: string, q
     const line = (await tx.select().from(inventoryLines).where(and(eq(inventoryLines.docId, docId), eq(inventoryLines.productId, productId))).limit(1))[0];
     const counted = Math.max(0, mode === 'add' ? (line?.countedMilli ?? 0) + qtyMilli : qtyMilli);
     if (line) await tx.update(inventoryLines).set({ countedMilli: counted, updatedAt: now }).where(eq(inventoryLines.id, line.id));
-    else await tx.insert(inventoryLines).values({ id: uuidv7(now), createdAt: now, updatedAt: now, createdBy: ctx.user.id, deviceId: ctx.device.id, docId, productId, countedMilli: counted, deltaMilli: 0 });
+    else {
+      // Snapshot of the system quantity when the shelf was counted: sales/purchases posted while the count is still
+      // open move the system quantity, and posting must not overwrite them (delta = counted − snapshot).
+      const level = await getLevel(tx, productId, doc.warehouseId);
+      await tx.insert(inventoryLines).values({ id: uuidv7(now), createdAt: now, updatedAt: now, createdBy: ctx.user.id, deviceId: ctx.device.id, docId, productId, expectedMilli: level.qtyMilli, countedMilli: counted, deltaMilli: 0 });
+    }
     return counted;
   });
 }
@@ -99,7 +104,7 @@ export interface CountLine {
   expectedMilli: number;
 }
 
-/** Lines of a draft count with the CURRENT system quantity as "expected". */
+/** Lines of a draft count; "expected" = the system quantity when the product was first counted (the snapshot). */
 export async function countLines(db: Db, docId: string): Promise<CountLine[]> {
   const rows = await db
     .select({
@@ -108,7 +113,8 @@ export async function countLines(db: Db, docId: string): Promise<CountLine[]> {
       variantLabel: products.variantLabel,
       unitName: units.nameAr,
       countedMilli: inventoryLines.countedMilli,
-      expectedMilli: stockLevels.qtyMilli,
+      expectedMilli: inventoryLines.expectedMilli,
+      currentMilli: stockLevels.qtyMilli,
       updatedAt: inventoryLines.updatedAt,
     })
     .from(inventoryLines)
@@ -117,11 +123,12 @@ export async function countLines(db: Db, docId: string): Promise<CountLine[]> {
     .leftJoin(stockLevels, eq(stockLevels.productId, inventoryLines.productId))
     .where(eq(inventoryLines.docId, docId))
     .orderBy(desc(inventoryLines.updatedAt));
-  return rows.map((r) => ({ productId: r.productId, name: r.name, variantLabel: r.variantLabel, unitName: r.unitName, countedMilli: r.countedMilli ?? 0, expectedMilli: r.expectedMilli ?? 0 }));
+  return rows.map((r) => ({ productId: r.productId, name: r.name, variantLabel: r.variantLabel, unitName: r.unitName, countedMilli: r.countedMilli ?? 0, expectedMilli: r.expectedMilli ?? r.currentMilli ?? 0 }));
 }
 
 /**
- * Post the count: for every counted product, difference = counted − system quantity at posting time.
+ * Post the count: for every counted product, difference = counted − system quantity WHEN IT WAS COUNTED (snapshot).
+ * Movements posted after the snapshot (sales while counting) stay: the final quantity = counted + those movements.
  * Only counted products change (products not scanned keep their quantity).
  */
 export async function postCount(ctx: InvCtx, docId: string): Promise<{ number: string; changed: number }> {
@@ -137,8 +144,10 @@ export async function postCount(ctx: InvCtx, docId: string): Promise<{ number: s
     let value = 0;
     for (const l of lines) {
       const level = await getLevel(tx, l.productId, doc.warehouseId);
-      const delta = (l.countedMilli ?? 0) - level.qtyMilli;
-      await tx.update(inventoryLines).set({ expectedMilli: level.qtyMilli, deltaMilli: delta, unitCostMinor: level.avgCostMinor, updatedAt: now }).where(eq(inventoryLines.id, l.id));
+      // Lines saved before snapshots existed fall back to the quantity at posting time.
+      const expected = l.expectedMilli ?? level.qtyMilli;
+      const delta = (l.countedMilli ?? 0) - expected;
+      await tx.update(inventoryLines).set({ expectedMilli: expected, deltaMilli: delta, unitCostMinor: level.avgCostMinor, updatedAt: now }).where(eq(inventoryLines.id, l.id));
       if (delta !== 0) {
         changed++;
         // COUNT differences never block on negative policy: the shelf is the truth.

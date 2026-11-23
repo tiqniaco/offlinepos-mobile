@@ -61,15 +61,43 @@ describe('daily check-in', () => {
     expect(cnt.count).toBe(1);
   });
 
-  it('re-using an old refresh token revokes the session', async () => {
+  it('re-using an old refresh token after the grace window revokes the session', async () => {
     const c = makeClient();
     const { auth, reg } = await onboard(c, '01033333334');
     const first = await c.call('POST', '/v1/checkin', { refreshToken: auth.refreshToken, deviceId: reg.deviceId, appVersion: '0.1.0', deviceTime: c.clock.now });
     expect(first.status).toBe(200);
+    c.advance(3 * 60_000);
     const reuse = await c.call('POST', '/v1/checkin', { refreshToken: auth.refreshToken, deviceId: reg.deviceId, appVersion: '0.1.0', deviceTime: c.clock.now });
     expect(reuse.json.error.code).toBe('session_revoked');
     const after = await c.call('POST', '/v1/checkin', { refreshToken: first.json.refreshToken, deviceId: reg.deviceId, appVersion: '0.1.0', deviceTime: c.clock.now });
     expect(after.json.error.code).toBe('session_revoked');
+  });
+
+  it('a lost check-in response: the retry with the previous token is accepted once within 2 minutes', async () => {
+    const c = makeClient();
+    const { auth, reg } = await onboard(c, '01033333344');
+    const body = (refreshToken: string) => ({ refreshToken, deviceId: reg.deviceId, appVersion: '0.1.0', deviceTime: c.clock.now });
+    const lost = await c.call('POST', '/v1/checkin', body(auth.refreshToken));
+    expect(lost.status).toBe(200);
+    c.advance(30_000);
+    const retry = await c.call('POST', '/v1/checkin', body(auth.refreshToken));
+    expect(retry.status).toBe(200);
+    expect(retry.json.refreshToken).not.toBe(lost.json.refreshToken);
+    // The undelivered token is dead (replaced), the delivered one works.
+    expect((await c.call('POST', '/v1/checkin', body(lost.json.refreshToken))).status).toBe(401);
+    // A second grace use of the same old token is theft.
+    const again = await c.call('POST', '/v1/checkin', body(auth.refreshToken));
+    expect(again.json.error.code).toBe('session_revoked');
+  });
+
+  it('the refresh token is rotated only after the check-in work succeeded', async () => {
+    const c = makeClient();
+    const { auth } = await onboard(c, '01033333345');
+    // Unknown device → 404, and the presented token is still the current one.
+    const bad = await c.call('POST', '/v1/checkin', { refreshToken: auth.refreshToken, deviceId: 'nope', appVersion: '0.1.0', deviceTime: c.clock.now });
+    expect(bad.status).toBe(404);
+    const r = await c.call('POST', '/v1/auth/refresh', { refreshToken: auth.refreshToken });
+    expect(r.status).toBe(200);
   });
 
   it('remote session revoke takes effect at the next check-in', async () => {

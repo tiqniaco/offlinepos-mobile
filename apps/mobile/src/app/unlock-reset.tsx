@@ -17,6 +17,7 @@ import { fx } from '../ui/fx';
 import i18n from '../i18n';
 import { useSmsOtp } from '../features/auth/useSmsOtp';
 import { SmsOtpHint } from '../features/auth/SmsOtpHint';
+import { phoneLabel } from '../lib/format';
 
 /** The SMS code must belong to an account that owns THIS phone's business. */
 function ownsThisBusiness(auth: AuthResponse): boolean {
@@ -146,7 +147,7 @@ export default function UnlockReset() {
           <View className="gap-1">
             <Text variant="caption">{t('unlockReset.phoneLabel')}</Text>
             {phone ? (
-              <Text variant="title" style={{ writingDirection: 'ltr', textAlign: 'left' }}>{`+${phone}`}</Text>
+              <Text variant="title" style={{ writingDirection: 'ltr', textAlign: 'left' }}>{phoneLabel(phone)}</Text>
             ) : loaded ? (
               <Text variant="caption">{t('unlockReset.noPhone')}</Text>
             ) : null}
@@ -156,7 +157,7 @@ export default function UnlockReset() {
       {step === 'code' ? (
         <Card>
           <View className="gap-3">
-            <Text variant="caption">{t('otp.body', { phone: `+${phone}` })}</Text>
+            <Text variant="caption">{t('otp.body', { phone: phoneLabel(phone, { isolate: true }) })}</Text>
             <OtpInput value={code} onChange={setCode} error={!!err} />
             <SmsOtpHint show={sms.supported} />
             {wait > 0 ? (
