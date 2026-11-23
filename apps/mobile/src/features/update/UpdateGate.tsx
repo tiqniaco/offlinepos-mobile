@@ -7,7 +7,7 @@ import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Text, Sheet, Logo, colors, fonts } from '../../ui';
 import Constants from 'expo-constants';
-import { installUpdate, useUpdate, watchForUpdates } from './update';
+import { allowUnknownSourcesAndInstall, installUpdate, isStoreBuild, useUpdate, watchForUpdates } from './update';
 import { openWhatsApp } from '../export/whatsapp';
 
 function Progress({ value }: { value: number }) {
@@ -20,14 +20,34 @@ function Progress({ value }: { value: number }) {
 
 export function UpdateGate() {
   const { t } = useTranslation();
-  const { latest, forced, snoozed, progress, error, set } = useUpdate();
+  const { latest, forced, forceAt, unknownSources, snoozed, progress, error, set } = useUpdate();
   useEffect(() => watchForUpdates(), []);
   if (!latest) return null;
+  // Android "install unknown apps" explainer (once), before the system installer.
+  if (unknownSources) {
+    return (
+      <Sheet
+        visible
+        onClose={() => set({ unknownSources: null })}
+        title={t('update.unknownTitle')}
+        footer={
+          <View style={{ gap: 8 }}>
+            <Button testID="update-allow-unknown" icon="shield" title={t('update.unknownOpen')} onPress={() => void allowUnknownSourcesAndInstall()} />
+            <Button kind="ghost" compact title={t('update.unknownAlready')} onPress={() => { set({ unknownSources: null }); void installUpdate(unknownSources, true); }} />
+          </View>
+        }
+      >
+        <Text variant="body">{t('update.unknownBody')}</Text>
+      </Sheet>
+    );
+  }
+  const deadline = forceAt ? new Date(forceAt).toLocaleString('ar-EG-u-nu-latn', { day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' }) : null;
   const support = (Constants.expoConfig?.extra as { supportWhatsApp?: string } | undefined)?.supportWhatsApp ?? '';
 
   const body = (
     <View style={{ gap: 12 }}>
       {latest.notesAr ? <Text variant="body">{latest.notesAr}</Text> : null}
+      {!forced && deadline ? <Text style={{ color: colors.amber[700], fontFamily: fonts.bold, fontSize: 13.5 }}>{t('update.forcedSoon', { date: deadline })}</Text> : null}
       {progress != null ? (
         <View style={{ gap: 6 }}>
           <Progress value={progress} />
@@ -76,7 +96,7 @@ export function UpdateGate() {
       title={t('update.title', { v: latest.name })}
       footer={
         <View style={{ gap: 8 }}>
-          <Button testID="update-now" icon="download" title={t('update.now')} loading={progress != null && progress < 1} onPress={() => void installUpdate(latest)} />
+          <Button testID="update-now" icon="download" title={isStoreBuild() ? t('update.openStore') : t('update.now')} loading={progress != null && progress < 1} onPress={() => void installUpdate(latest)} />
           <Button kind="ghost" compact title={t('update.later')} onPress={() => set({ snoozed: latest.code })} />
         </View>
       }

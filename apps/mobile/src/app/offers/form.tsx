@@ -3,7 +3,8 @@ import { Alert, Switch, View } from 'react-native';
 import { Pressable } from '../../ui/Press';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { OFFER_TYPES, type OfferDef, type OfferType } from '@daftarak/shared';
+import { OFFER_TYPES, addDays, businessDay, type OfferDef, type OfferType } from '@daftarak/shared';
+import { useApp } from '../../state/app';
 import { Screen, Text, TextField, MoneyField, QtyField, Button, Chip, Banner, Card, Icon, colors, fonts } from '../../ui';
 import { getDb } from '../../db/client';
 import { deleteOffer, getOffer, saveOffer, toDef, OfferError } from '../../domain/offers/offers';
@@ -16,12 +17,20 @@ import { toast } from '../../state/toast';
 
 const toText = (d: number | null | undefined) => (d ? `${Math.floor(d / 10000)}-${String(Math.floor(d / 100) % 100).padStart(2, '0')}-${String(d % 100).padStart(2, '0')}` : '');
 const fromText = parseDayText;
+/** Last day of the month of a YYYYMMDD day. */
+const monthEnd = (d: number) => {
+  const y = Math.floor(d / 10000);
+  const m = Math.floor(d / 100) % 100;
+  return y * 10000 + m * 100 + new Date(Date.UTC(y, m, 0)).getUTCDate();
+};
 /** Non-empty text that isn't a date. */
 const badDate = (s: string) => !!s.trim() && fromText(s) == null;
 
 /** One form for every offer type; only the fields of the chosen type are shown. */
 export default function OfferForm() {
   const { t } = useTranslation();
+  const tz = useApp((s) => s.settings.timezone ?? 'Africa/Cairo');
+  const today = businessDay(Date.now(), tz);
   const { id } = useLocalSearchParams<{ id?: string }>();
   const ctx = useBizCtx();
   const [type, setType] = useState<OfferType>('PERCENT');
@@ -220,6 +229,19 @@ export default function OfferForm() {
         </Card>
       ) : null}
 
+      {/* Quick dates instead of typing YYYY-MM-DD (no native date picker in this build). */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+        {(
+          [
+            ['today', today, today],
+            ['week', today, addDays(today, 6)],
+            ['monthEnd', today, monthEnd(today)],
+            ['open', today, null],
+          ] as const
+        ).map(([k, f, e]) => (
+          <Chip key={k} label={t(`offers.quick.${k}`)} selected={from === toText(f) && to === toText(e)} onPress={() => { setFrom(toText(f)); setTo(toText(e)); }} />
+        ))}
+      </View>
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <View style={{ flex: 1 }}>
           <TextField label={t('offers.from')} value={from} onChangeText={setFrom} ltr placeholder="2026-12-01" keyboardType="numbers-and-punctuation" error={badDate(from) ? t('offers.errors.bad_date') : undefined} />

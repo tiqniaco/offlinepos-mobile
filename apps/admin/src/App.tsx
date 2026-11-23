@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { call, fmtDate, fmtMoney, session, AdminApiError, blobUrl, timeAgo } from './api';
 
-type View = { name: 'dashboard' } | { name: 'codes' } | { name: 'notify'; businessId?: string; businessName?: string } | { name: 'businesses' } | { name: 'business'; id: string } | { name: 'plans' } | { name: 'audit' } | { name: 'settings' } | { name: 'payments' };
+type View = { name: 'dashboard' } | { name: 'codes' } | { name: 'notify'; businessId?: string; businessName?: string } | { name: 'businesses' } | { name: 'business'; id: string } | { name: 'plans' } | { name: 'audit' } | { name: 'settings' } | { name: 'payments' } | { name: 'errors' };
 
-const STATUS_AR: Record<string, string> = { trial: 'تجربة', active: 'مشترك', past_due: 'منتهي', suspended: 'موقوف' };
+// "expired" is computed by the API from plan_expires_at (the stored status only changes on events).
+const STATUS_AR: Record<string, string> = { trial: 'تجربة', active: 'مشترك', past_due: 'متأخر في الدفع', suspended: 'موقوف', expired: 'منتهي' };
 const DAY = 86_400_000;
 
 function useLoad<T>(fn: () => Promise<T>, deps: unknown[]) {
@@ -144,7 +145,17 @@ function BusinessDetail({ id, back, notify }: { id: string; back: () => void; no
           <strong>إجراءات</strong>
           <div className="row">
             <input type="number" min={1} max={365} value={days} onChange={(e) => setDays(Number(e.target.value))} style={{ width: 90 }} />
-            <button className="btn" onClick={() => act(() => call(`/businesses/${id}/extend-trial`, { body: { days } }), 'تم مد التجربة')}>مد التجربة (يوم)</button>
+            <button
+              className="btn"
+              onClick={() =>
+                act(async () => {
+                  const r = await call(`/businesses/${id}/extend-trial`, { body: { days } });
+                  if (r.keptPlan) setTimeout(() => setMsg('مشترك بيدفع: الأيام اتضافت على باقته الحالية (من غير ما يرجع تجربة)'), 0);
+                }, 'تم مد التجربة')
+              }
+            >
+              مد التجربة (يوم)
+            </button>
           </div>
           <div className="row">
             <select value={planCode} onChange={(e) => setPlanCode(e.target.value)}>
@@ -208,6 +219,8 @@ function BusinessDetail({ id, back, notify }: { id: string; back: () => void; no
   );
 }
 
+const PRICE_KEYS = ['monthly_egp', 'monthly_sar', 'yearly_egp', 'yearly_sar'] as const;
+const PRICE_LABELS: Record<string, string> = { monthly_egp: 'شهري (ج.م)', monthly_sar: 'شهري (ر.س)', yearly_egp: 'سنوي (ج.م)', yearly_sar: 'سنوي (ر.س)' };
 const LIMIT_DEFAULTS = { users: 0, products: 0, parties: 0, invoices_month: 0, backups_kept: 0, ocr_month: 0 };
 const LIMIT_LABELS: Record<string, string> = {
   users: 'مستخدمين (users)',
@@ -224,14 +237,36 @@ function Plans() {
   const [msg, setMsg] = useState<string | null>(null);
   const save = async () => {
     setMsg(null);
+    // Prices are typed in pounds / riyals (2 decimals) and stored in piastres / halalas.
+    const prices: Record<string, number> = {};
+    for (const k of PRICE_KEYS) {
+      const raw = String(edit[k] ?? '').trim();
+      const v = Number(raw);
+      if (raw === '' || !Number.isFinite(v) || v < 0) return setMsg(`السعر «${PRICE_LABELS[k]}» غير صحيح`);
+      prices[k] = Math.round(v * 100);
+    }
+    const wasFree = Number(edit.is_free) === 1;
+    const nowFree = prices.monthly_egp === 0 && prices.monthly_sar === 0;
+    if (nowFree && !wasFree && !confirm('السعر الشهري 0 = الباقة هتبقى مجانية (is_free) ومش هتظهر للدفع. متأكد؟')) return;
+    if (!nowFree && Object.values(prices).some((v) => v === 0) && !confirm('فيه سعر = 0 (مجاني في العملة/المدة دي). متأكد؟')) return;
+    // Limits: empty = unlimited (-1); 0 = "not in the plan" and needs a confirmation.
+    const limits: Record<string, number> = {};
+    for (const [k, v] of Object.entries(edit.limits)) {
+      const raw = String(v ?? '').trim();
+      const n = raw === '' ? -1 : Number(raw);
+      if (!Number.isInteger(n) || n < -1) return setMsg(`الحد «${LIMIT_LABELS[k] ?? k}» لازم رقم صحيح (أو فاضي = بدون حد)`);
+      limits[k] = n;
+    }
+    const zeros = Object.entries(limits).filter(([, n]) => n === 0).map(([k]) => LIMIT_LABELS[k] ?? k);
+    if (zeros.length && !confirm(`الحدود دي = 0 (يعني ممنوع تماماً): ${zeros.join('، ')}. متأكد؟`)) return;
     try {
       await call(`/plans/${edit.code}`, {
         method: 'PUT',
         body: {
           nameAr: edit.name_ar, nameEn: edit.name_en,
-          monthlyEgp: Number(edit.monthly_egp), monthlySar: Number(edit.monthly_sar), yearlyEgp: Number(edit.yearly_egp), yearlySar: Number(edit.yearly_sar),
-          limits: Object.fromEntries(Object.entries(edit.limits).map(([k, v]) => [k, Number(v)])),
-          features: edit.features, trialDays: Number(edit.trial_days), active: !!edit.active,
+          monthlyEgp: prices.monthly_egp, monthlySar: prices.monthly_sar, yearlyEgp: prices.yearly_egp, yearlySar: prices.yearly_sar,
+          limits,
+          features: edit.features.filter((f: string) => FEATURES.includes(f)), trialDays: Number(edit.trial_days), active: !!edit.active,
         },
       });
       setEdit(null);
@@ -240,7 +275,8 @@ function Plans() {
       setMsg((e as Error).message);
     }
   };
-  const FEATURES = ['no_ads', 'multi_unit', 'offers', 'expenses_shifts', 'expiry', 'adv_reports', 'custom_roles'];
+  // custom_roles is not built yet: not offered here (and dropped on save).
+  const FEATURES = ['no_ads', 'multi_unit', 'offers', 'expenses_shifts', 'expiry', 'adv_reports'];
   return (
     <>
       <h2>الباقات</h2>
@@ -257,12 +293,12 @@ function Plans() {
                 <td>{fmtMoney(p.yearly_egp)} / {fmtMoney(p.yearly_sar)}</td>
                 <td className="muted">مستخدمين {p.limits.users} · منتجات {p.limits.products} · فواتير/شهر {p.limits.invoices_month} · مسح فواتير/شهر {p.limits.ocr_month ?? 0}</td>
                 <td>{p.trial_days} يوم</td>
-                <td><button className="btn ghost" onClick={() => { const e = JSON.parse(JSON.stringify(p)); e.limits = { ...LIMIT_DEFAULTS, ...e.limits }; setEdit(e); }}>تعديل</button></td>
+                <td><button className="btn ghost" onClick={() => { const e = JSON.parse(JSON.stringify(p)); e.limits = { ...LIMIT_DEFAULTS, ...e.limits }; for (const k of PRICE_KEYS) e[k] = String((Number(e[k]) || 0) / 100); setEdit(e); }}>تعديل</button></td>
               </tr>
             ))}
           </tbody>
         </table>
-        <p className="muted">الأسعار بالقرش/الهللة. ‎-1 = بدون حد.</p>
+        <p className="muted">الأسعار بالجنيه/الريال. ‎-1 = بدون حد.</p>
       </div>
       {edit ? (
         <div className="card grid" style={{ marginTop: 16 }}>
@@ -273,15 +309,17 @@ function Plans() {
             <label>أيام التجربة<input type="number" value={edit.trial_days} onChange={(e) => setEdit({ ...edit, trial_days: e.target.value })} /></label>
           </div>
           <div className="row">
-            {['monthly_egp', 'monthly_sar', 'yearly_egp', 'yearly_sar'].map((k) => (
-              <label key={k}>{k}<input type="number" value={edit[k]} onChange={(e) => setEdit({ ...edit, [k]: e.target.value })} /></label>
+            {PRICE_KEYS.map((k) => (
+              <label key={k}>{PRICE_LABELS[k]}<input type="number" min={0} step="0.01" value={edit[k]} onChange={(e) => setEdit({ ...edit, [k]: e.target.value })} /></label>
             ))}
           </div>
+          <div className="muted">اكتب السعر بالجنيه / الريال (مثلاً 149 أو 149.50) — بيتحفظ بالقرش تلقائياً. سعر شهري 0 = باقة مجانية.</div>
           <div className="row">
             {Object.keys(edit.limits).map((k) => (
-              <label key={k}>{LIMIT_LABELS[k] ?? k}<input type="number" value={edit.limits[k]} onChange={(e) => setEdit({ ...edit, limits: { ...edit.limits, [k]: e.target.value } })} /></label>
+              <label key={k}>{LIMIT_LABELS[k] ?? k}<input type="number" min={-1} placeholder="بدون حد" value={edit.limits[k] === -1 || edit.limits[k] === '-1' ? '' : edit.limits[k]} onChange={(e) => setEdit({ ...edit, limits: { ...edit.limits, [k]: e.target.value } })} /></label>
             ))}
           </div>
+          <div className="muted">الحد الفاضي = بدون حد (‎-1). الصفر = ممنوع تماماً.</div>
           <div className="row">
             {FEATURES.map((f) => (
               <label key={f} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -297,6 +335,46 @@ function Plans() {
           </div>
         </div>
       ) : null}
+    </>
+  );
+}
+
+/** Crash reports sent by the app (read-only). */
+function ClientErrors() {
+  const { data, error, reload } = useLoad(() => call('/client-errors'), []);
+  return (
+    <>
+      <div className="row" style={{ marginBottom: 12 }}>
+        <h2 style={{ margin: 0 }}>أعطال التطبيق</h2>
+        <button className="btn ghost" onClick={reload}>تحديث</button>
+      </div>
+      {error ? <div className="err">{error}</div> : null}
+      <div className="card">
+        <table>
+          <thead><tr><th>الوقت</th><th>المكان</th><th>الرسالة</th><th>الإصدار</th><th>المنصة</th></tr></thead>
+          <tbody>
+            {data?.errors.map((e: any) => (
+              <tr key={e.id}>
+                <td title={fmtDate(e.at)}>{timeAgo(e.at)}</td>
+                <td className="ltr">{e.place}</td>
+                <td className="ltr">
+                  {e.message}
+                  {e.stack ? (
+                    <details>
+                      <summary className="muted">stack</summary>
+                      <pre style={{ whiteSpace: 'pre-wrap', fontSize: 11 }}>{e.stack}</pre>
+                    </details>
+                  ) : null}
+                </td>
+                <td className="ltr">{e.app_version ?? '—'}</td>
+                <td className="ltr">{e.platform ?? '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {data && !data.errors.length ? <p className="muted">مفيش أعطال متسجلة 👍</p> : null}
+        <p className="muted">بتتمسح تلقائياً بعد 90 يوم.</p>
+      </div>
     </>
   );
 }
@@ -354,6 +432,7 @@ function Dashboard({ openPayments }: { openPayments: () => void }) {
             {tile('كل الأنشطة', data.total)}
             {tile('نشطين آخر 30 يوم', data.active30)}
             {tile('فترة تجربة', data.trials)}
+            {data.expired != null ? tile('منتهي الاشتراك', data.expired) : null}
             {tile('مشتركين', data.paid)}
             {tile('MRR ج.م', fmtMoney(data.mrrMinor.EGP))}
             {tile('MRR ر.س', fmtMoney(data.mrrMinor.SAR))}
@@ -423,12 +502,28 @@ function PaymentRow({ r, done }: { r: any; done: () => void }) {
       setBusy(false);
     }
   };
+  const running = r.business_plan_expires_at > Date.now() && r.business_status !== 'trial' && r.business_status !== 'expired';
+  const changing = running && r.business_plan_code !== r.plan_code && r.business_plan_code !== 'free';
   const approve = () => {
     const d = days.trim() ? Number(days) : undefined;
     if (d !== undefined && (!Number.isInteger(d) || d < 1)) return setErr('عدد الأيام غير صحيح');
     const label = d ?? (r.period === 'yearly' ? 366 : 31);
-    if (!confirm(`تفعيل باقة ${r.plan_name_ar ?? r.plan_code} لـ «${r.business_name}» لمدة ${label} يوم؟`)) return;
-    void act(() => call(`/payment-requests/${r.id}/approve`, { body: d ? { days: d } : {} }));
+    const warn = [
+      changing ? `⚠️ النشاط مشترك حالياً في «${r.business_plan_code}» لحد ${fmtDate(r.business_plan_expires_at)}: الأيام الباقية هتتحسب كأيام زيادة على الباقة الجديدة (بنسبة السعر).` : '',
+      r.duplicate_receipts > 0 ? `⚠️ نفس صورة الإيصال اتبعتت في ${r.duplicate_receipts} طلب تاني!` : '',
+    ].filter(Boolean);
+    if (!confirm([`تفعيل باقة ${r.plan_name_ar ?? r.plan_code} لـ «${r.business_name}» لمدة ${label} يوم؟`, ...warn].join('\n\n'))) return;
+    const body: Record<string, unknown> = d ? { days: d } : {};
+    void act(async () => {
+      try {
+        await call(`/payment-requests/${r.id}/approve`, { body });
+      } catch (e) {
+        // A suspended shop: activating needs an explicit confirmation and does NOT lift the suspension.
+        if (e instanceof AdminApiError && e.code === 'business_suspended' && confirm('النشاط ده موقوف. تفعّل الباقة برضه؟ (هيفضل موقوف لحد ما تلغي الإيقاف بنفسك)')) {
+          await call(`/payment-requests/${r.id}/approve`, { body: { ...body, allowSuspended: true } });
+        } else throw e;
+      }
+    });
   };
   const reject = () => {
     const reason = prompt('سبب الرفض (هيوصل لصاحب النشاط):')?.trim();
@@ -441,6 +536,10 @@ function PaymentRow({ r, done }: { r: any; done: () => void }) {
       <td>
         <strong>{r.business_name}</strong>
         <div className="muted ltr">{r.owner_phone}</div>
+        <div className="muted">
+          الحالي: {r.business_plan_code} · <span className={`pill ${r.business_status}`}>{STATUS_AR[r.business_status] ?? r.business_status}</span> · لحد {fmtDate(r.business_plan_expires_at)}
+        </div>
+        {changing && r.status === 'pending' ? <div className="err">تغيير باقة وهو مشترك (الأيام الباقية بتتحسب)</div> : null}
       </td>
       <td>
         {r.plan_name_ar ?? r.plan_code} · {PERIOD_AR[r.period] ?? r.period}
@@ -449,7 +548,9 @@ function PaymentRow({ r, done }: { r: any; done: () => void }) {
       <td>
         {METHOD_AR[r.method] ?? r.method}
         <div className="muted ltr">{r.payer_phone}</div>
+        {r.reference ? <div className="ltr">رقم العملية: {r.reference}</div> : null}
         {r.note ? <div className="muted">«{r.note}»</div> : null}
+        {r.duplicate_receipts > 0 ? <div className="err">⚠️ إيصال مكرر ({r.duplicate_receipts})</div> : null}
       </td>
       <td title={fmtDate(r.created_at)}>{timeAgo(r.created_at)}</td>
       <td>
@@ -587,7 +688,7 @@ const SCREENS: [string, string][] = [
   ['/(main)/parties', 'العملاء'],
   ['store', 'تحديث التطبيق (المتجر)'],
 ];
-const STATUS: Record<string, string> = { trial: 'تجربة', active: 'مشترك', past_due: 'متأخر في الدفع', suspended: 'موقوف' };
+const STATUS: Record<string, string> = { trial: 'تجربة', active: 'مشترك', past_due: 'متأخر في الدفع', suspended: 'موقوف', expired: 'منتهي (فات تاريخ الانتهاء)' };
 
 /** Super-admin → users: push now (phones that allowed notifications) + inbox copy with each phone's daily check-in. */
 function Notify({ businessId, businessName }: { businessId?: string; businessName?: string }) {
@@ -788,6 +889,7 @@ export function App() {
         {nav({ name: 'plans' }, 'الباقات')}
         {nav({ name: 'settings' }, 'إعدادات')}
         {nav({ name: 'audit' }, 'سجل الإدارة')}
+        {nav({ name: 'errors' }, 'أعطال التطبيق')}
         <div className="spacer" />
         <button onClick={() => call('/logout', { body: {} }).finally(() => { session.clear(); setAuthed(false); })}>خروج</button>
       </aside>
@@ -800,6 +902,7 @@ export function App() {
         {view.name === 'business' && <BusinessDetail id={view.id} back={() => setView({ name: 'businesses' })} notify={(name) => setView({ name: 'notify', businessId: view.id, businessName: name })} />}
         {view.name === 'plans' && <Plans />}
         {view.name === 'audit' && <Audit />}
+        {view.name === 'errors' && <ClientErrors />}
         {view.name === 'settings' && <Settings />}
       </main>
     </div>

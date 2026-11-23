@@ -3,10 +3,12 @@
  * max_seen_time is kept in BOTH the DB and SecureStore — both must be wiped to reset it.
  */
 import { eq } from 'drizzle-orm';
-import { CLOCK_TOLERANCE_MS, bumpMaxSeen, type LicenceState } from '@daftarak/shared';
+import { CLOCK_TOLERANCE_MS, bumpMaxSeen, verifyLicence, type LicenceState } from '@daftarak/shared';
+import { LICENCE_PUBLIC_KEYS } from '../../config/licenceKeys';
 import type { Db as AppDb } from '../../db/types';
-import { licenceState } from '../../db/schema';
+import { business as businessTable, licenceState } from '../../db/schema';
 import { SECURE_KEYS, deleteSecret, getSecret, setSecret } from '../../lib/secure';
+import type { AuthResponse } from '@daftarak/shared';
 import { api, ApiError } from '../../api/client';
 import { APP_VERSION } from '../../config/env';
 import { getCurrentDevice, getMeta, setMeta } from '../device';
@@ -45,8 +47,30 @@ async function writeMaxSeen(db: AppDb, value: number) {
   await setSecret(SECURE_KEYS.maxSeenTime, String(value));
 }
 
-/** Saves a licence that came from the server. Server time becomes the new trusted time. */
-export async function storeLicence(db: AppDb, token: string, serverTime: number) {
+/**
+ * "Signed out" = the server no longer accepts this phone's session (revoked / expired). The signed licence is KEPT
+ * (it stays valid offline until it expires); the UI offers "sign in again" (reauthenticate).
+ */
+let signedOut = false;
+const sessionListeners = new Set<() => void>();
+export const sessionSignedOut = () => signedOut;
+export function onSessionChange(l: () => void): () => void {
+  sessionListeners.add(l);
+  return () => sessionListeners.delete(l);
+}
+function setSignedOut(v: boolean) {
+  if (signedOut === v) return;
+  signedOut = v;
+  sessionListeners.forEach((l) => l());
+}
+
+/**
+ * Saves a licence that came from the server. Server time becomes the new trusted time.
+ * The new token is verified first: an unverifiable one (e.g. a server key mix-up) never replaces a good licence.
+ * Returns false when the token was rejected.
+ */
+export async function storeLicence(db: AppDb, token: string, serverTime: number): Promise<boolean> {
+  if (!verifyLicence(token, LICENCE_PUBLIC_KEYS).ok) return false;
   const now = Date.now();
   const existing = await readRow(db);
   if (existing) {
@@ -55,6 +79,7 @@ export async function storeLicence(db: AppDb, token: string, serverTime: number)
     await db.insert(licenceState).values({ id: ROW_ID, token, lastCheckinAt: now, lastServerTime: serverTime, maxSeenTime: serverTime, updatedAt: now });
   }
   await setSecret(SECURE_KEYS.maxSeenTime, String(serverTime));
+  return true;
 }
 
 /** Evaluate the stored licence for "now" and publish it to the guard. Cheap, offline. */
@@ -85,6 +110,7 @@ export async function checkinDue(db: AppDb, now = Date.now()): Promise<boolean> 
 export async function runCheckin(db: AppDb): Promise<{ outcome: CheckinOutcome; state: LicenceState; notices: { textAr: string; textEn: string }[] }> {
   const device = await getCurrentDevice(db);
   const refreshToken = await getSecret(SECURE_KEYS.refreshToken);
+  if (device && !refreshToken) setSignedOut(true);
   if (!device || !refreshToken) return { outcome: device ? 'signed_out' : 'not_registered', state: await refreshLicenceState(db), notices: [] };
   try {
     // Anchor today's chain heads + carry the automatic backup on the SAME request (budget: 1 call/day).
@@ -102,6 +128,7 @@ export async function runCheckin(db: AppDb): Promise<{ outcome: CheckinOutcome; 
       return res;
     });
     useAccessToken(r.accessToken, r.accessExpiresAt);
+    setSignedOut(false);
     await storeLicence(db, r.licence, r.serverTime);
     if (r.anchorReceipt) await saveReceipt(db, device.id, r.anchorReceipt);
     if (pushToken) await setMeta(db, 'push.sent', pushToken);
@@ -113,12 +140,27 @@ export async function runCheckin(db: AppDb): Promise<{ outcome: CheckinOutcome; 
     return { outcome: 'ok', state: await refreshLicenceState(db), notices: r.notices };
   } catch (e) {
     if (e instanceof ApiError && (e.code === 'session_revoked' || e.code === 'unauthorized')) {
-      // Remote revoke takes effect now: drop the session and the licence → read-only until OTP login.
+      // The session is gone: drop the refresh token but KEEP the signed licence. The shop keeps working offline
+      // until the licence's own dates run out (a lost response must never make a paying shop read-only);
+      // the app shows "sign in again".
       await deleteSecret(SECURE_KEYS.refreshToken);
-      await db.update(licenceState).set({ token: null, updatedAt: Date.now() }).where(eq(licenceState.id, ROW_ID));
+      setSignedOut(true);
       return { outcome: 'signed_out', state: await refreshLicenceState(db), notices: [] };
     }
     const outcome: CheckinOutcome = e instanceof ApiError && e.code === 'network' ? 'offline' : 'error';
     return { outcome, state: await refreshLicenceState(db), notices: [] };
   }
+}
+
+/**
+ * "Sign in again" after signed_out: a fresh login (OTP or password) for the SAME account; this phone keeps its
+ * device registration (no new device code), then the check-in brings a new licence.
+ */
+export async function reauthenticate(db: AppDb, auth: Pick<AuthResponse, 'refreshToken' | 'accessToken' | 'accessExpiresAt' | 'businesses'>) {
+  const b = (await db.select().from(businessTable).limit(1))[0];
+  if (b && !auth.businesses.some((x) => x.id === b.serverBusinessId)) throw new ApiError('not_found', 'this account does not own this shop');
+  await withRefreshLock(() => setSecret(SECURE_KEYS.refreshToken, auth.refreshToken));
+  useAccessToken(auth.accessToken, auth.accessExpiresAt);
+  setSignedOut(false);
+  return runCheckin(db);
 }

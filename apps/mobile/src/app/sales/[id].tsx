@@ -121,7 +121,7 @@ export default function SaleDetail() {
       {/* Wraps instead of clipping the labels on 360dp phones. */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
         <View style={{ flexGrow: 1, flexBasis: '30%', minWidth: '30%' }}>
-          <Button kind="secondary" compact icon="clipboard" title={t('invoice.reprint')} loading={busy === 'print'} disabled={!!busy} onPress={() => void run('print')} />
+          <Button kind="secondary" compact icon="printer" title={t('invoice.reprint')} loading={busy === 'print'} disabled={!!busy} onPress={() => void run('print')} />
         </View>
         <View style={{ flexGrow: 1, flexBasis: '30%', minWidth: '30%' }}>
           <Button kind="secondary" compact icon="whatsapp" title={t('share.whatsapp')} loading={busy === 'whatsapp'} disabled={!!busy} onPress={() => void run('whatsapp')} />

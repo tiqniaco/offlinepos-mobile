@@ -1,10 +1,13 @@
 /**
- * In-app updates outside the store. The server says which version is the latest and which is the minimum
- * (newest *forced* release). Below the minimum the app is blocked until it updates; otherwise a soft prompt.
- * Android: download the APK (same signing key) and hand it to the system installer.
+ * In-app updates. The server says which version is the latest and which is the minimum (newest *enforced* forced
+ * release). Below the minimum the app is blocked until it updates; a forced release is only enforced after its
+ * grace (`forceAt`, 48 h by default) — until then it is an optional update plus a banner. Otherwise a soft prompt.
+ * Sideload builds (default): download the APK (same signing key) and hand it to the system installer.
+ * Store builds (extra.storeBuild / STORE_BUILD=1): ask with channel=store and open the store listing instead.
  */
 import { AppState, Linking, Platform } from 'react-native';
 import * as Application from 'expo-application';
+import Constants from 'expo-constants';
 import { File, Paths } from 'expo-file-system';
 import { getContentUriAsync } from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
@@ -23,6 +26,10 @@ export interface Release {
 interface UpdateState {
   latest: Release | null;
   forced: boolean;
+  /** A forced release that becomes mandatory at this time (ms); before that: optional + banner. */
+  forceAt: number | null;
+  /** Android: show the "allow installing from this app" explainer before the installer. */
+  unknownSources: Release | null;
   /** Version the user chose "later" for (soft prompt only). */
   snoozed: number | null;
   progress: number | null;
@@ -30,7 +37,17 @@ interface UpdateState {
   set: (p: Partial<UpdateState>) => void;
 }
 
-export const useUpdate = create<UpdateState>((set) => ({ latest: null, forced: false, snoozed: null, progress: null, error: null, set: (p) => set(p) }));
+export const useUpdate = create<UpdateState>((set) => ({ latest: null, forced: false, forceAt: null, unknownSources: null, snoozed: null, progress: null, error: null, set: (p) => set(p) }));
+
+const extra = () => (Constants.expoConfig?.extra ?? {}) as { storeBuild?: boolean; appStoreId?: string };
+/** Play / App Store build: store billing only, updates from the store. */
+export const isStoreBuild = () => !!extra().storeBuild;
+
+/** Store listing of this app (fallback when the release row has no URL). */
+export function storeListingUrl(): string {
+  if (Platform.OS === 'ios') return extra().appStoreId ? `https://apps.apple.com/app/id${extra().appStoreId}` : 'https://apps.apple.com/';
+  return `https://play.google.com/store/apps/details?id=${Application.applicationId ?? 'app.daftarak'}`;
+}
 
 export const currentCode = () => Number(Application.nativeBuildVersion ?? 0) || 0;
 
@@ -40,12 +57,16 @@ export async function checkForUpdate(force = false) {
   if (!force && Date.now() - lastCheck < 3 * 3_600_000) return;
   lastCheck = Date.now();
   try {
-    const res = await fetch(`${API_URL}/v1/app/latest?platform=${Platform.OS}`);
+    const channel = isStoreBuild() ? 'store' : 'sideload';
+    const res = await fetch(`${API_URL}/v1/app/latest?platform=${Platform.OS}&channel=${channel}`);
     if (!res.ok) return;
-    const j = (await res.json()) as { latest: Release | null; minCode: number };
+    const j = (await res.json()) as { latest: Release | null; minCode: number; pendingMinCode?: number; forceAt?: number };
     const cur = currentCode();
-    if (!j.latest || j.latest.code <= cur) return useUpdate.getState().set({ latest: null, forced: false });
-    useUpdate.getState().set({ latest: j.latest, forced: cur < j.minCode });
+    if (!j.latest || j.latest.code <= cur) return useUpdate.getState().set({ latest: null, forced: false, forceAt: null });
+    const latest = channel === 'store' ? { ...j.latest, url: j.latest.url ?? storeListingUrl() } : j.latest;
+    const forceAt = j.pendingMinCode && cur < j.pendingMinCode && j.forceAt ? j.forceAt : null;
+    // A soon-mandatory update is shown again on every check (≤ every 3 h) even after «بعدين».
+    useUpdate.getState().set({ latest, forced: cur < j.minCode, forceAt, ...(forceAt ? { snoozed: null } : {}) });
   } catch {
     /* offline: try again later */
   }
@@ -65,11 +86,48 @@ async function sha256OfFile(file: File): Promise<string | null> {
   return digest.call(file, 'SHA-256');
 }
 
-export async function installUpdate(r: Release) {
+/** Remembered once the owner went through the "unknown apps" settings (no native check exists in Expo). */
+const unknownSourcesFlag = () => new File(Paths.document, 'unknown-sources-ok');
+
+/** Android 8+: the per-app "install unknown apps" switch (ACTION_MANAGE_UNKNOWN_APP_SOURCES for this package). */
+export async function openUnknownSourcesSettings(): Promise<void> {
+  try {
+    await IntentLauncher.startActivityAsync('android.settings.MANAGE_UNKNOWN_APP_SOURCES', { data: `package:${Application.applicationId ?? 'app.daftarak'}` });
+  } catch {
+    await IntentLauncher.startActivityAsync('android.settings.SECURITY_SETTINGS').catch(() => undefined);
+  }
+  try {
+    const f = unknownSourcesFlag();
+    if (!f.exists) f.create();
+  } catch {
+    /* best effort */
+  }
+}
+
+/** Called by the explainer's button: settings first, then the download + installer. */
+export async function allowUnknownSourcesAndInstall() {
+  const r = useUpdate.getState().unknownSources;
+  useUpdate.getState().set({ unknownSources: null });
+  await openUnknownSourcesSettings();
+  if (r) await installUpdate(r, true);
+}
+
+export async function installUpdate(r: Release, skipExplainer = false) {
   const st = useUpdate.getState();
   if (!r.url) return;
-  if (Platform.OS !== 'android' || !r.url.endsWith('.apk')) {
+  if (isStoreBuild() || Platform.OS !== 'android' || !r.url.endsWith('.apk')) {
     await Linking.openURL(r.url);
+    return;
+  }
+  // Android 8+ asks for "install unknown apps" per app: explain it once before sending the owner to the switch.
+  let explained = skipExplainer;
+  try {
+    explained = explained || unknownSourcesFlag().exists;
+  } catch {
+    explained = true;
+  }
+  if (!explained && Number(Platform.Version) >= 26) {
+    st.set({ unknownSources: r });
     return;
   }
   st.set({ progress: 0, error: null });

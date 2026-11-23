@@ -27,7 +27,7 @@ import {
   type OffersResult,
 } from '@daftarak/shared';
 import { loadOffers, toDef } from '../offers/offers';
-import { products, productUnits, salesDocs, salesLines, payments, units, journalEntries, journalLines, accounts, customers, offers as offersTable } from '../../db/schema';
+import { products, productUnits, salesDocs, salesLines, payments, units, journalEntries, journalLines, accounts, customers, offers as offersTable, stockMovements } from '../../db/schema';
 import type { Db } from '../../db/types';
 import { withTx } from '../../db/tx';
 import { appendAudit } from '../audit/audit';
@@ -389,6 +389,13 @@ export async function postSale(ctx: SalesCtx, draft: SaleDraft, pays: PaymentInp
     }
     return { docId, number, totalMinor: priced.totalMinor, changeMinor: settlement.changeMinor };
   });
+}
+
+/** Sale lines whose posting actually took stock out (a SALE movement exists): only those may bring stock back. */
+async function linesThatMovedStock(tx: Db, lineIds: string[]): Promise<Set<string>> {
+  if (!lineIds.length) return new Set();
+  const rows = await tx.select({ id: stockMovements.sourceLineId }).from(stockMovements).where(and(eq(stockMovements.type, 'SALE'), inArray(stockMovements.sourceLineId, lineIds)));
+  return new Set(rows.map((r) => r.id!));
 }
 
 /** Append the hash-chain entry from the STORED rows and flip the document to POSTED. */
@@ -833,11 +840,12 @@ export async function postReturn(ctx: SalesCtx, invoiceId: string, items: { line
     const warehouseId = await defaultWarehouseId(tx);
     // Only products that track stock NOW get a movement (tracking may have been switched off since the sale).
     const tracked = new Set((await tx.select({ id: products.id }).from(products).where(and(inArray(products.id, plan.map((p) => p.line.productId)), eq(products.trackStock, true)))).map((r) => r.id));
+    const moved = await linesThatMovedStock(tx, plan.map((p) => p.line.id));
     let cogs = 0;
     const lineIds = plan.map(() => uuidv7(t));
     for (const [i, p] of plan.entries()) {
       const baseQty = toBaseQty(p.amounts.qtyMilli, p.line.factorMilli);
-      if (p.line.unitCostMinor == null || baseQty === 0 || !tracked.has(p.line.productId)) continue;
+      if (p.line.unitCostMinor == null || baseQty === 0 || !tracked.has(p.line.productId) || !moved.has(p.line.id)) continue;
       const [mv] = await postMovements(tx, ctx, warehouseId, [{ productId: p.line.productId, qtyMilli: baseQty, type: 'SALE_RETURN', unitCostMinor: p.line.unitCostMinor, sourceType: 'sales_doc', sourceId: docId, sourceLineId: lineIds[i] }]);
       cogs += mv!.valueMinor;
     }
@@ -940,9 +948,10 @@ export async function voidSale(ctx: SalesCtx, docId: string, reason: string): Pr
     const lines = await tx.select().from(salesLines).where(eq(salesLines.docId, docId));
     const warehouseId = await defaultWarehouseId(tx);
     const tracked = new Set((await tx.select({ id: products.id }).from(products).where(and(inArray(products.id, lines.map((l) => l.productId)), eq(products.trackStock, true)))).map((r) => r.id));
+    const moved = await linesThatMovedStock(tx, lines.map((l) => l.id));
     let back = 0;
     for (const l of lines) {
-      if (l.unitCostMinor == null || l.baseQtyMilli === 0 || !tracked.has(l.productId)) continue;
+      if (l.unitCostMinor == null || l.baseQtyMilli === 0 || !tracked.has(l.productId) || !moved.has(l.id)) continue;
       const [mv] = await postMovements(tx, ctx, warehouseId, [{ productId: l.productId, qtyMilli: l.baseQtyMilli, type: 'VOID_REVERSAL', unitCostMinor: l.unitCostMinor, sourceType: 'sales_void', sourceId: docId, sourceLineId: l.id, reason }]);
       back += mv!.valueMinor;
     }

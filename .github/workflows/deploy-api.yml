@@ -1,8 +1,16 @@
 # Deploy the server (Cloudflare Worker + D1 + R2) and the admin panel (Cloudflare Pages). Manual only.
 # The Cloudflare token lives ONLY in GitHub secrets. See docs/deploy-github.md.
 #
-# Safe to run again: it creates what is missing, applies new DB migrations, and NEVER replaces the generated keys
-# (licence signing, backup wrap, tokens) once they exist, so old licences and backups keep working.
+# Safe to run again: it creates what is missing, applies new DB migrations, and NEVER replaces the server keys
+# (licence signing, backup wrap, tokens, OTP pepper) once they exist, so old licences and backups keep working.
+#
+# The server keys are created ONLY on a run with "bootstrap" ticked (the very first deploy). Any other run fails if
+# a key is missing or the secret list cannot be read — a transient Cloudflare error must never regenerate them.
+# For bootstrap you can pre-generate the keys offline (escrow them!) and add them as GitHub secrets
+# LICENCE_SIGNING_KEY / BACKUP_WRAP_KEY / ACCESS_TOKEN_SECRET / OTP_PEPPER; otherwise random ones are created.
+#
+# Test shortcuts are refused here: the OTP_TEST_CODE secret makes this workflow fail, the production Worker always
+# runs with OTP_PROVIDER=smsmisr and ENVIRONMENT=production (the server ignores fixed codes there).
 name: deploy-api
 
 on:
@@ -12,6 +20,10 @@ on:
         description: Create a super-admin with this email (optional; password comes from the ADMIN_PASSWORD secret)
         required: false
         default: ''
+      bootstrap:
+        description: FIRST deploy only — create the missing server keys (licence / backup / token / OTP). Escrow them!
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -26,6 +38,7 @@ env:
   API_DOMAIN: ${{ vars.API_DOMAIN || 'daftarak-api.mallimerp.com' }}
   ADMIN_DOMAIN: ${{ vars.ADMIN_DOMAIN || 'daftarak-admin.mallimerp.com' }}
   LICENCE_KID: ${{ vars.LICENCE_KID || '2026-01' }}
+  BOOTSTRAP: ${{ inputs.bootstrap && 'true' || 'false' }}
 
 jobs:
   deploy:
@@ -36,14 +49,19 @@ jobs:
         working-directory: apps/api
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
         working-directory: .
 
       - name: Check settings
+        env:
+          HAS_OTP_TEST_CODE: ${{ secrets.OTP_TEST_CODE != '' }}
         run: |
+          if [ "$HAS_OTP_TEST_CODE" = "true" ]; then
+            echo "::error::The OTP_TEST_CODE secret is set. A fixed login code is never deployed to production — delete the secret and run again (local E2E uses .dev.vars)."; exit 1
+          fi
           miss=""
           [ -n "$CLOUDFLARE_API_TOKEN" ] || miss="$miss secret:CLOUDFLARE_API_TOKEN"
           [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || miss="$miss variable:CLOUDFLARE_ACCOUNT_ID"
@@ -71,15 +89,28 @@ jobs:
           admin = os.environ.get('ADMIN_DOMAIN') or ''
           s = s.replace('"ADMIN_ORIGIN": "https://admin.daftarak.app"', f'"ADMIN_ORIGIN": "https://{admin}"' if admin else '"ADMIN_ORIGIN": "https://invalid.local"')
           s = s.replace('"LICENCE_KID": "2026-01"', f'"LICENCE_KID": "{os.environ["LICENCE_KID"]}"')
-          if os.environ.get('OTP_TEST_CODE'):
-              s = s.replace('"OTP_PROVIDER": "smsmisr"', '"OTP_PROVIDER": "console"')
           # custom domain for the production worker (second "name": "daftarak-api" is the production env)
           i = s.index('"production"'); j = s.index('"name": "daftarak-api",', i) + len('"name": "daftarak-api",')
           s = s[:j] + f'\n      "routes": [{{ "pattern": "{os.environ["API_DOMAIN"]}", "custom_domain": true }}],' + s[j:]
+          # Production must send real SMS and run with every test shortcut off.
+          prod = s[s.index('"production"'):]
+          assert '"OTP_PROVIDER": "smsmisr"' in prod and '"ENVIRONMENT": "production"' in prod, 'production env must use smsmisr + ENVIRONMENT=production'
+          assert '"OTP_PROVIDER": "console"' not in prod, 'console OTP provider in production'
           open(p, 'w').write(s)
           PY
-        env:
-          OTP_TEST_CODE: ${{ secrets.OTP_TEST_CODE }}
+
+      - name: Server keys present (unless bootstrap)
+        if: env.BOOTSTRAP != 'true'
+        run: |
+          set -euo pipefail
+          # Fails the job if the list cannot be read (no "|| echo []": that would look like "no keys" and regenerate them).
+          npx wrangler secret list --env production --format json > "$RUNNER_TEMP/have.json" \
+            || { echo "::error::Could not read the Worker's secrets (Cloudflare error, or the Worker does not exist yet — first deploy: tick bootstrap). Nothing was changed."; exit 1; }
+          node -e '
+            const have = new Set(JSON.parse(require("fs").readFileSync(process.env.RUNNER_TEMP + "/have.json", "utf8")).map((s) => s.name));
+            const miss = ["LICENCE_SIGNING_KEY", "BACKUP_WRAP_KEY", "ACCESS_TOKEN_SECRET", "OTP_PEPPER"].filter((k) => !have.has(k));
+            if (miss.length) { console.log(`::error::Missing server keys: ${miss.join(", ")}. First deploy? Run this workflow once with "bootstrap" ticked. Otherwise RESTORE them from your offline escrow — new keys would break every licence and backup.`); process.exit(1); }
+          '
 
       - name: Database migrations
         run: npx wrangler d1 migrations apply daftarak --remote --env production
@@ -95,6 +126,10 @@ jobs:
 
       - name: Server secrets (generated once, never replaced) + your secrets
         env:
+          BOOT_LICENCE_SIGNING_KEY: ${{ secrets.LICENCE_SIGNING_KEY }}
+          BOOT_BACKUP_WRAP_KEY: ${{ secrets.BACKUP_WRAP_KEY }}
+          BOOT_ACCESS_TOKEN_SECRET: ${{ secrets.ACCESS_TOKEN_SECRET }}
+          BOOT_OTP_PEPPER: ${{ secrets.OTP_PEPPER }}
           SMSMISR_USERNAME: ${{ secrets.SMSMISR_USERNAME }}
           SMSMISR_PASSWORD: ${{ secrets.SMSMISR_PASSWORD }}
           SMSMISR_SENDER: ${{ secrets.SMSMISR_SENDER }}
@@ -105,36 +140,62 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           EXPO_ACCESS_TOKEN: ${{ secrets.EXPO_ACCESS_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OTP_TEST_CODE: ${{ secrets.OTP_TEST_CODE }}
         run: |
-          npx wrangler secret list --env production --format json > "$RUNNER_TEMP/have.json" 2>/dev/null || echo '[]' > "$RUNNER_TEMP/have.json"
+          set -euo pipefail
+          # Must succeed: on any error the job stops (never treat "could not list" as "no keys yet").
+          npx wrangler secret list --env production --format json > "$RUNNER_TEMP/have.json" \
+            || { echo "::error::Could not read the Worker's secrets — stopping so no key is ever regenerated by mistake. Run again."; exit 1; }
           node - <<'JS'
           const fs = require('fs');
           const { randomBytes, generateKeyPairSync } = require('crypto');
           const have = new Set(JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/have.json', 'utf8')).map((s) => s.name));
           const put = {};
           const summary = [];
-          // Generated once. Replacing these would break existing licences / backups / sessions.
-          if (!have.has('LICENCE_SIGNING_KEY')) {
-            const { privateKey, publicKey } = generateKeyPairSync('ed25519');
-            put.LICENCE_SIGNING_KEY = privateKey.export({ format: 'der', type: 'pkcs8' }).subarray(-32).toString('hex');
-            const pk = publicKey.export({ format: 'der', type: 'spki' }).subarray(-32).toString('hex');
-            summary.push(`### 🔑 New licence key\nAdd this as the repository **Variable** \`LICENCE_PUBLIC_KEY\` (it is public, not secret), then build the apps:\n\n\`\`\`\n${process.env.LICENCE_KID}:${pk}\n\`\`\``);
+          const bootstrap = process.env.BOOTSTRAP === 'true';
+          const core = ['LICENCE_SIGNING_KEY', 'BACKUP_WRAP_KEY', 'ACCESS_TOKEN_SECRET', 'OTP_PEPPER'];
+          const missing = core.filter((k) => !have.has(k));
+          if (missing.length && !bootstrap) {
+            console.log(`::error::Missing server keys: ${missing.join(', ')}. Run once with "bootstrap" ticked (first deploy only), or restore them from your offline escrow.`);
+            process.exit(1);
           }
-          if (!have.has('ACCESS_TOKEN_SECRET')) put.ACCESS_TOKEN_SECRET = randomBytes(32).toString('base64url');
-          if (!have.has('OTP_PEPPER')) put.OTP_PEPPER = randomBytes(32).toString('base64url');
-          if (!have.has('BACKUP_WRAP_KEY')) put.BACKUP_WRAP_KEY = randomBytes(32).toString('base64url');
+          // Created ONLY on bootstrap and only when missing. Replacing these would break existing licences / backups / sessions.
+          const given = (k) => process.env['BOOT_' + k] || '';
+          if (!have.has('LICENCE_SIGNING_KEY')) {
+            const sk = given('LICENCE_SIGNING_KEY');
+            if (sk) {
+              put.LICENCE_SIGNING_KEY = sk;
+              summary.push('### 🔑 Licence key from the LICENCE_SIGNING_KEY GitHub secret\nSet the `LICENCE_PUBLIC_KEY` variable from your escrowed public key.');
+            } else {
+              const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+              put.LICENCE_SIGNING_KEY = privateKey.export({ format: 'der', type: 'pkcs8' }).subarray(-32).toString('hex');
+              const pk = publicKey.export({ format: 'der', type: 'spki' }).subarray(-32).toString('hex');
+              summary.push(`### 🔑 New licence key\nAdd this as the repository **Variable** \`LICENCE_PUBLIC_KEY\` (it is public, not secret), then build the apps:\n\n\`\`\`\n${process.env.LICENCE_KID}:${pk}\n\`\`\``);
+            }
+          }
+          if (!have.has('ACCESS_TOKEN_SECRET')) put.ACCESS_TOKEN_SECRET = given('ACCESS_TOKEN_SECRET') || randomBytes(32).toString('base64url');
+          if (!have.has('OTP_PEPPER')) put.OTP_PEPPER = given('OTP_PEPPER') || randomBytes(32).toString('base64url');
+          if (!have.has('BACKUP_WRAP_KEY')) put.BACKUP_WRAP_KEY = given('BACKUP_WRAP_KEY') || randomBytes(32).toString('base64url');
+          if (missing.length) {
+            const generated = missing.filter((k) => !given(k));
+            summary.push(
+              `### 🔐 Server keys created: ${missing.join(', ')}\n` +
+                (generated.length
+                  ? `**${generated.join(', ')}** were generated here and exist ONLY inside Cloudflare (secrets cannot be read back). ` +
+                    'If BACKUP_WRAP_KEY or LICENCE_SIGNING_KEY is ever lost, every cloud backup / licence is lost with it. ' +
+                    'Before real users: generate the keys offline, store them in an offline escrow (password manager + paper/USB in a safe), ' +
+                    'set them with `wrangler secret put` and as GitHub secrets, then never run bootstrap again.'
+                  : 'Taken from your GitHub secrets — keep the offline escrow copy safe.'),
+            );
+          }
           if (!have.has('REVENUECAT_WEBHOOK_SECRET') && !process.env.REVENUECAT_WEBHOOK_SECRET) put.REVENUECAT_WEBHOOK_SECRET = randomBytes(24).toString('base64url');
           // Yours (from GitHub secrets): always the current value.
           for (const k of ['SMSMISR_USERNAME', 'SMSMISR_PASSWORD', 'SMSMISR_SENDER', 'SMSMISR_TEMPLATE', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'REVENUECAT_WEBHOOK_SECRET', 'GOOGLE_SERVICE_ACCOUNT_JSON', 'EXPO_ACCESS_TOKEN', 'ANTHROPIC_API_KEY']) {
             if (process.env[k]) put[k] = process.env[k];
           }
-          if (process.env.OTP_TEST_CODE) {
-            put.OTP_FIXED_CODE = process.env.OTP_TEST_CODE;
-            summary.push('### ⚠️ TEST MODE\nSMS is OFF and every phone number logs in with the `OTP_TEST_CODE`. Delete that secret and run again before real users.');
-          } else if (!process.env.SMSMISR_USERNAME && !have.has('SMSMISR_USERNAME')) {
-            summary.push('### ⚠️ No SMS Misr credentials\nLogin codes cannot be sent. Add the SMSMISR_* secrets (or OTP_TEST_CODE for testing) and run again.');
+          if (!process.env.SMSMISR_USERNAME && !have.has('SMSMISR_USERNAME')) {
+            summary.push('### ⚠️ No SMS Misr credentials\nLogin codes cannot be sent. Add the SMSMISR_* secrets and run again.');
           }
+          summary.push('### 🗝️ Key escrow reminder\nLICENCE_SIGNING_KEY, BACKUP_WRAP_KEY, ACCESS_TOKEN_SECRET and OTP_PEPPER must have an offline escrow copy. Cloudflare cannot show them again; losing BACKUP_WRAP_KEY makes every cloud backup unreadable.');
           if (!process.env.ANTHROPIC_API_KEY && !have.has('ANTHROPIC_API_KEY')) summary.push('### ⚠️ No ANTHROPIC_API_KEY\nSupplier invoice scanning (OCR) answers "unavailable" until the ANTHROPIC_API_KEY secret is added.');
           if (!process.env.R2_ACCESS_KEY_ID && !have.has('R2_ACCESS_KEY_ID')) summary.push('### ⚠️ No R2 keys\nCloud backups are off until R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY are added.');
           fs.writeFileSync(process.env.RUNNER_TEMP + '/secrets.json', JSON.stringify(put));
@@ -142,7 +203,8 @@ jobs:
           console.log('setting:', Object.keys(put).join(', ') || '(nothing new)');
           JS
           if [ "$(cat "$RUNNER_TEMP/secrets.json")" != "{}" ]; then npx wrangler secret bulk "$RUNNER_TEMP/secrets.json" --env production; fi
-          if [ -z "$OTP_TEST_CODE" ] && grep -q OTP_FIXED_CODE "$RUNNER_TEMP/have.json"; then echo y | npx wrangler secret delete OTP_FIXED_CODE --env production || true; fi
+          # A fixed OTP code never lives in production (left over from an old test deploy → removed).
+          if grep -q OTP_FIXED_CODE "$RUNNER_TEMP/have.json"; then echo y | npx wrangler secret delete OTP_FIXED_CODE --env production; fi
           rm -f "$RUNNER_TEMP/secrets.json"
 
       - name: Health check

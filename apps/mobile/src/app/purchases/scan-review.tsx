@@ -1,8 +1,10 @@
 /**
  * Review a scanned supplier invoice before it goes into the purchase cart: every line read from the photo is matched to
- * one of the shop's products by name (exact, then "contains"); the user can change the product, add it as a new
- * product, skip it, and edit qty / unit cost. The supplier is matched by name too. Confirm → lines go into the cart and
- * the user reviews and saves the purchase as usual.
+ * one of the shop's products by name (exact; whole-word "contains" must be confirmed; a raw look-alike is only
+ * suggested); the user can change the product, add it as a new product, skip it, pick the UNIT the line is in (default:
+ * the unit whose cost is closest to the printed price — a carton line goes in as cartons), and edit qty / unit cost.
+ * The printed discount and VAT carry into the cart; confirm is blocked while a line needs review or the computed total
+ * is more than 1% away from the printed total. The supplier is matched by name too.
  */
 import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
@@ -18,13 +20,13 @@ import { onNextNewProduct, useOcrScan } from '../../state/ocrScan';
 import { toast } from '../../state/toast';
 import { getProduct, listProducts } from '../../domain/inventory/products';
 import { listParties } from '../../domain/parties/parties';
-import { purchaseLineFor } from '../../domain/purchases/purchases';
-import { buildReview, matchByName, toMinor, type NamedItem, type ReviewLine } from '../../domain/purchases/ocrMatch';
+import { buildReview, matchByName, reviewProblems, toMinor, type NamedItem, type ReviewLine } from '../../domain/purchases/ocrMatch';
+import { defaultScanUnit, scanPurchaseLines, scanTotals, scanUnitOptions } from '../../domain/purchases/scan';
 import { PartyPicker } from '../../features/parties/PartyPicker';
 import { partyColor } from '../../features/parties/format';
 import { useBizCtx } from '../../features/sales/useSalesCtx';
 import { useCurrency } from '../../features/inventory/useInvCtx';
-import { money } from '../../lib/format';
+import { money, qty as fmtQty } from '../../lib/format';
 import { errorMessage } from '../../lib/errors';
 import { fx } from '../../ui/fx';
 
@@ -44,6 +46,9 @@ export default function ScanReview() {
   const [search, setSearch] = useState('');
   const [hits, setHits] = useState<NamedItem[]>([]);
   const [busy, setBusy] = useState(false);
+  /** Units per product (for the unit picker and the «= N قطعة» hint). */
+  const [unitOpts, setUnitOpts] = useState<Record<string, Awaited<ReturnType<typeof scanUnitOptions>>>>({});
+  const [check, setCheck] = useState<ReturnType<typeof scanTotals> | null>(null);
   const inFlight = useRef(false);
   const canAddProduct = !!user && roleHas(user.permissions, 'products.manage');
 
@@ -53,7 +58,9 @@ export default function ScanReview() {
     void (async () => {
       try {
         const [products, suppliers] = await Promise.all([listProducts(db, { limit: 10_000 }), listParties(db, 'S', { limit: 5000 })]);
-        setLines(buildReview(result.lines, products.map((p) => ({ id: p.id, name: display(p) }))));
+        const built = buildReview(result.lines, products.map((p) => ({ id: p.id, name: display(p) })));
+        for (const l of built) if (l.product) l.unitId = await defaultScanUnit(db, l.product.id, l.costMinor);
+        setLines(built);
         const m = result.supplierName ? matchByName(result.supplierName, suppliers) : null;
         if (m) setSupplier({ id: m.item.id, name: m.item.name });
       } catch (e) {
@@ -72,32 +79,71 @@ export default function ScanReview() {
   }, [search]);
 
   const patch = (key: string, p: Partial<ReviewLine>) => setLines((ls) => (ls ? ls.map((l) => (l.key === key ? { ...l, ...p } : l)) : ls));
+  /** New product on a line: re-pick its default unit from the printed price. */
+  const setProduct = (key: string, product: NamedItem, match: ReviewLine['match']) => {
+    const l = lines?.find((x) => x.key === key);
+    patch(key, { product, match, skip: false, unitId: null });
+    void defaultScanUnit(getDb(), product.id, l?.costMinor ?? null).then((unitId) => patch(key, { unitId }), () => undefined);
+  };
+
+  // Units of every matched product.
+  useEffect(() => {
+    const ids = [...new Set((lines ?? []).map((l) => l.product?.id).filter((x): x is string => !!x))].filter((id) => !unitOpts[id]);
+    if (!ids.length) return;
+    let alive = true;
+    void Promise.all(ids.map(async (id) => [id, await scanUnitOptions(getDb(), id)] as const)).then(
+      (pairs) => alive && setUnitOpts((m) => ({ ...m, ...Object.fromEntries(pairs) })),
+      () => undefined,
+    );
+    return () => {
+      alive = false;
+    };
+  }, [lines, unitOpts]);
+
+  // Live totals check against the printed invoice (VAT mode, discount, 1% tolerance).
+  useEffect(() => {
+    if (!ctx || !lines || !result) return setCheck(null);
+    let alive = true;
+    void scanPurchaseLines(getDb(), ctx, lines.filter((l) => !reviewProblems(l).length)).then(
+      (built) => alive && setCheck(scanTotals(built, result, ctx.vatRegistered)),
+      () => alive && setCheck(null),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [ctx, lines, result]);
 
   const addNew = (l: ReviewLine) => {
     onNextNewProduct((id) => {
       void getProduct(getDb(), id).then(
-        (d) => patch(l.key, { product: { id, name: d ? display(d.product) : l.read }, match: 'new', skip: false }),
-        () => patch(l.key, { product: { id, name: l.read }, match: 'new', skip: false }),
+        (d) => setProduct(l.key, { id, name: d ? display(d.product) : l.read }, 'new'),
+        () => setProduct(l.key, { id, name: l.read }, 'new'),
       );
     });
     router.push({ pathname: '/products/form', params: { name: l.read, ...(l.costMinor != null ? { cost: String(l.costMinor) } : {}), then: 'ocr' } });
   };
 
-  const ready = (lines ?? []).filter((l) => l.product && !l.skip && l.qtyMilli > 0);
+  const ready = (lines ?? []).filter((l) => !l.skip && !reviewProblems(l).length);
+  const needsReview = (lines ?? []).filter((l) => reviewProblems(l).length);
+  const anySkipped = (lines ?? []).some((l) => l.skip);
+  // The printed total is only comparable when every line goes in.
+  const blockedByTotal = !!check?.mismatch && !anySkipped;
   const confirm = async () => {
-    if (inFlight.current || !ctx || !ready.length) return;
+    if (inFlight.current || !ctx || !ready.length || needsReview.length || blockedByTotal) return;
     inFlight.current = true;
     setBusy(true);
     try {
       const db = getDb();
-      const built = [];
-      for (const l of ready) {
-        const line = await purchaseLineFor(db, ctx, l.product!.id, null, l.qtyMilli);
-        built.push(l.costMinor != null ? { ...line, unitCostMinor: l.costMinor } : line);
-      }
+      const tot = scanTotals(await scanPurchaseLines(db, ctx, ready), result!, ctx.vatRegistered);
+      if (tot.mismatch && !anySkipped) return;
       const cart = usePurchaseCart.getState();
-      built.forEach((x) => cart.add(x));
+      const wasEmpty = !cart.lines.length;
+      tot.lines.forEach((x) => cart.add(x));
+      const built = tot.lines;
       const patchCart: Parameters<typeof cart.set>[0] = {};
+      // The printed discount joins the invoice discount; the VAT mode follows the invoice (when the cart was empty).
+      if (tot.invoiceDiscountMinor > 0) patchCart.invoiceDiscountMinor = cart.invoiceDiscountMinor + tot.invoiceDiscountMinor;
+      if (wasEmpty) patchCart.pricesIncludeVat = tot.pricesIncludeVat;
       if (supplier) Object.assign(patchCart, { supplierId: supplier.id, supplierName: supplier.name });
       if (result?.invoiceNo && !cart.supplierRef) patchCart.supplierRef = result.invoiceNo;
       if (Object.keys(patchCart).length) cart.set(patchCart);
@@ -127,7 +173,7 @@ export default function ScanReview() {
     <Screen
       back
       title={t('ocr.reviewTitle')}
-      footer={<Button testID="ocr-review-confirm" title={t('ocr.confirm', { n: ready.length })} loading={busy} disabled={!ready.length || busy || !lines} onPress={() => void confirm()} />}
+      footer={<Button testID="ocr-review-confirm" title={t('ocr.confirm', { n: ready.length })} loading={busy} disabled={!ready.length || busy || !lines || needsReview.length > 0 || blockedByTotal} onPress={() => void confirm()} />}
     >
       <Text variant="caption">{t('ocr.reviewHint')}</Text>
 
@@ -146,6 +192,10 @@ export default function ScanReview() {
         </Card>
       ) : null}
       {hasUnmatched ? <Banner tone="warn" text={t('ocr.noProductsHint')} /> : null}
+      {needsReview.length ? <Banner tone="warn" text={t('ocr.needsReview', { n: needsReview.length })} /> : null}
+      {check?.mismatch ? (
+        <Banner tone={blockedByTotal ? 'danger' : 'warn'} text={t('ocr.totalMismatch', { computed: fmt(check.computedTotalMinor), printed: fmt(check.scannedTotalMinor ?? 0) })} />
+      ) : null}
 
       {(lines ?? []).map((l, i) => (
         <Card key={l.key} style={{ opacity: l.skip ? 0.55 : 1, gap: 8 }}>
@@ -162,17 +212,48 @@ export default function ScanReview() {
               </View>
             ) : null}
           </View>
+          {!l.skip && l.product && (unitOpts[l.product.id]?.length ?? 0) > 1 ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {unitOpts[l.product.id]!.map((u) => {
+                const sel = (l.unitId ?? unitOpts[l.product!.id]!.find((x) => x.isBase)?.id) === u.id;
+                return (
+                  <Pressable key={u.id} testID={`ocr-line-unit-${i}-${u.factorMilli}`} onPress={() => patch(l.key, { unitId: u.id })} style={({ pressed }) => [chip({ pressed }), sel ? { backgroundColor: colors.primary[500] } : null]}>
+                    <Text style={[chipText(), sel ? { color: '#fff' } : null]}>{u.name}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
           {!l.skip ? (
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <View style={{ flex: 1 }}>
-                <QtyField label={t('line.qty')} valueMilli={l.qtyMilli} onValue={(v) => patch(l.key, { qtyMilli: v ?? 0 })} />
+                <QtyField label={t('line.qty')} valueMilli={l.qtyMilli || null} onValue={(v) => patch(l.key, { qtyMilli: v ?? 0 })} />
               </View>
               <View style={{ flex: 1 }}>
-                <MoneyField label={t('ocr.unitCost')} valueMinor={l.costMinor} onValue={(v) => patch(l.key, { costMinor: v })} />
+                <MoneyField label={t('ocr.unitCost')} valueMinor={l.costMinor} onValue={(v) => patch(l.key, { costMinor: v, costFromTotal: false })} />
               </View>
             </View>
           ) : null}
+          {!l.skip && l.product && l.qtyMilli > 0 ? (() => {
+            const opts = unitOpts[l.product.id] ?? [];
+            const u = opts.find((x) => x.id === l.unitId) ?? opts.find((x) => x.isBase);
+            const b = opts.find((x) => x.isBase);
+            return u && b && !u.isBase ? <Text variant="caption">{t('ocr.baseEq', { qty: fmtQty(Math.round((l.qtyMilli * u.factorMilli) / 1000)), unit: b.name })}</Text> : null;
+          })() : null}
+          {!l.skip && reviewProblems(l).length ? <Text style={{ fontSize: 12.5, color: colors.rose[700], fontFamily: fonts.medium }}>{reviewProblems(l).map((p) => t(`ocr.problem.${p}`)).join(' · ')}</Text> : null}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {!l.skip && l.match === 'contains' ? (
+              <Pressable testID={`ocr-line-confirm-${i}`} onPress={() => patch(l.key, { match: 'confirmed' })} style={chip}>
+                <Icon name="check" size={15} color={colors.primary[700]} />
+                <Text style={chipText()}>{t('ocr.confirmMatch')}</Text>
+              </Pressable>
+            ) : null}
+            {!l.skip && !l.product && l.suggestion ? (
+              <Pressable testID={`ocr-line-suggest-${i}`} onPress={() => setProduct(l.key, l.suggestion!, 'picked')} style={chip}>
+                <Icon name="check" size={15} color={colors.primary[700]} />
+                <Text style={chipText()}>{t('ocr.didYouMean', { name: l.suggestion.name })}</Text>
+              </Pressable>
+            ) : null}
             {!l.skip ? (
               <Pressable testID={`ocr-line-pick-${i}`} onPress={() => { setSearch(normalizeQuery(l.read)); setPickFor(l.key); }} style={chip}>
                 <Icon name="search" size={15} color={colors.primary[700]} />
@@ -200,7 +281,7 @@ export default function ScanReview() {
         {hits.map((h, i) => (
           <Pressable
             key={h.id}
-            onPress={() => { if (pickFor) patch(pickFor, { product: h, match: 'picked', skip: false }); setPickFor(null); setSearch(''); }}
+            onPress={() => { if (pickFor) setProduct(pickFor, h, 'picked'); setPickFor(null); setSearch(''); }}
             style={({ pressed }) => ({ padding: 12, borderTopWidth: i ? 1 : 0, borderTopColor: colors.paper.line, backgroundColor: pressed ? colors.paper.sunk : 'transparent' })}
           >
             <Text variant="subtitle">{h.name}</Text>

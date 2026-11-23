@@ -55,7 +55,7 @@ export default function Done() {
       ) : null}
       <Button
         kind="secondary"
-        icon="clipboard"
+        icon="printer"
         title={printing ? t('done.printing') : t('done.print')}
         loading={printing}
         onPress={async () => {

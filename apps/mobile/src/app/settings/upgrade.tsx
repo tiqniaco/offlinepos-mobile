@@ -7,8 +7,9 @@ import { Image, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';
+import * as Clipboard from 'expo-clipboard';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
-import { RECEIPT_MAX_BYTES, type ManualBillingInfo } from '@daftarak/shared';
+import { RECEIPT_MAX_BYTES, uuidv7, type ManualBillingInfo } from '@daftarak/shared';
 import { Screen, Text, Card, Button, Banner, TextField, SectionTitle, IconBadge, Icon, colors, fonts } from '../../ui';
 import { Pressable } from '../../ui/Press';
 import { Segmented } from '../../features/common/Segmented';
@@ -32,6 +33,12 @@ export default function Upgrade() {
   const [method, setMethod] = useState<Method>('instapay');
   const [phone, setPhone] = useState('');
   const [note, setNote] = useState('');
+  const [reference, setReference] = useState('');
+  const [copied, setCopied] = useState(false);
+  /** Inline field errors (shown under the field), on top of the general error banner. */
+  const [fieldErr, setFieldErr] = useState<{ phone?: string; receipt?: string; plan?: string }>({});
+  // One key per screen session: a retry after a lost answer (or a double tap) never creates a second request.
+  const idempotencyKey = useRef(uuidv7(Date.now())).current;
   const [receipt, setReceipt] = useState<{ uri: string; base64: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -51,7 +58,8 @@ export default function Upgrade() {
   };
   useEffect(load, [business?.serverBusinessId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const p = info?.plans.find((x) => x.code === plan) ?? info?.plans[0];
+  // No silent fallback to another plan: an unknown / retired plan must be chosen again explicitly.
+  const p = info?.plans.find((x) => x.code === plan);
   const amount = p ? (period === 'yearly' ? p.yearlyMinor : p.monthlyMinor) : 0;
   const number = info?.methods.find((m) => m.id === method)?.number ?? '';
   const name = (x: { nameAr: string; nameEn: string }) => (i18n.language === 'en' ? x.nameEn : x.nameAr);
@@ -79,10 +87,21 @@ export default function Upgrade() {
 
   const digits = phone.replace(/\D/g, '');
   const phoneOk = /^(20)?01[0125]\d{8}$/.test(digits);
+  const copyNumber = async () => {
+    if (!number) return;
+    await Clipboard.setStringAsync(number);
+    fx.success();
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
   const send = async () => {
-    if (inFlight.current || !business || !p) return;
-    if (!phoneOk) return setErr(t('upgrade.phoneBad'));
-    if (!receipt) return setErr(t('upgrade.needReceipt'));
+    if (inFlight.current || !business) return;
+    const fe: typeof fieldErr = {};
+    if (!p) fe.plan = t('upgrade.choosePlan');
+    if (!phoneOk) fe.phone = t('upgrade.phoneBad');
+    if (!receipt) fe.receipt = t('upgrade.needReceipt');
+    setFieldErr(fe);
+    if (fe.plan || fe.phone || fe.receipt || !p || !receipt) return setErr(null);
     inFlight.current = true;
     setSending(true);
     setErr(null);
@@ -94,6 +113,8 @@ export default function Upgrade() {
         method,
         payerPhone: digits,
         note: note.trim() || undefined,
+        reference: reference.trim() || undefined,
+        idempotencyKey,
         receipt: receipt.base64,
       });
       fx.success();
@@ -123,7 +144,7 @@ export default function Upgrade() {
       back
       title={t('upgrade.title')}
       subtitle={t('upgrade.subtitle', { hours: info?.slaHours ?? 12 })}
-      footer={<Button testID="upgrade-send" icon="upload" title={p ? t('upgrade.send', { amount: egp(amount) }) : t('upgrade.send', { amount: '' })} loading={sending} disabled={!p || sending} onPress={() => void send()} />}
+      footer={<Button testID="upgrade-send" icon="upload" title={p ? t('upgrade.send', { amount: egp(amount) }) : t('upgrade.choosePlan')} loading={sending} disabled={!info || sending} onPress={() => void send()} />}
     >
       {loadErr ? <Banner tone="danger" text={loadErr} /> : null}
       {loadErr ? <Button kind="secondary" icon="refresh" title={t('common.retry', { defaultValue: 'جرّب تاني' })} onPress={load} /> : null}
@@ -136,13 +157,14 @@ export default function Upgrade() {
             {info.plans.map((x) => {
               const on = x.code === p?.code;
               return (
-                <Pressable key={x.code} testID={`upgrade-plan-${x.code}`} onPress={() => setPlan(x.code)} style={{ flex: 1, padding: 12, borderRadius: 14, borderWidth: 2, borderColor: on ? colors.primary[500] : colors.paper.line, backgroundColor: on ? colors.primary[50] : colors.paper.card, gap: 2 }}>
+                <Pressable key={x.code} testID={`upgrade-plan-${x.code}`} onPress={() => { setPlan(x.code); setFieldErr((f) => ({ ...f, plan: undefined })); }} style={{ flex: 1, padding: 12, borderRadius: 14, borderWidth: 2, borderColor: on ? colors.primary[500] : colors.paper.line, backgroundColor: on ? colors.primary[50] : colors.paper.card, gap: 2 }}>
                   <Text style={{ fontFamily: fonts.bold, fontSize: 14.5, color: on ? colors.primary[700] : colors.ink.DEFAULT }}>{name(x)}</Text>
                   <Text style={{ fontSize: 12.5, color: colors.ink.soft }}>{egp(period === 'yearly' ? x.yearlyMinor : x.monthlyMinor)} / {t(period === 'yearly' ? 'subscription.perYear' : 'subscription.perMonth')}</Text>
                 </Pressable>
               );
             })}
           </View>
+          {fieldErr.plan ? <Text style={{ color: colors.rose[700], fontSize: 13 }}>{fieldErr.plan}</Text> : null}
           <Segmented value={period} onChange={setPeriod} options={[{ value: 'monthly', label: t('subscription.monthly') }, { value: 'yearly', label: t('subscription.yearly') }]} />
 
           <SectionTitle>{t('upgrade.step2')}</SectionTitle>
@@ -162,6 +184,7 @@ export default function Upgrade() {
             <Text selectable testID="upgrade-number" style={{ fontFamily: fonts.bold, fontSize: 24, color: colors.ink.DEFAULT, textAlign: 'center', letterSpacing: 1, marginVertical: 6, writingDirection: 'ltr' }}>
               {number}
             </Text>
+            <Button testID="upgrade-copy" kind="secondary" compact icon="clipboard" title={copied ? t('upgrade.copied') : t('upgrade.copyNumber')} onPress={() => void copyNumber()} />
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
               <Icon name="cash" size={16} color={colors.primary[700]} />
               <Text style={{ fontFamily: fonts.bold, fontSize: 15, color: colors.primary[700] }}>{t('upgrade.amount', { amount: egp(amount) })}</Text>
@@ -170,7 +193,8 @@ export default function Upgrade() {
           </Card>
 
           <SectionTitle>{t('upgrade.step3')}</SectionTitle>
-          <TextField testID="upgrade-phone" icon="phone" label={t('upgrade.payerPhone')} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="01x xxxx xxxx" ltr />
+          <TextField testID="upgrade-phone" icon="phone" label={t('upgrade.payerPhone')} value={phone} onChangeText={(v) => { setPhone(v); setFieldErr((f) => ({ ...f, phone: undefined })); }} keyboardType="phone-pad" placeholder="01x xxxx xxxx" ltr error={fieldErr.phone} />
+          <TextField testID="upgrade-reference" label={t('upgrade.reference')} value={reference} onChangeText={setReference} maxLength={60} placeholder={t('upgrade.referenceHint')} ltr />
           {receipt ? (
             <Card>
               <Image source={{ uri: receipt.uri }} style={{ width: '100%', height: 220, borderRadius: 12, backgroundColor: colors.paper.sunk }} resizeMode="contain" />
@@ -187,6 +211,7 @@ export default function Upgrade() {
               </View>
             </View>
           )}
+          {fieldErr.receipt && !receipt ? <Text style={{ color: colors.rose[700], fontSize: 13 }}>{fieldErr.receipt}</Text> : null}
           <TextField label={t('upgrade.note')} value={note} onChangeText={setNote} maxLength={200} latinDigits={false} />
           <Banner tone="info" icon="clock" text={t('upgrade.sla', { hours: info.slaHours })} />
         </>

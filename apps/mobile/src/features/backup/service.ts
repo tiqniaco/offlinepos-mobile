@@ -8,7 +8,7 @@ import type { ObkHeader } from '@daftarak/shared';
 import { sql } from 'drizzle-orm';
 import { getDb, closeDatabase, openDatabase, moveDatabaseAside, DB_NAME } from '../../db/client';
 import { business } from '../../db/schema';
-import { api } from '../../api/client';
+import { api, ApiError } from '../../api/client';
 import { accessToken } from '../../lib/session';
 import { getOrCreateBackupKey, getOrCreateDbKey, setSecret, SECURE_KEYS } from '../../lib/secure';
 import { APP_VERSION } from '../../config/env';
@@ -85,6 +85,8 @@ export async function recordDone(meta: LastBackup, opts: { cloudHead?: boolean }
 /** Manual "backup now": build → presigned PUT → upload → commit. */
 export async function backupNow(onProgress?: (p: number, stage: 'build' | 'upload') => void): Promise<LastBackup> {
   const { header: h, serverBusinessId } = await header();
+  // Same guard as prepareAutoBackup: never upload a backup sealed with a key the server does not have.
+  if ((await getMeta(getDb(), 'backup.keyMissing')) === '1') throw new ApiError('step_up_required', 'backup key missing');
   const built = await buildBackup(await getOrCreateBackupKey(), h, (p) => onProgress?.(p, 'build'));
   try {
     const token = await accessToken();
@@ -132,6 +134,9 @@ export async function prepareAutoBackup(): Promise<{ size: number; sha256: strin
     const db = getDb();
     const dev = await getCurrentDevice(db);
     if (!dev) return undefined;
+    // Joined an existing shop without its server backup key (domain/onboarding adoptServerBackupKey): a backup made
+    // with a new local key could never be restored — stay off until a restore or the key fetch.
+    if ((await getMeta(db, 'backup.keyMissing')) === '1') return undefined;
     const last = await lastBackup();
     if (last && Date.now() - last.at < AUTO_EVERY_MS) return undefined;
     if ((await getMeta(db, 'backup.lastHead')) === (await chainHead(db, dev.id)).hash && last) return undefined;
@@ -283,6 +288,7 @@ export async function applyRestore(token: string, serverBusinessId: string, devi
   const db = getDb();
   await completeRestore(db, { deviceId: reg.registration.deviceId, deviceCode: reg.registration.deviceCode }, { platform: Platform.OS === 'ios' ? 'ios' : 'android', backupId: s.backupId });
   await setMeta(db, PENDING_ACTIVATION, '');
+  await setMeta(db, 'backup.keyMissing', '0'); // stageRestore stored the server key
   if (s.snapshot.exists) s.snapshot.delete();
   staged = null;
   return reg;

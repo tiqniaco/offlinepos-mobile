@@ -91,8 +91,10 @@ describe('backup → restore on a new phone', () => {
     // Identical business data (device-local / restore bookkeeping tables excluded).
     const tables = (raw.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '%_fts%' AND name NOT LIKE '__drizzle%'`).all() as { name: string }[])
       .map((t) => t.name)
-      .filter((t) => !['devices', 'kv_meta', 'doc_sequences', 'audit_log'].includes(t));
+      .filter((t) => !['devices', 'kv_meta', 'doc_sequences', 'audit_log', 'expense_categories'].includes(t));
     expect(await dumpTables(n.db, tables)).toEqual(await dumpTables(db, tables));
+    // A backup without expense types gets the defaults (no empty list on the new phone).
+    expect((await dumpTables(n.db, ['expense_categories'])).expense_categories!.length).toBeGreaterThan(0);
     expect((await verifyChain(n.db, A.id)).ok).toBe(true);
     expect(await backupCounts(n.db)).toEqual(counts);
 

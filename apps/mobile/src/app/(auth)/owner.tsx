@@ -7,6 +7,8 @@ import { OnboardingScreen, Text, Button, TextField, SectionTitle, Card, Banner, 
 import { useApp, useOnboarding } from '../../state/app';
 import { getDb } from '../../db/client';
 import { attachDeviceRemote, createBusinessRemote, finishBusinessLocal } from '../../domain/onboarding';
+import { ApiError } from '../../api/client';
+import { StepUpCode } from '../../features/auth/StepUpCode';
 import { sessionAfterSetup, listActiveUsers, unlockWithBiometric } from '../../domain/auth/users';
 import { setBiometric } from '../../domain/auth/biometric';
 import { reloadAppData } from '../../state/boot';
@@ -21,6 +23,8 @@ export default function OwnerScreen() {
   const [bio, setBio] = useState(true);
   const [errors, setErrors] = useState<{ name?: string; form?: string }>({});
   const [busy, setBusy] = useState(false);
+  // Using an existing shop: an SMS step-up first (the server needs it to move the shop and release its backup key).
+  const [stepUp, setStepUp] = useState<'none' | 'asking' | 'done'>('none');
 
   useEffect(() => {
     void Promise.all([LocalAuthentication.hasHardwareAsync(), LocalAuthentication.isEnrolledAsync()]).then(([h, e]) => setBioAvailable(h && e));
@@ -36,11 +40,15 @@ export default function OwnerScreen() {
     );
   }
 
-  const finish = async () => {
+  const finish = async (stepped = stepUp === 'done') => {
     const e: typeof errors = {};
     if (name.trim().length < 2) e.name = t('errors.required');
     setErrors(e);
     if (busy || Object.keys(e).length || !draft.auth || !draft.businessForm || !draft.password) return;
+    if (draft.existingBusinessId && !useOnboarding.getState().registration && !stepped) {
+      setStepUp('asking');
+      return;
+    }
     setBusy(true);
     try {
       const db = getDb();
@@ -48,7 +56,7 @@ export default function OwnerScreen() {
       // Server part once: on a retry (local step failed) reuse the stored answer instead of creating a second business.
       let reg = useOnboarding.getState().registration;
       if (!reg) {
-        reg = draft.existingBusinessId ? await attachDeviceRemote(draft.auth, draft.existingBusinessId) : await createBusinessRemote(draft.auth, draft.businessForm);
+        reg = draft.existingBusinessId ? await attachDeviceRemote(db, draft.auth, draft.existingBusinessId) : await createBusinessRemote(draft.auth, draft.businessForm);
         useOnboarding.getState().set({ registration: reg });
       }
       await finishBusinessLocal(db, draft.auth, reg, draft.businessForm, owner, !!draft.existingBusinessId);
@@ -65,6 +73,8 @@ export default function OwnerScreen() {
       draft.reset();
       useApp.getState().unlock(session);
     } catch (err) {
+      // The step-up window (10 min) ran out: ask for a new code.
+      if (err instanceof ApiError && err.code === 'step_up_required') setStepUp('asking');
       setErrors({ form: errorMessage(t, err) });
     } finally {
       setBusy(false);
@@ -77,8 +87,18 @@ export default function OwnerScreen() {
       stepLabel={t('onboarding.step', { n: 4, total: 4 })}
       title={t('owner.title')}
       subtitle={t('owner.bodyPassword')}
-      footer={<Button testID="owner-finish" title={busy ? t('owner.creating') : t('owner.finish')} loading={busy} onPress={finish} />}
+      footer={stepUp === 'asking' ? undefined : <Button testID="owner-finish" title={busy ? t('owner.creating') : t('owner.finish')} loading={busy} onPress={() => void finish()} />}
     >
+      {stepUp === 'asking' && draft.auth ? (
+        <StepUpCode
+          token={draft.auth.accessToken}
+          onCancel={() => setStepUp('none')}
+          onVerified={async () => {
+            setStepUp('done');
+            await finish(true);
+          }}
+        />
+      ) : null}
       <SectionTitle>{t('owner.sectionYou')}</SectionTitle>
       <TextField testID="owner-name" icon="users" label={t('owner.name')} value={name} onChangeText={setName} error={errors.name} latinDigits={false} />
       {bioAvailable ? (

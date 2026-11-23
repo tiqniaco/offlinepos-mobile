@@ -97,7 +97,7 @@ export default function Security() {
       <View className="flex-row flex-wrap gap-2">
         {OPTIONS.map((n) => (
           <View key={n} style={{ width: '48%', opacity: canManage ? 1 : 0.5 }} pointerEvents={canManage ? 'auto' : 'none'}>
-            <Choice compact title={n === 0 ? t('security.never') : t('security.minutes', { n })} selected={minutes === n} onPress={() => void setLock(n)} />
+            <Choice compact title={n === 0 ? t('security.never') : t(n >= 3 && n <= 10 ? 'security.minutesFew' : 'security.minutes', { n })} selected={minutes === n} onPress={() => void setLock(n)} />
           </View>
         ))}
       </View>

@@ -17,6 +17,7 @@ import { appendAudit } from './audit/audit';
 import { seedSystemRoles, insertUser } from './auth/users';
 import { setMeta } from './device';
 import { ensureInventorySeed } from './inventory/seed';
+import { ensureExpenseCategories } from './vouchers/vouchers';
 import { writeSettings } from './settings/settings';
 import { storeLicence, refreshLicenceState } from './licence/service';
 
@@ -101,6 +102,8 @@ async function writeLocal(db: AppDb, auth: AuthResponse, reg: CreateBusinessResp
     await insertUser(tx, { name: owner.name, password: owner.password, roleId: roleIds.owner, createdBy: null, deviceId, deviceCode, now, colorIndex: 0 });
   });
   await ensureInventorySeed(db, { id: deviceId, code: deviceCode }, now);
+  // Day one: the default expense types exist (no empty list on the first expense).
+  await ensureExpenseCategories(db, { id: deviceId, code: deviceCode }, now);
   await setSecret(SECURE_KEYS.refreshToken, auth.refreshToken);
   await setMeta(db, 'account.phone', auth.account.phone);
   await storeLicence(db, registration.licence, registration.serverTime);
@@ -124,9 +127,34 @@ export async function createBusinessRemote(auth: AuthResponse, form: BusinessFor
   });
 }
 
-/** Existing business, new phone: the server part (registers this phone, deactivates the old one). */
-export async function attachDeviceRemote(auth: AuthResponse, businessId: string): Promise<CreateBusinessResponse> {
-  return api.attachDevice(auth.accessToken, businessId, await deviceInfo(), await integrityToken('attach'));
+/** kv_meta flag: '1' = this phone has no server backup key for its business → automatic cloud backups stay off. */
+export const BACKUP_KEY_MISSING_META = 'backup.keyMissing';
+
+/**
+ * An existing business on this phone must encrypt its backups with the business's SERVER backup key (a fresh random
+ * key would make every later cloud backup unrestorable). Needs a fresh step-up OTP on `token`. On failure the flag
+ * keeps automatic backups off until a restore or a later key fetch.
+ */
+export async function adoptServerBackupKey(db: AppDb, token: string, businessId: string): Promise<boolean> {
+  try {
+    const { backupKey } = await api.backupKey(token, businessId);
+    await setSecret(SECURE_KEYS.backupKey, backupKey);
+    await setMeta(db, BACKUP_KEY_MISSING_META, '0');
+    return true;
+  } catch {
+    await setMeta(db, BACKUP_KEY_MISSING_META, '1').catch(() => undefined);
+    return false;
+  }
+}
+
+/**
+ * Existing business, new phone: the server part (registers this phone, deactivates the old one), then the business's
+ * backup key. Both need a fresh SMS step-up on this session (`step_up_required` otherwise — the caller asks for the code).
+ */
+export async function attachDeviceRemote(db: AppDb, auth: AuthResponse, businessId: string): Promise<CreateBusinessResponse> {
+  const reg = await api.attachDevice(auth.accessToken, businessId, await deviceInfo(), await integrityToken('attach'));
+  await adoptServerBackupKey(db, auth.accessToken, businessId);
+  return reg;
 }
 
 /** The local part after createBusinessRemote / attachDeviceRemote (safe to call again after a failure). */
@@ -157,7 +185,7 @@ export async function createBusinessOnline(db: AppDb, auth: AuthResponse, form: 
  * Until backup/restore ships (Phase 6) this starts with empty data — the UI says so clearly first.
  */
 export async function attachExistingBusiness(db: AppDb, auth: AuthResponse, businessId: string, owner: OwnerForm, vatNumber: string | null) {
-  const reg = await api.attachDevice(auth.accessToken, businessId, await deviceInfo(), await integrityToken('attach'));
+  const reg = await attachDeviceRemote(db, auth, businessId);
   const b = reg.business;
   await writeLocal(db, auth, reg, { name: b.name, country: b.country, type: b.type, vatRegistered: vatNumber != null, vatNumber }, owner);
 }

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import type { PaymentMethod } from '@daftarak/shared';
 import { Screen, Text, Button, Card, Chip, TextField, SectionTitle, Banner, QtyField, colors, fonts } from '../../ui';
 import { getDb } from '../../db/client';
-import { getSale, postReturn, previewReturn, returnableLines, type ReturnableLine } from '../../domain/sales/sales';
+import { getSale, postReturn, previewReturn, refundablePaid, returnableLines, type ReturnableLine } from '../../domain/sales/sales';
 import { useSalesCtx } from '../../features/sales/useSalesCtx';
 import { useCurrency } from '../../features/inventory/useInvCtx';
 import { salesErrorMessage } from '../../features/sales/errors';
@@ -21,6 +21,8 @@ export default function Return() {
   const [lines, setLines] = useState<ReturnableLine[]>([]);
   const [number, setNumber] = useState('');
   const [hasCustomer, setHasCustomer] = useState(false);
+  /** Money (non-credit) that can still go back: what was paid on the invoice minus earlier refunds. */
+  const [paidLeft, setPaidLeft] = useState<number | null>(null);
   const [sel, setSel] = useState<Record<string, number>>({});
   const [method, setMethod] = useState<PaymentMethod>('cash');
   const [reason, setReason] = useState('');
@@ -36,9 +38,13 @@ export default function Return() {
       try {
         const s = await getSale(getDb(), id);
         const ls = await returnableLines(getDb(), id);
+        const paid = await refundablePaid(getDb(), id);
         if (!alive) return;
         setNumber(s?.doc.number ?? '');
         setHasCustomer(!!s?.doc.customerId);
+        setPaidLeft(paid.leftMinor);
+        // A credit (آجل) invoice is returned to the customer's balance by default, not paid out in cash.
+        if (paid.hadCredit && s?.doc.customerId) setMethod('credit');
         setLines(ls);
       } catch (e) {
         if (alive) setErr(salesErrorMessage(t, e));
@@ -57,13 +63,13 @@ export default function Return() {
       return setTotal(0);
     }
     setPreviewing(true);
-    void previewReturn(getDb(), id, items)
+    void previewReturn(getDb(), id, items, { cashRoundingMinor: ctx?.settings.cashRoundingMinor })
       .then(
         (v) => my === previewId.current && setTotal(v),
         () => my === previewId.current && setTotal(0),
       )
       .finally(() => my === previewId.current && setPreviewing(false));
-  }, [items, id]);
+  }, [items, id, ctx?.settings.cashRoundingMinor]);
   const fmt = (m: number) => money(m, currency, i18n.language);
   const submit = async () => {
     if (!ctx || previewing || inFlight.current) return;
@@ -72,7 +78,7 @@ export default function Return() {
     setErr(null);
     try {
       const r = await postReturn(ctx, id, items, [{ method, amountMinor: total }], reason || '-');
-      toast(t('ret.done', { number: r.number }));
+      toast(method !== 'credit' && r.creditMinor > 0 ? t('ret.doneSplit', { number: r.number, amount: fmt(r.creditMinor) }) : t('ret.done', { number: r.number }));
       router.replace({ pathname: '/sales/[id]', params: { id: r.docId } });
     } catch (e) {
       setErr(salesErrorMessage(t, e));
@@ -115,6 +121,7 @@ export default function Return() {
           <Text style={{ fontFamily: fonts.bold, fontSize: 22, lineHeight: 30, color: colors.rose[700] }}>{fmt(total)}</Text>
         </View>
       </Card>
+      {method !== 'credit' && paidLeft != null && total > paidLeft ? <Banner tone="warn" text={t('ret.overPaid', { paid: fmt(paidLeft), rest: fmt(total - paidLeft) })} /> : null}
       {err ? <Banner tone="danger" text={err} /> : null}
     </Screen>
   );

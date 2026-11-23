@@ -47,7 +47,7 @@ export default function BulkEdit() {
     ]);
 
   return (
-    <Screen back title={t('bulk.title')} subtitle={t('products.selected', { n: list.length })} footer={<Button title={t('bulk.apply', { n: list.length })} disabled={!Number.isFinite(bp) || bp === 0} onPress={apply} />}>
+    <Screen back title={t('bulk.title')} subtitle={t('products.selected', { n: list.length })} footer={<Button title={t('bulk.apply', { n: list.length })} disabled={list.length === 0 || !Number.isFinite(bp) || bp === 0} onPress={apply} />}>
       <TextField label={t('bulk.percent')} hint={t('bulk.percentHint')} value={pct} onChangeText={(v) => setPct(normalizeDigits(v).replace(/[^\d.\-]/g, ''))} keyboardType="numbers-and-punctuation" ltr />
       <SectionTitle>{t('bulk.field')}</SectionTitle>
       <View style={{ gap: 8 }}>

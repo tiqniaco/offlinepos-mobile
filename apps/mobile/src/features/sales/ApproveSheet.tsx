@@ -11,7 +11,7 @@ import { listActiveUsers, unlockWithPin, PinError, type SessionUser } from '../.
  * Manager PIN override (SPEC §5: discounts capped per role). Verifies the approver's PIN with the
  * normal lock-out rules; the posting service re-checks the approver's own caps and audits it.
  */
-export function ApproveSheet({ visible, onClose, onApproved, needs }: { visible: boolean; onClose: () => void; onApproved: (u: SessionUser) => void; needs: 'discount' | 'price' }) {
+export function ApproveSheet({ visible, onClose, onApproved, needs }: { visible: boolean; onClose: () => void; onApproved: (u: SessionUser) => void; needs: 'discount' | 'price' | 'credit' }) {
   const { t } = useTranslation();
   const [users, setUsers] = useState<Awaited<ReturnType<typeof listActiveUsers>>>([]);
   const [sel, setSel] = useState<string | null>(null);
@@ -38,6 +38,7 @@ export function ApproveSheet({ visible, onClose, onApproved, needs }: { visible:
     try {
       const u = await unlockWithPin(getDb(), sel, pin);
       if (needs === 'price' && !roleHas(u.permissions, 'price.change')) return setMsg(t('approve.noRight'));
+      if (needs === 'credit' && !roleHas(u.permissions, 'doc.void')) return setMsg(t('approve.noRight'));
       onApproved(u);
     } catch (e) {
       setPin('');
@@ -49,7 +50,7 @@ export function ApproveSheet({ visible, onClose, onApproved, needs }: { visible:
   };
   return (
     <Sheet visible={visible} onClose={onClose} title={t('approve.title')} footer={<Button title={t('approve.ok')} disabled={!sel || pin.length < 4} onPress={submit} />}>
-      <Text variant="body">{t('approve.body')}</Text>
+      <Text variant="body">{needs === 'credit' ? t('approve.creditBody') : t('approve.body')}</Text>
       {loaded && users.length === 0 ? <Text style={{ color: colors.rose[700], fontFamily: fonts.medium, lineHeight: 22 }}>{t('approve.noApprovers')}</Text> : null}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
         {users.map((u) => (

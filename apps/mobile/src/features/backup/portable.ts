@@ -17,6 +17,7 @@ import {
   portableWriter,
   readPortableHeader,
   sealPortable,
+  type AuthResponse,
   type PortableHeader,
 } from '@daftarak/shared';
 import { closeDatabase, getDb, openDatabase } from '../../db/client';
@@ -26,7 +27,7 @@ import { api } from '../../api/client';
 import { SECURE_KEYS, deleteSecret, getOrCreateBackupKey, getOrCreateDbKey, setSecret } from '../../lib/secure';
 import { clearAccessToken, useAccessToken } from '../../lib/session';
 import { getCurrentDevice, setMeta } from '../../domain/device';
-import { attachDeviceRemote, deviceInfo } from '../../domain/onboarding';
+import { attachDeviceRemote, BACKUP_KEY_MISSING_META, deviceInfo } from '../../domain/onboarding';
 import { storeLicence, refreshLicenceState } from '../../domain/licence/service';
 import { syncOwnerPassword } from '../../domain/auth/users';
 import {
@@ -162,6 +163,8 @@ export async function applyPortable(mode: PortableRestoreMode): Promise<void> {
     await deleteSecret(SECURE_KEYS.refreshToken).catch(() => undefined);
     clearAccessToken();
     if (s.backupKey) await setSecret(SECURE_KEYS.backupKey, base64urlEncode(s.backupKey));
+    // No key in the file: cloud backups stay off until the phone is linked (the server key is fetched then).
+    await setMeta(db, BACKUP_KEY_MISSING_META, s.backupKey ? '0' : '1');
   }
   s.backupKey?.fill(0);
 }
@@ -176,15 +179,26 @@ export class LinkError extends Error {
 }
 
 /**
- * Owner signs in with the account password → the server registers this phone (the old phone becomes view-only) and
- * sends its licence. The provisional local device is retired; this phone continues with its server device code.
+ * Owner signs in with the account password (step 1). The caller then asks for an SMS step-up on `auth.accessToken`
+ * (taking the shop over from the old phone and releasing the backup key both need it) and calls `finishLinkThisPhone`.
  */
-export async function linkThisPhone(phone: string, password: string): Promise<void> {
+export async function linkThisPhoneLogin(phone: string, password: string): Promise<AuthResponse> {
   const db = getDb();
   const auth = await api.passwordLogin(phone, password, await deviceInfo());
   const sid = await serverBusinessIdOf(db);
   if (!sid || !auth.businesses.some((b) => b.id === sid)) throw new LinkError('not_owner');
-  const reg = await attachDeviceRemote(auth, sid);
+  return auth;
+}
+
+/**
+ * Step 2, after the step-up: the server registers this phone (the old phone becomes view-only) and sends its licence;
+ * the business's server backup key replaces any local one. The provisional local device is retired.
+ */
+export async function finishLinkThisPhone(auth: AuthResponse, password: string): Promise<void> {
+  const db = getDb();
+  const sid = await serverBusinessIdOf(db);
+  if (!sid) throw new LinkError('not_owner');
+  const reg = await attachDeviceRemote(db, auth, sid);
   await linkRestoredDevice(db, reg.registration, { platform: platform() });
   await setSecret(SECURE_KEYS.refreshToken, auth.refreshToken);
   useAccessToken(auth.accessToken, auth.accessExpiresAt);

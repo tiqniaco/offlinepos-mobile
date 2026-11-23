@@ -39,9 +39,10 @@ export default function Login() {
       router.replace(auth.businesses.length > 0 ? '/choose-business' : '/business');
     } catch (e) {
       if (e instanceof ApiError && e.code === 'password_locked') setError(t('login.locked', { min: Math.max(1, Math.ceil(Number(e.message) / 60) || 15) }));
-      else if (e instanceof ApiError && e.code === 'password_not_set') {
+      else if (e instanceof ApiError && (e.code === 'password_not_set' || e.code === 'invalid_credentials')) {
+        // The server no longer says whether the account has a password: hint at SMS login for SMS-only accounts.
         setNoPassword(true);
-        setError(t('login.noPassword'));
+        setError(`${errorMessage(t, e)}\n${t('login.smsOnlyHint')}`);
       } else setError(errorMessage(t, e));
       setPassword('');
     } finally {

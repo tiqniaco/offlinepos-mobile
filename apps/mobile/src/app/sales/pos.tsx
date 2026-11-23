@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { roleHas } from '@daftarak/shared';
 import { getDb } from '../../db/client';
+import { eq, sql } from 'drizzle-orm';
+import { products, stockLevels } from '../../db/schema';
 import { fx } from '../../ui/fx';
 import { Tip } from '../../features/Tip';
 import { useCart } from '../../state/cart';
@@ -111,11 +113,30 @@ export default function Sell() {
     };
   }, [search]);
 
+  // "Warn" mode: tell the cashier right away that this item has no stock left (the sale still goes through).
+  const negativeStock = useApp((s) => s.settings.negativeStock ?? 'warn');
+  const warnIfOut = useCallback(
+    async (productId: string, name: string) => {
+      if (negativeStock !== 'warn') return;
+      try {
+        const db = getDb();
+        const p = (await db.select({ track: products.trackStock }).from(products).where(eq(products.id, productId)).limit(1))[0];
+        if (!p?.track) return;
+        const lv = (await db.select({ q: sql<number>`coalesce(sum(${stockLevels.qtyMilli}), 0)` }).from(stockLevels).where(eq(stockLevels.productId, productId)))[0];
+        if (Number(lv?.q ?? 0) <= 0) toast(t('pos.zeroStock', { name }), 'info');
+      } catch {
+        /* a hint only */
+      }
+    },
+    [negativeStock, t],
+  );
+
   const addProduct = useCallback(
     async (productId: string, productUnitId: string | null): Promise<string | null> => {
       try {
         const line = await cartLineFor(getDb(), settings, productId, productUnitId, useCart.getState().priceTier);
         useCart.getState().add(line);
+        void warnIfOut(productId, line.name);
         return line.name;
       } catch (e) {
         fx.notFound();
@@ -123,7 +144,7 @@ export default function Sell() {
         return null;
       }
     },
-    [settings, t],
+    [settings, t, warnIfOut],
   );
 
   const notFound = useCallback(

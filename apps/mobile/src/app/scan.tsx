@@ -94,8 +94,6 @@ function NativeScanner({ onCode, onError }: { onCode: (code: string) => void; on
   // Loaded lazily so the web preview and Jest never touch the native camera modules.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { useCameraPermission } = require('react-native-vision-camera') as typeof import('react-native-vision-camera');
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { CodeScanner } = require('react-native-vision-camera-barcode-scanner') as typeof import('react-native-vision-camera-barcode-scanner');
   const perm = useCameraPermission();
   useEffect(() => {
     if (!perm.hasPermission && perm.canRequestPermission) void perm.requestPermission();
@@ -112,16 +110,52 @@ function NativeScanner({ onCode, onError }: { onCode: (code: string) => void; on
       </View>
     );
   }
+  return <ScannerCamera onCode={onCode} onError={() => onError(t('scan.cameraError'))} />;
+}
+
+/** Back camera + barcode output, with a flashlight toggle for dark shops / stockrooms. */
+function ScannerCamera({ onCode, onError }: { onCode: (code: string) => void; onError: () => void }) {
+  const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { Camera, useCameraDevice } = require('react-native-vision-camera') as typeof import('react-native-vision-camera');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { useBarcodeScannerOutput } = require('react-native-vision-camera-barcode-scanner') as typeof import('react-native-vision-camera-barcode-scanner');
+  const device = useCameraDevice('back');
+  const [torch, setTorch] = useState(false);
+  const output = useBarcodeScannerOutput({
+    barcodeFormats: ['all-formats'],
+    onBarcodeScanned: (codes) => {
+      const v = codes.find((c) => c.rawValue)?.rawValue;
+      if (v) onCode(v);
+    },
+    onError,
+  });
+  if (!device) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <Text style={{ color: '#fff', textAlign: 'center' }}>{t('scan.cameraError')}</Text>
+      </View>
+    );
+  }
   return (
-    <CodeScanner
-      style={{ flex: 1 }}
-      isActive
-      barcodeFormats={['all-formats']}
-      onBarcodeScanned={(codes) => {
-        const v = codes.find((c) => c.rawValue)?.rawValue;
-        if (v) onCode(v);
-      }}
-      onError={() => onError(t('scan.cameraError'))}
-    />
+    <View style={{ flex: 1 }}>
+      <Camera style={{ flex: 1 }} isActive device={device} outputs={[output]} torchMode={torch ? 'on' : 'off'} onError={onError} />
+      {device.hasTorch ? (
+        <View style={{ position: 'absolute', top: insets.top + 8, end: 16 }}>
+          <Pressable
+            testID="scan-torch"
+            accessibilityRole="switch"
+            accessibilityState={{ checked: torch }}
+            accessibilityLabel={t('scan.torch')}
+            onPress={() => setTorch((v) => !v)}
+            style={{ height: 46, paddingHorizontal: 14, borderRadius: 23, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: torch ? '#FFFFFF' : 'rgba(0,0,0,0.45)' }}
+          >
+            <Text style={{ fontSize: 18, lineHeight: 22 }}>{'\u{1F526}'}</Text>
+            <Text style={{ color: torch ? '#000' : '#fff', fontFamily: fonts.semibold, fontSize: 14, lineHeight: 20 }}>{torch ? t('scan.torchOff') : t('scan.torchOn')}</Text>
+          </Pressable>
+        </View>
+      ) : null}
+    </View>
   );
 }

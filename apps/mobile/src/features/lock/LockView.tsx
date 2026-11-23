@@ -118,7 +118,7 @@ export function LockView({
               </View>
             ) : null}
             <View className="flex-1">
-              <Button testID="pin-ok" compact title={isPassword ? t('lock.open') : t('common.done')} loading={busy} disabled={pin.length < (isPassword ? 1 : 4)} onPress={onSubmit} />
+              <Button testID="pin-ok" compact title={t('lock.open')} loading={busy} disabled={pin.length < (isPassword ? 1 : 4)} onPress={onSubmit} />
             </View>
           </View>
         </KeyboardAwareScrollView>

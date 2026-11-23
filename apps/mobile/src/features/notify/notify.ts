@@ -118,6 +118,9 @@ async function storePush(n: Notifications.Notification) {
   useApp.getState().set({ inboxBump: Date.now() });
 }
 
+/** Screens our own local reminders open (morning summary / trial / backup). */
+const LOCAL_REMINDER_URLS = new Set(['/(main)/parties?filter=late', '/(main)/products', '/settings/subscription', '/settings/backup']);
+
 /** Open a link from a notification: allow-listed app screens only; 'store' opens the store page (update). */
 export function openNotificationUrl(url: string | null | undefined, go: (url: string) => void) {
   const u = safeUrl(url);
@@ -140,7 +143,9 @@ export function onNotificationTap(go: (url: string) => void) {
       else go('/inbox');
       return;
     }
-    if (d?.url) go(d.url);
+    // Any other push (or a local reminder): only allow-listed screens, never an arbitrary route / deep link.
+    const u = typeof d?.url === 'string' ? (safeUrl(d.url) ?? (LOCAL_REMINDER_URLS.has(d.url) ? d.url : null)) : null;
+    if (u && u !== 'store') go(u);
   });
   return () => {
     got.remove();

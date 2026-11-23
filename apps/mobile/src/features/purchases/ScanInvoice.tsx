@@ -13,7 +13,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Network from 'expo-network';
 import { File } from 'expo-file-system';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
-import { OCR_IMAGE_MAX_BYTES, OCR_PDF_MAX_PAGES, UNLIMITED, type OcrMediaType } from '@daftarak/shared';
+import { OCR_IMAGE_MAX_BYTES, OCR_PDF_MAX_PAGES, UNLIMITED, sha256Hex, type OcrMediaType } from '@daftarak/shared';
 import { Sheet, Text, Button, Icon, IconBadge, colors, fonts, shadow, type IconName } from '../../ui';
 import { Pressable } from '../../ui/Press';
 import { api, ApiError } from '../../api/client';
@@ -86,6 +86,8 @@ export function ScanInvoiceButton() {
   const [offlineFor, setOfflineFor] = useState<Source | null>(null);
   const [reading, setReading] = useState(false);
   const inFlight = useRef(false);
+  /** «إلغاء» on the reading overlay aborts the request (nothing is saved; the scan may still count server-side). */
+  const abort = useRef<AbortController | null>(null);
   const bid = business?.serverBusinessId;
 
   useEffect(() => {
@@ -122,7 +124,12 @@ export function ScanInvoiceButton() {
         const file = await pickFile(source, () => toast(t('ocr.cameraDenied'), 'error'));
         if (!file) return;
         setReading(true);
-        const r = await api.scanInvoice(await accessToken(), bid, file.data, file.mediaType);
+        const ctrl = new AbortController();
+        abort.current = ctrl;
+        // Same file again (retry after a timeout / network drop) → same key → the stored result, not a second charge.
+        const idempotencyKey = `scan-${sha256Hex(`${bid}|${file.data.length}|${file.data.slice(0, 65_536)}|${file.data.slice(-65_536)}`).slice(0, 40)}`;
+        const r = await api.scanInvoice(await accessToken(), bid, file.data, file.mediaType, { signal: ctrl.signal, idempotencyKey });
+        if (ctrl.signal.aborted) return;
         setUsedCount(r.used);
         setServerLimit(r.limit);
         if (!r.lines.length) {
@@ -132,6 +139,7 @@ export function ScanInvoiceButton() {
         useOcrScan.getState().set(r);
         router.push('/purchases/scan-review');
       } catch (e) {
+        if (abort.current?.signal.aborted) return; // cancelled by the user: no error message
         if (e instanceof ScanInputError) toast(t(`errors.${e.message}`), 'error');
         else if (e instanceof ApiError && e.code === 'network') setOfflineFor(source);
         else if (e instanceof ApiError && e.code === 'ocr_quota_exceeded') {
@@ -141,6 +149,7 @@ export function ScanInvoiceButton() {
         else if (e instanceof ApiError && e.code === 'rate_limited') toast(t('ocr.rateLimited'), 'error');
         else toast(errorMessage(t, e), 'error');
       } finally {
+        abort.current = null;
         setReading(false);
         inFlight.current = false;
       }
@@ -224,11 +233,12 @@ export function ScanInvoiceButton() {
         </View>
       </Sheet>
 
-      <Modal visible={reading} transparent animationType="fade" statusBarTranslucent onRequestClose={() => undefined}>
+      <Modal visible={reading} transparent animationType="fade" statusBarTranslucent onRequestClose={() => abort.current?.abort()}>
         <View testID="ocr-reading" style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, padding: 32, backgroundColor: 'rgba(15,23,42,0.78)' }}>
           <ActivityIndicator size="large" color="#FFFFFF" />
           <Text style={{ fontFamily: fonts.bold, fontSize: 20, lineHeight: 30, color: '#FFFFFF', textAlign: 'center' }}>{t('ocr.reading')}</Text>
           <Text style={{ fontSize: 13.5, lineHeight: 20, color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>{t('ocr.readingHint')}</Text>
+          <Button testID="ocr-cancel" kind="light" compact title={t('common.cancel')} onPress={() => abort.current?.abort()} />
         </View>
       </Modal>
     </View>

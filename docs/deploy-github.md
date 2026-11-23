@@ -25,7 +25,7 @@ Cloudflare → My Profile → API Tokens → Create Token → Custom token:
 | --- | --- |
 | `CLOUDFLARE_API_TOKEN` | the token from step 1 |
 | `SMSMISR_USERNAME`, `SMSMISR_PASSWORD`, `SMSMISR_SENDER`, `SMSMISR_TEMPLATE` | login codes by SMS |
-| `OTP_TEST_CODE` | **testing only**, instead of SMS Misr: every number logs in with this code. Delete it before real users. |
+| `OTP_TEST_CODE` | **Not allowed.** deploy-api fails while this secret exists (a fixed login code is never deployed; the production Worker ignores fixed codes). Local E2E uses `.dev.vars`. |
 | `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | R2 → Manage API tokens → Object Read & Write on `daftarak-backups` (cloud backups) |
 | `ADMIN_PASSWORD` | 12+ characters, for the super-admin |
 | `REVENUECAT_WEBHOOK_SECRET`, `GOOGLE_SERVICE_ACCOUNT_JSON`, `EXPO_ACCESS_TOKEN` | optional |
@@ -33,6 +33,7 @@ Cloudflare → My Profile → API Tokens → Create Token → Custom token:
 ## 3. Run
 
 Actions → **deploy-api** → Run workflow. The first time, put your email in `admin_email`.
+The very first time also tick **bootstrap**: it creates the server keys (licence signing, backup wrap, token, OTP pepper). Never tick it again — later runs fail (instead of regenerating) if a key is missing or the secret list cannot be read. Escrow the keys offline: preferably generate them yourself, keep an offline copy, and add them as GitHub secrets `LICENCE_SIGNING_KEY`, `BACKUP_WRAP_KEY`, `ACCESS_TOKEN_SECRET`, `OTP_PEPPER` before the bootstrap run (they are used instead of random ones).
 
 When it finishes, open the run's **Summary**:
 

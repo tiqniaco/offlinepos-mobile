@@ -19,6 +19,8 @@ export default function UserForm() {
   const [roles, setRoles] = useState<RoleRow[]>([]);
   const [name, setName] = useState('');
   const [roleId, setRoleId] = useState<string | null>(null);
+  /** Role the user had when the form opened (the owner keeps seeing «المالك»; staff are never offered it). */
+  const [origRoleId, setOrigRoleId] = useState<string | null>(null);
   const [pin, setPin] = useState('');
   const [active, setActive] = useState(true);
   const [secretKind, setSecretKind] = useState<'pin' | 'password'>('pin');
@@ -36,6 +38,7 @@ export default function UserForm() {
         if (!u) return;
         setName(u.name);
         setRoleId(u.roleId);
+        setOrigRoleId(u.roleId);
         setActive(u.isActive);
         setSecretKind(u.secretKind);
       });
@@ -66,13 +69,16 @@ export default function UserForm() {
       <TextField testID="user-name" icon="users" label={t('users.name')} value={name} onChangeText={setName} latinDigits={false} />
       <SectionTitle>{t('users.role')}</SectionTitle>
       <View className="gap-2">
-        {roles.map((r) => (
+        {roles
+          .filter((r) => r.key !== 'owner' || (!!id && r.id === origRoleId))
+          .map((r) => (
           <Choice
             key={r.id}
             testID={`role-${r.key}`}
             icon={r.key === 'owner' ? 'shield' : r.key === 'manager' ? 'users' : 'card'}
             hue={r.key === 'owner' ? 'primary' : r.key === 'manager' ? 'sky' : 'amber'}
             title={r.name}
+            hint={r.key && ['owner', 'manager', 'cashier'].includes(r.key) ? t(`users.roleHint.${r.key}`) : undefined}
             selected={roleId === r.id}
             onPress={() => setRoleId(r.id)}
           />
@@ -86,7 +92,6 @@ export default function UserForm() {
         </>
       ) : (
         <>
-          <SectionTitle>{t('users.pin')}</SectionTitle>
           <TextField
             icon="lock"
             testID="user-pin"

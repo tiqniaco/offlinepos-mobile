@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Banner } from '../ui';
 import { useApp } from '../state/app';
 import { backgroundCheckin } from '../state/boot';
+import { onSessionChange, sessionSignedOut } from '../domain/licence/service';
 
 /** Shows trial days / grace / free / read-only with the reason, and a "connect & refresh" action. */
 export function LicenceBanner() {
@@ -11,9 +12,12 @@ export function LicenceBanner() {
   const l = useApp((s) => s.licence);
   const unlinked = useApp((s) => s.restoreUnlinked);
   const [busy, setBusy] = useState(false);
+  const signedOut = useSyncExternalStore(onSessionChange, sessionSignedOut);
   if (!l) return null;
   // Restored from a file without the server: view-only until this phone is linked to the account (needs internet once).
   if (unlinked && !l.canWrite) return <Banner testID="licence-banner" tone="warn" text={t('portable.link.banner')} action={t('portable.link.action')} onAction={() => router.push('/settings/link-device')} />;
+  // The server dropped this phone's session: the licence still works offline until it expires; offer sign-in.
+  if (signedOut) return <Banner testID="licence-signed-out" tone="warn" text={t('licence.signedOut')} action={t('licence.signInAgain')} onAction={() => router.push('/settings/subscription')} />;
   const refresh = async () => {
     setBusy(true);
     await backgroundCheckin(true).catch(() => undefined);

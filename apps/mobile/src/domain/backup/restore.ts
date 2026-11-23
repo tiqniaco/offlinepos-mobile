@@ -12,6 +12,7 @@ import { withTx } from '../../db/tx';
 import { appendAudit } from '../audit/audit';
 import { setMeta } from '../device';
 import { ensureInventorySeed } from '../inventory/seed';
+import { ensureExpenseCategories } from '../vouchers/vouchers';
 
 export interface BackupCounts {
   invoices: number;
@@ -69,6 +70,8 @@ export async function completeRestore(db: Db, reg: { deviceId: string; deviceCod
     await appendAudit(tx, { action: 'backup.restore', entity: 'devices', entityId: reg.deviceId, before: prev ? { device: prev.id, code: prev.code } : null, after: { code: reg.deviceCode, backup: opts.backupId ?? null }, deviceId: reg.deviceId, at: now });
   });
   await ensureInventorySeed(db, { id: reg.deviceId, code: reg.deviceCode }, now);
+  // Older backups may have no expense types yet.
+  await ensureExpenseCategories(db, { id: reg.deviceId, code: reg.deviceCode }, now);
 }
 
 /** Every table's rows, for the restore acceptance test (device-local rows excluded by the caller). */

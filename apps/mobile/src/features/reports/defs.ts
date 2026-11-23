@@ -8,7 +8,7 @@ import i18n from 'i18next';
 import { formatMinor, formatQty, roleHas, type Feature, type Permission } from '@daftarak/shared';
 import type { Db } from '../../db/types';
 import type { SessionUser } from '../../domain/auth/users';
-import { aging, discountsByUser, expiringItems, profitAndLoss, purchasesBySupplier, salesBy, shiftsReport, slowStock, stockValuation, type Range, type SalesGroup } from '../../domain/reports/reports';
+import { aging, discountsByUser, expiringItems, profitAndLoss, purchasesBySupplier, salesBy, salesRounding, shiftsReport, slowStock, stockValuation, stockValuationTotals, type Range, type SalesGroup } from '../../domain/reports/reports';
 import { expenseTotals, listVouchers } from '../../domain/vouchers/vouchers';
 import type { IconName, Hue } from '../../ui';
 import type { ReportDoc } from '../export/report';
@@ -66,6 +66,8 @@ const base = (id: ReportId, biz: BizHeader, extra: Partial<ReportDoc>): ReportDo
 function salesReport(id: ReportId, group: SalesGroup): ReportDef['build'] {
   return async (db, { range, user, biz }) => {
     const rows = await salesBy(db, group, range);
+    // Lines don't carry the invoice's cash rounding: show it as its own row so the total matches documents and shifts.
+    const rounding = await salesRounding(db, range);
     const profit = roleHas(user.permissions, 'profit.view');
     const sum = (f: (r: (typeof rows)[number]) => number) => rows.reduce((s, r) => s + f(r), 0);
     const label = (r: (typeof rows)[number]) => (group === 'day' ? dayText(Number(r.label)) : r.label || (group === 'customer' ? t('pos.walkIn') : '—'));
@@ -92,6 +94,12 @@ function salesReport(id: ReportId, group: SalesGroup): ReportDef['build'] {
         { label: t('reports.col.tax'), value: m(sum((r) => r.taxMinor)) },
         { label: t('reports.col.discounts'), value: m(sum((r) => r.discountMinor)) },
         { label: t('reports.col.returns'), value: m(sum((r) => r.returnsMinor)) },
+        ...(rounding !== 0
+          ? [
+              { label: t('reports.col.rounding'), value: m(rounding) },
+              { label: t('reports.col.salesAfterRounding'), value: m(sum((r) => r.salesMinor) + rounding), strong: true },
+            ]
+          : []),
         ...(profit ? [{ label: t('reports.col.profit'), value: m(sum((r) => r.profitMinor)), strong: true }] : []),
       ],
     });
@@ -234,8 +242,8 @@ export const REPORTS: ReportDef[] = [
     ranged: false,
     build: async (db, { today, biz }) => {
       const rows = await stockValuation(db);
-      const value = rows.reduce((s, r) => s + r.valueMinor, 0);
-      const retail = rows.reduce((s, r) => s + r.retailValueMinor, 0);
+      // Owned stock only; value sold below zero is shown apart (it is not stock you have).
+      const { valueMinor: value, negativeMinor, retailMinor: retail } = stockValuationTotals(rows);
       return base('stock_valuation', biz, {
         period: dayText(today),
         summary: [
@@ -253,6 +261,7 @@ export const REPORTS: ReportDef[] = [
           { label: t('reports.col.costValue'), value: m(value), strong: true },
           { label: t('reports.col.retailValue'), value: m(retail) },
           { label: t('reports.col.expectedProfit'), value: m(retail - value) },
+          ...(negativeMinor !== 0 ? [{ label: t('reports.col.negativeStockValue'), value: m(negativeMinor) }] : []),
         ],
       });
     },

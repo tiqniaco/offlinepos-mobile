@@ -25,7 +25,7 @@ import { errorMessage } from '../../lib/errors';
 
 type PayMode = 'credit' | 'cash' | 'partial';
 
-/** New purchase invoice: supplier → scan/search items → cost & qty → save (default: unpaid, on the supplier). */
+/** New purchase invoice: supplier → scan/search items → cost & qty → save (default: unpaid on the supplier; paid in cash when no supplier is picked). */
 export default function NewPurchase() {
   const { t, i18n } = useTranslation();
   const params = useLocalSearchParams<{ supplierId?: string }>();
@@ -147,7 +147,7 @@ export default function NewPurchase() {
   };
 
   return (
-    <Screen back title={t('purchase.new')} footer={<Button testID="purchase-next" title={cart.lines.length ? `${t('purchase.save')} · ${fmt(total)}` : t('purchase.save')} disabled={!cart.lines.length || !priced} onPress={() => { setErr(null); setPayOpen(true); }} />}
+    <Screen back title={t('purchase.new')} footer={<Button testID="purchase-next" title={cart.lines.length ? `${t('purchase.save')} · ${fmt(total)}` : t('purchase.save')} disabled={!cart.lines.length || !priced} onPress={() => { setErr(null); if (!cart.supplierId && mode === 'credit') setMode('cash'); setPayOpen(true); }} />}
       right={cart.lines.length ? <Pressable testID="purchase-clear" accessibilityLabel={t('purchase.clearDraft')} onPress={clearDraft} hitSlop={8} style={{ width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.paper.card }}><Icon name="trash" size={18} color={colors.rose[700]} /></Pressable> : undefined}
     >
       <Pressable testID="purchase-supplier" onPress={() => setPick(true)} style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 16, backgroundColor: colors.paper.card, opacity: pressed ? 0.85 : 1 }, shadow.soft]}>

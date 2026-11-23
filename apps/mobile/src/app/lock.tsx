@@ -6,6 +6,7 @@ import { getDb } from '../db/client';
 import { listActiveUsers, unlockWithBiometric, unlockWithPin, PinError } from '../domain/auth/users';
 import { useApp } from '../state/app';
 import { LockView, type LockUser } from '../features/lock/LockView';
+import { PIN_MAX } from '../domain/auth/pin';
 
 export default function LockScreen() {
   const { t } = useTranslation();
@@ -64,6 +65,12 @@ export default function LockScreen() {
       setBusy(false);
     }
   };
+
+  // A full-length PIN opens by itself (shorter PINs: «افتح»).
+  useEffect(() => {
+    if (selected && selected.secretKind !== 'password' && pin.length === PIN_MAX && !busy && !msg) void submit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pin]);
 
   return (
     <LockView

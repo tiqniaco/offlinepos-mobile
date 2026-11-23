@@ -81,6 +81,8 @@ const config: ExpoConfig = {
     appStoreId: process.env.APP_STORE_ID || '',
     revenuecat: { android: process.env.REVENUECAT_ANDROID_KEY || '', ios: process.env.REVENUECAT_IOS_KEY || '' },
     supportWhatsApp: process.env.SUPPORT_WHATSAPP || '',
+    // Play / App Store build (STORE_BUILD=1): updates come from the store, no manual payments / activation codes.
+    storeBuild: process.env.STORE_BUILD === '1',
     // Play Integrity: Google Cloud project number linked in Play Console.
     gcpProjectNumber: process.env.GCP_PROJECT_NUMBER || '',
     // Real ad unit ids are injected at release build time; empty → Google test units.

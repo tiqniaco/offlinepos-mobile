@@ -220,6 +220,11 @@ export async function updateUser(
     if (patch.name !== undefined) set.name = patch.name.trim();
     if (patch.roleId !== undefined) set.roleId = patch.roleId;
     if (patch.isActive !== undefined) set.isActive = patch.isActive;
+    // Re-activating a disabled user counts against the plan's user limit (same rule as addUser).
+    if (patch.isActive === true && !before.isActive) {
+      const [{ n }] = (await tx.select({ n: count() }).from(users).where(and(eq(users.isActive, true), isNull(users.deletedAt)))) as [{ n: number }];
+      assertWithinLimit('users', n);
+    }
     if (patch.biometricEnabled !== undefined) set.biometricEnabled = patch.biometricEnabled;
     if (patch.pin !== undefined) {
       // The owner unlocks with the account password (changed in settings → password), never a PIN.

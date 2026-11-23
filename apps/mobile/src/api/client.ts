@@ -30,14 +30,19 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T extends z.ZodType>(path: string, schema: T, init: { method?: string; body?: unknown; token?: string; timeoutMs?: number } = {}): Promise<z.infer<T>> {
+async function request<T extends z.ZodType>(path: string, schema: T, init: { method?: string; body?: unknown; token?: string; timeoutMs?: number; signal?: AbortSignal; headers?: Record<string, string> } = {}): Promise<z.infer<T>> {
   let res: Response;
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), init.timeoutMs ?? 20_000);
+    // The caller can cancel too (e.g. «إلغاء» while an invoice is being read).
+    if (init.signal) {
+      if (init.signal.aborted) ctrl.abort();
+      else init.signal.addEventListener('abort', () => ctrl.abort(), { once: true });
+    }
     res = await fetch(`${API_URL}${path}`, {
       method: init.method ?? (init.body ? 'POST' : 'GET'),
-      headers: { 'Content-Type': 'application/json', ...(init.token ? { Authorization: `Bearer ${init.token}` } : {}) },
+      headers: { 'Content-Type': 'application/json', ...(init.token ? { Authorization: `Bearer ${init.token}` } : {}), ...init.headers },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
       signal: ctrl.signal,
     });
@@ -95,8 +100,15 @@ export const api = {
    * Supplier invoice scan (needs internet; counts against the plan's monthly `ocr_month` only when it succeeds).
    * Errors: ocr_not_in_plan (403), ocr_quota_exceeded (402), image_invalid / pdf_too_large (400), ocr_failed (422), ocr_unavailable (503), rate_limited (429).
    */
-  scanInvoice: (token: string, businessId: string, file: string, mediaType: OcrMediaType) =>
-    request('/v1/purchases/scan', ocrScanResponseSchema, { body: { businessId, file, mediaType }, token, timeoutMs: 120_000 }),
+  scanInvoice: (token: string, businessId: string, file: string, mediaType: OcrMediaType, opts: { signal?: AbortSignal; idempotencyKey?: string } = {}) =>
+    request('/v1/purchases/scan', ocrScanResponseSchema, {
+      body: { businessId, file, mediaType },
+      token,
+      timeoutMs: 120_000,
+      signal: opts.signal,
+      // Same key within 10 minutes → the server returns the stored result (a retry is never charged twice).
+      headers: opts.idempotencyKey ? { 'X-Idempotency-Key': opts.idempotencyKey } : undefined,
+    }),
   scanUsage: (token: string, businessId: string) => request(`/v1/purchases/scan/usage?businessId=${encodeURIComponent(businessId)}`, ocrUsageSchema, { token }),
   sessions: (token: string) =>
     request('/v1/sessions', z.object({ sessions: z.array(z.object({ id: z.string(), created_at: z.number(), last_used_at: z.number().nullable(), platform: z.string().nullable(), model: z.string().nullable(), app_version: z.string().nullable(), current: z.boolean() })) }), { token }),

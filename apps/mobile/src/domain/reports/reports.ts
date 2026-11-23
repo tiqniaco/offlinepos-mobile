@@ -72,7 +72,7 @@ export async function dashboard(db: Db, today: number): Promise<Dashboard> {
     FROM party_balances`))[0];
   const stock = (await all<{ low: Num; value: Num }>(db, sql`
     SELECT sum(CASE WHEN p.track_stock = 1 AND p.low_stock_milli IS NOT NULL AND coalesce(s.qty_milli, 0) <= p.low_stock_milli THEN 1 ELSE 0 END) AS low,
-           sum(coalesce(s.value_minor, 0)) AS value
+           sum(CASE WHEN s.value_minor > 0 THEN s.value_minor ELSE 0 END) AS value
     FROM products p LEFT JOIN stock_levels s ON s.product_id = p.id WHERE p.deleted_at IS NULL`))[0];
   return {
     todaySalesMinor: t.sales,
@@ -287,14 +287,39 @@ export async function profitAndLoss(db: Db, r: Range): Promise<PnL> {
 
 // ─────────────────────────── stock ───────────────────────────
 
+/**
+ * Stock value per product. valueMinor is signed (it reconciles with the INVENTORY account); a negative value comes from
+ * selling below zero and is NOT stock you own: stockValuationTotals keeps it out of the value and shows it apart.
+ */
 export async function stockValuation(db: Db) {
   const rows = await all<{ id: string; name: string; cat: string | null; unit: string; qty: Num; avg: Num; value: Num; retail: Num }>(db, sql`
     SELECT p.id, p.name, c.name AS cat, coalesce(u.name_ar, '') AS unit, coalesce(s.qty_milli, 0) AS qty, coalesce(s.avg_cost_minor, p.cost_minor) AS avg,
-           coalesce(s.value_minor, 0) AS value, p.retail_price_minor * coalesce(s.qty_milli, 0) / 1000 AS retail
+           coalesce(s.value_minor, 0) AS value, p.retail_price_minor * coalesce(s.qty_milli, 0) / 1000.0 AS retail
     FROM products p LEFT JOIN stock_levels s ON s.product_id = p.id LEFT JOIN categories c ON c.id = p.category_id
     LEFT JOIN units u ON u.id = p.base_unit_id
     WHERE p.deleted_at IS NULL AND p.track_stock = 1 ORDER BY value DESC`);
   return rows.map((x) => ({ id: x.id, name: x.name, category: x.cat, unit: x.unit, qtyMilli: n(x.qty), avgCostMinor: n(x.avg), valueMinor: n(x.value), retailValueMinor: Math.round(n(x.retail)) }));
+}
+
+/** Totals for the valuation report: owned stock only (positive), and the negative (oversold) value separately. */
+export function stockValuationTotals(rows: { qtyMilli: number; valueMinor: number; retailValueMinor: number }[]) {
+  let valueMinor = 0;
+  let negativeMinor = 0;
+  let retailMinor = 0;
+  for (const r of rows) {
+    if (r.valueMinor > 0) valueMinor += r.valueMinor;
+    else negativeMinor += r.valueMinor;
+    if (r.qtyMilli > 0) retailMinor += r.retailValueMinor;
+  }
+  return { valueMinor, negativeMinor, retailMinor };
+}
+
+/** Cash rounding of posted invoices minus returns in the range: line-based reports + this = document totals. */
+export async function salesRounding(db: Db, r: Range): Promise<number> {
+  const x = (await all<{ v: Num }>(db, sql`
+    SELECT sum(${SIGN} * d.rounding_minor) AS v FROM sales_docs d
+    WHERE d.business_day BETWEEN ${r.from} AND ${r.to} AND ${POSTED_SALES}`))[0];
+  return n(x?.v);
 }
 
 export async function stockMovementFor(db: Db, productId: string, r: Range) {
@@ -307,7 +332,7 @@ export async function stockMovementFor(db: Db, productId: string, r: Range) {
     LEFT JOIN purchase_docs pd ON pd.id = m.source_id
     LEFT JOIN inventory_docs idoc ON idoc.id = m.source_id
     WHERE m.product_id = ${productId} AND m.business_day BETWEEN ${r.from} AND ${r.to}
-    ORDER BY m.occurred_at, m.id`);
+    ORDER BY m.rowid`);
   let bal = n(before?.q);
   const opening = bal;
   return { openingMilli: opening, rows: rows.map((x) => ({ ...x, balanceMilli: (bal += x.qty) })), closingMilli: bal };

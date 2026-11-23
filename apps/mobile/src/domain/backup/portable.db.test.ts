@@ -116,7 +116,8 @@ async function importPortable(file: Buffer, pass: string, target: string) {
   return { header, secrets };
 }
 
-const TABLES_EXCLUDED = ['devices', 'kv_meta', 'doc_sequences', 'audit_log', 'licence_state'];
+// expense_categories: a backup without any gets the default types on restore.
+const TABLES_EXCLUDED = ['devices', 'kv_meta', 'doc_sequences', 'audit_log', 'licence_state', 'expense_categories'];
 
 describe('portable .kashiro backup → restore on a new phone without the server', () => {
   it('round-trip: identical data, unlock with restored password/PIN, read-only until linked, then linked', async () => {

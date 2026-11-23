@@ -40,8 +40,11 @@ export const parseDayText = (s: string): number | null => {
   return Number(m[2]) >= 1 && Number(m[2]) <= 12 && Number(m[3]) >= 1 && Number(m[3]) <= 31 ? v : null;
 };
 
-/** Preset chips + optional custom from/to (YYYY-MM-DD, Latin digits). */
-export function DateRangeBar({ value, today, onChange, presets = ['month', 'lastMonth', 'quarter', 'year', 'all', 'custom'] }: { value: { key: RangeKey; from: number; to: number }; today: number; onChange: (v: { key: RangeKey; from: number; to: number }) => void; presets?: RangeKey[] }) {
+/**
+ * Preset chips (النهارده، الشهر ده، الشهر اللي فات…) + optional custom from/to (YYYY-MM-DD, Latin digits).
+ * No native date picker on purpose: @react-native-community/datetimepicker is not in the build.
+ */
+export function DateRangeBar({ value, today, onChange, presets = ['today', 'month', 'lastMonth', 'quarter', 'year', 'all', 'custom'] }: { value: { key: RangeKey; from: number; to: number }; today: number; onChange: (v: { key: RangeKey; from: number; to: number }) => void; presets?: RangeKey[] }) {
   const { t } = useTranslation();
   const [from, setFrom] = useState(toText(value.from));
   const [to, setTo] = useState(toText(value.to));

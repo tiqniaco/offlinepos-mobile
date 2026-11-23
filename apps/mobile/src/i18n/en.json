@@ -164,7 +164,12 @@
     },
     "checkNow": "Connect & refresh",
     "limit": "You reached your plan's limit. Subscribe to increase it.",
-    "feature": "This feature isn't in your plan. Subscribe to Basic or Pro to use it."
+    "feature": "This feature isn't in your plan. Subscribe to Basic or Pro to use it.",
+    "signedOut": "This phone's sign-in has ended. You can keep working until the licence runs out — sign in again to renew it.",
+    "signInAgain": "Sign in again",
+    "signedOutBody": "Sign in again with the account phone number so your subscription and backups keep working. Your data on this phone stays.",
+    "sendCode": "Send verification code",
+    "resendCode": "Send the code again"
   },
   "tabs": {
     "home": "Home",
@@ -198,7 +203,8 @@
     "offers": "Offers & coupons",
     "backup": "Backup",
     "sessions": "Signed-in phones",
-    "inbox": "Messages from Kashiro"
+    "inbox": "Messages from Kashiro",
+    "selling": "Selling & payment methods"
   },
   "users": {
     "title": "Users",
@@ -217,7 +223,12 @@
     "disabled": "Disabled",
     "you": "You",
     "passwordUser": "The owner unlocks with the account password, not a PIN.",
-    "changePassword": "Change password"
+    "changePassword": "Change password",
+    "roleHint": {
+      "owner": "Everything: money, settings, users and subscription.",
+      "manager": "All daily work and reports — no users, subscription or backups.",
+      "cashier": "Sells, returns and adds customers. No cost/profit, no voiding invoices."
+    }
   },
   "security": {
     "autoLock": "Auto-lock after",
@@ -227,7 +238,8 @@
     "screenshots": "Block screenshots",
     "screenshotsHint": "On profit, cost, reports and backup screens",
     "biometricHint": "If it fails, the phone passcode is offered. Your password always works.",
-    "managedOnly": "Only the owner or a manager can change these settings."
+    "managedOnly": "Only the owner or a manager can change these settings.",
+    "minutesFew": "{{n}} minutes"
   },
   "language": {
     "ar": "العربية",
@@ -279,7 +291,8 @@
       "ocr": "Scan supplier invoices with the camera ({{n}} a month)",
       "ocrUnlimited": "Unlimited supplier invoice scans"
     },
-    "ocrLimit": "Invoice scans / month"
+    "ocrLimit": "Invoice scans / month",
+    "renew": "Renew plan"
   },
   "errors": {
     "network": "No internet connection. Check it and try again.",
@@ -309,7 +322,11 @@
     "ocr_not_in_plan": "Supplier invoice scanning is available on paid plans only.",
     "ocr_quota_exceeded": "You've used all invoice scans for this month.",
     "ocr_failed": "We couldn't read the invoice. Retake it in good light with the whole invoice visible.",
-    "ocr_unavailable": "Invoice reading is not available right now. Try again in a bit."
+    "ocr_unavailable": "Invoice reading is not available right now. Try again in a bit.",
+    "business_limit_reached": "This account already has the maximum number of shops (2).",
+    "pdf_unsupported": "We cannot read this PDF. Take photos of the invoice pages and upload them as images.",
+    "business_suspended": "This account is suspended. Contact us.",
+    "backup_too_large": "The backup is larger than your plan allows."
   },
   "audit": {
     "intact": "The log is intact — nothing was edited",
@@ -327,7 +344,59 @@
       "licence_mode_change": "Licence status changed",
       "clock_rollback": "Phone clock went back",
       "override_manager_pin": "Manager override",
-      "user_password_sync": "Owner password updated on this phone"
+      "user_password_sync": "Owner password updated on this phone",
+      "product_create": "Product added",
+      "product_update": "Product edited",
+      "product_price_change": "Product price changed",
+      "product_delete": "Product deleted",
+      "product_restore": "Product restored",
+      "product_bulk_category": "Bulk category change",
+      "product_import": "Products imported from Excel",
+      "category_change": "Categories changed",
+      "stock_adjust": "Stock adjusted",
+      "stock_count": "Stock count",
+      "stock_rebuild": "Stock levels rebuilt",
+      "customer_create": "Customer added",
+      "sale_post": "Sale invoice",
+      "sale_return": "Sales return",
+      "sale_void": "Sale voided",
+      "sale_discount_override": "Discount above limit approved",
+      "sale_price_override": "Price override approved",
+      "quotation_save": "Quotation saved",
+      "party_create": "Supplier added",
+      "party_update": "Customer/supplier edited",
+      "party_delete": "Customer/supplier deleted",
+      "purchase_post": "Purchase invoice",
+      "purchase_return": "Purchase return",
+      "purchase_void": "Purchase voided",
+      "voucher_post": "Voucher posted",
+      "voucher_void": "Voucher voided",
+      "expense_category_change": "Expense categories changed",
+      "shift_open": "Shift opened",
+      "shift_close": "Shift closed",
+      "offer_change": "Offer changed",
+      "backup_create": "Backup made",
+      "backup_restore": "Backup restored"
+    },
+    "system": "System",
+    "unknownUser": "Removed user",
+    "entities": {
+      "backups": "Backups",
+      "business": "Business",
+      "categories": "Categories",
+      "devices": "Devices",
+      "expense_categories": "Expense categories",
+      "inventory_docs": "Stock",
+      "offers": "Offers",
+      "products": "Product",
+      "purchase_docs": "Purchases",
+      "sales_docs": "Sales",
+      "settings": "Settings",
+      "shifts": "Shift",
+      "users": "Users",
+      "vouchers": "Vouchers",
+      "customers": "Customer",
+      "suppliers": "Supplier"
     }
   },
   "onboarding": {
@@ -514,7 +583,10 @@
     "unavailable": "Camera not available here",
     "done": "Done",
     "openSettings": "Open settings",
-    "cameraError": "The camera couldn't start. Close the scanner and try again."
+    "cameraError": "The camera couldn't start. Close the scanner and try again.",
+    "torch": "Flashlight",
+    "torchOn": "Light on",
+    "torchOff": "Light off"
   },
   "invErrors": {
     "not_found": "Product not found",
@@ -526,7 +598,9 @@
     "negative_blocked": "Not enough stock (available {{available}})",
     "feature_unavailable": "This feature isn't in your plan",
     "unit_required": "Choose a unit",
-    "empty_count": "Nothing counted yet"
+    "empty_count": "Nothing counted yet",
+    "clock_behind": "The phone clock is behind. Fix date & time.",
+    "gram_base_unit": "Price per gram is under 1. Use Kg as the base unit and sell fractions (e.g. 0.250 kg)."
   },
   "importer": {
     "title": "Import from Excel",
@@ -649,7 +723,14 @@
     "payShort": "Pay",
     "noResults": "No products match “{{q}}”",
     "replaceCart": "Replace the current sale?",
-    "replaceCartBody": "The items on the counter will be removed. Hold them first if you need them."
+    "replaceCartBody": "The items on the counter will be removed. Hold them first if you need them.",
+    "zeroStock": "«{{name}}» is out of stock. The sale continues and stock goes negative.",
+    "parkedEmpty": "No held sales",
+    "parkedEmptyBody": "If a customer needs to wait, tap «Hold» on the sales screen and serve the next one. The sale waits here.",
+    "quotationsEmpty": "No quotations",
+    "quotationsEmptyBody": "On the sales screen choose «Quotation» and send it to the customer. It will be here when they come back.",
+    "repriced": "Prices updated on {{n}} items",
+    "repricedReverted": "Price of {{n}} items set back to the catalog price (no price-change permission)"
   },
   "line": {
     "qty": "Quantity",
@@ -689,7 +770,8 @@
     "split": "Split payment",
     "confirm": "Confirm sale",
     "needCustomer": "On-credit needs a customer",
-    "reference": "Reference (optional)"
+    "reference": "Reference (optional)",
+    "pickCustomer": "Choose customer"
   },
   "approve": {
     "title": "Manager approval",
@@ -699,7 +781,8 @@
     "noRight": "This user can't approve this",
     "noApprovers": "No manager or owner account is set up to approve. Add one from Users.",
     "minutes": "{{n}} min",
-    "seconds": "{{n}} s"
+    "seconds": "{{n}} s",
+    "creditBody": "This invoice goes over the customer's credit limit. Ask a manager to enter their PIN."
   },
   "done": {
     "title": "Sale complete",
@@ -743,7 +826,9 @@
     "reason": "Reason",
     "reasonPh": "e.g. broken",
     "confirm": "Post return ({{amount}})",
-    "done": "Return {{number}} posted"
+    "done": "Return {{number}} posted",
+    "overPaid": "Only {{paid}} was paid on this invoice. The other {{rest}} comes off the customer balance.",
+    "doneSplit": "Return {{number}} posted — {{amount}} taken off the customer balance"
   },
   "salesErrors": {
     "empty_cart": "The sale is empty",
@@ -761,7 +846,8 @@
     "credit_requires_customer": "On-credit needs a customer",
     "negative": "Invalid amount",
     "coupon_invalid": "The coupon isn't valid",
-    "discount_too_large": "A discount is larger than the amount it applies to. Lower it."
+    "discount_too_large": "A discount is larger than the amount it applies to. Lower it.",
+    "credit_limit": "This goes over the customer's credit limit. A manager must approve, or take part in cash."
   },
   "integrity": {
     "title": "Integrity check",
@@ -788,8 +874,8 @@
     "classic": "Classic Bluetooth",
     "ble": "Bluetooth LE",
     "paper": "Paper width",
-    "mm58": "58 mm",
-    "mm80": "80 mm",
+    "mm58": "Small paper (58 mm)",
+    "mm80": "Large paper (80 mm)",
     "test": "Test print",
     "testOk": "Test printed",
     "save": "Set as default",
@@ -817,7 +903,12 @@
       "write": "connection lost",
       "render": "render problem",
       "unsupported": "printer not supported"
-    }
+    },
+    "narrowHint": "Text cut off at the edges? Turn this on (slightly narrower print).",
+    "noneFound": "No printers found — turn on Bluetooth and pair the printer in your phone's settings",
+    "removeTitle": "Remove the printer?",
+    "removeBody": "Receipts won't print automatically until you choose another printer.",
+    "removed": "Printer removed"
   },
   "ads": {
     "remove": "Remove ads",
@@ -1125,7 +1216,8 @@
       "no_shift": "No open shift",
       "shift_required": "Open a shift first (Shift & cash drawer)",
       "invalid_amount": "Enter a valid amount",
-      "not_yours": "This shift isn't yours"
+      "not_yours": "This shift isn't yours",
+      "clock_behind": "The phone clock is behind. Fix date & time."
     },
     "closeConfirmTitle": "Close the shift?",
     "closeConfirmBody": "Counted cash {{amount}}. You can’t edit it after closing."
@@ -1206,6 +1298,12 @@
       "code": "Enter the code",
       "code_taken": "This code is already used",
       "bad_date": "Invalid date — e.g. 2026-12-31"
+    },
+    "quick": {
+      "today": "Today only",
+      "week": "7 days",
+      "monthEnd": "Until month end",
+      "open": "From today, no end"
     }
   },
   "reports": {
@@ -1278,7 +1376,10 @@
       "items": "Items",
       "lastSale": "Last sale",
       "batch": "Batch",
-      "expiry": "Expiry"
+      "expiry": "Expiry",
+      "rounding": "Rounding",
+      "salesAfterRounding": "Sales after rounding",
+      "negativeStockValue": "Value sold below zero"
     },
     "pnl": {
       "sales": "Sales (excl. VAT)",
@@ -1320,7 +1421,11 @@
     "lastInvoice": "Last invoice: {{n}}",
     "oldPhone": "After restoring, the old phone becomes read-only.",
     "confirm": "Yes, restore my data",
-    "decryptFailed": "We couldn't open this backup. It may be damaged — try an older one."
+    "decryptFailed": "We couldn't open this backup. It may be damaged — try an older one.",
+    "err": {
+      "app_outdated": "This backup was made by a newer version of the app. Update the app first, then restore it.",
+      "install_failed": "We couldn't install the backup on this phone. Your old phone still works as before. Try again."
+    }
   },
   "backup": {
     "title": "Backup",
@@ -1344,7 +1449,12 @@
     "offline": "Offline",
     "local": "Save an encrypted copy on the phone",
     "excel": "Export all data to Excel",
-    "privacy": "Only the business owner can open a backup, after confirming with a code."
+    "privacy": "Only the business owner can open a backup, after confirming with a code.",
+    "cloudNever": "There's no cloud backup of the shop's data yet.",
+    "cloudStale": "The last cloud backup was {{n}} days ago. Connect to the internet and back up now.",
+    "cloudStaleAction": "Back up",
+    "excelRange": "Invoices, payments and vouchers in the Excel file from:",
+    "excelBuilding": "Preparing the Excel file…"
   },
   "sessions": {
     "title": "Signed-in phones",
@@ -1352,7 +1462,10 @@
     "thisPhone": "this phone",
     "lastUsed": "Last used {{at}}",
     "revoke": "Sign out",
-    "revokeConfirm": "That phone is signed out and becomes read-only when it next connects."
+    "revokeConfirm": "That phone is signed out and becomes read-only when it next connects.",
+    "ios": "iPhone",
+    "android": "Android phone",
+    "unknownDevice": "Device"
   },
   "upgrade": {
     "title": "Upgrade",
@@ -1416,7 +1529,12 @@
     "ocrTitle": "Snap the supplier invoice, it fills itself",
     "ocrBody": "On paid plans you photograph the supplier invoice and items, quantities and prices are filled in for you. Subscribe to unlock it.",
     "ocrQuotaTitle": "You've used this month's invoice scans",
-    "ocrQuotaBody": "You can still enter the invoice by hand, or upgrade for more scans every month."
+    "ocrQuotaBody": "You can still enter the invoice by hand, or upgrade for more scans every month.",
+    "choosePlan": "Choose a plan first",
+    "copyNumber": "Copy number",
+    "copied": "Copied ✓",
+    "reference": "Transaction reference (optional)",
+    "referenceHint": "The number on the transfer receipt"
   },
   "search": {
     "placeholder": "Search products, customers, invoices or what to do",
@@ -1469,7 +1587,8 @@
     "show": "Show",
     "hide": "Hide",
     "forgotTitle": "Reset password",
-    "forgotBody": "We'll text you a code, then you choose a new password"
+    "forgotBody": "We'll text you a code, then you choose a new password",
+    "smsOnlyHint": "If your account was created with an SMS code only, sign in with the code"
   },
   "password": {
     "title": "Choose a password",
@@ -1515,7 +1634,13 @@
     "checksum": "The update file is damaged. Try downloading it again.",
     "noUrl": "Get the new version from the store, or contact support for the link.",
     "contactSupport": "Contact support on WhatsApp",
-    "supportMessage": "I need to update Kashiro to version {{v}}"
+    "supportMessage": "I need to update Kashiro to version {{v}}",
+    "unknownTitle": "Allow installing the update",
+    "unknownBody": "Android needs a one-time permission so Kashiro can install its update. We'll open Settings: turn on «Allow from this source» and come back.",
+    "unknownOpen": "Open settings",
+    "unknownAlready": "Already allowed — continue",
+    "forcedSoon": "This update becomes mandatory on {{date}}. Update now so your work isn't interrupted.",
+    "openStore": "Update from the store"
   },
   "planCard": {
     "active": "Your active plan",
@@ -1578,7 +1703,19 @@
     "searchPh": "Search products",
     "unitCost": "Unit cost",
     "noProductsHint": "Items without a product will not be added. Pick one or add it as a new product.",
-    "rateLimited": "Please wait a minute and try again."
+    "rateLimited": "Please wait a minute and try again.",
+    "confirmed": "Confirmed",
+    "confirmMatch": "Yes, this product",
+    "didYouMean": "Did you mean: {{name}}?",
+    "baseEq": "= {{qty}} {{unit}}",
+    "needsReview": "{{n}} items need review before adding",
+    "totalMismatch": "Computed total {{computed}} differs from the printed total {{printed}}. Check quantities, units and prices.",
+    "problem": {
+      "product": "Pick the product",
+      "confirm": "Confirm it is the same product",
+      "qty": "Enter the quantity",
+      "cost": "Enter the cost"
+    }
   },
   "portable": {
     "exportTitle": "Save a copy to Drive / file",
@@ -1636,5 +1773,44 @@
       "notOwner": "This account does not own the restored business.",
       "offline": "Internet is needed to link the phone. Try again when connected."
     }
+  },
+  "stepUp": {
+    "title": "Confirm with an SMS code",
+    "why": "To protect your shop, we send a code to your phone before the shop runs on this phone.",
+    "sent": "We sent you a 6-digit code by SMS.",
+    "verify": "Confirm",
+    "resend": "Send the code again"
+  },
+  "fatal": {
+    "title": "The app can't start",
+    "body": "Something went wrong while starting the app. Try again, and if it keeps happening send us the details.",
+    "dbBody": "We couldn't open the shop's data on this phone. Try again first. If it keeps failing you can restore your data from a backup.",
+    "send": "Send problem details",
+    "sent": "Details sent to support",
+    "sendFailed": "Couldn't send now. Check the internet and try again.",
+    "restore": "Restore from a backup",
+    "restoreTitle": "Restore from a backup?",
+    "restoreBody": "We'll set the unreadable file aside (it is not deleted) and start fresh, then you can restore from the cloud backup or a Kashiro file.",
+    "restoreGo": "Continue",
+    "restoreFailed": "Couldn't move the file. Contact support.",
+    "whatsapp": "Contact support on WhatsApp",
+    "whatsappText": "The app won't start for me:"
+  },
+  "selling": {
+    "title": "Selling & payment methods",
+    "subtitle": "When stock runs out, and the wallets you accept",
+    "negativeTitle": "When stock runs out",
+    "warn": "Warn only",
+    "warnHint": "The sale goes through, stock goes negative, and you see a warning.",
+    "block": "Block the sale",
+    "blockHint": "No selling an item with no stock until you add a purchase or adjustment.",
+    "walletsTitle": "Wallets & payment apps",
+    "walletsHint": "These show when a customer pays by wallet. The first one is the default.",
+    "walletsEmpty": "No wallets yet. Add the ones you accept.",
+    "walletName": "Wallet name",
+    "walletPlaceholder": "e.g. Vodafone Cash",
+    "walletsDefault": "We added the common Egyptian wallets. Save or edit.",
+    "up": "Move up",
+    "down": "Move down"
   }
 }

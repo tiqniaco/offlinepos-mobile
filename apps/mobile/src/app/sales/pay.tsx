@@ -8,12 +8,13 @@ import { settle, type PaymentInput, type PaymentMethod } from '@daftarak/shared'
 import { Screen, Text, Button, MoneyField, Chip, Card, Banner, Icon, colors, fonts, shadow, fx } from '../../ui';
 import { useCart } from '../../state/cart';
 import { useApp } from '../../state/app';
-import { approvalsNeeded, postSale, priceDraft } from '../../domain/sales/sales';
+import { approvalsNeeded, postSale, priceDraft, SalesError } from '../../domain/sales/sales';
 import type { SessionUser } from '../../domain/auth/users';
 import { useSalesCtx, useSalesSettings } from '../../features/sales/useSalesCtx';
 import { useCurrency } from '../../features/inventory/useInvCtx';
 import { ApproveSheet } from '../../features/sales/ApproveSheet';
-import { MethodCard } from '../../features/sales/sheets';
+import { CustomerSheet, MethodCard } from '../../features/sales/sheets';
+import { roleHas } from '@daftarak/shared';
 import { salesErrorMessage } from '../../features/sales/errors';
 import { useOfferCtx } from '../../features/sales/useOffers';
 import { money } from '../../lib/format';
@@ -69,7 +70,10 @@ export default function Pay() {
   const [active, setActive] = useState(0);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [approval, setApproval] = useState<null | 'discount' | 'price'>(null);
+  const [approval, setApproval] = useState<null | 'discount' | 'price' | 'credit'>(null);
+  const [custOpen, setCustOpen] = useState(false);
+  /** Split mode: the newest row follows "what is still due" until the cashier types its amount. */
+  const autoLast = useRef(false);
   const fmt = (m: number) => money(m, currency, i18n.language);
 
   const sum = rows.reduce((s, r) => s + r.amountMinor, 0);
@@ -79,6 +83,23 @@ export default function Pay() {
   const row = rows[active] ?? rows[0]!;
 
   const setRow = (i: number, patch: Partial<PaymentInput>) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  /** Amount typed / picked for the active row. In split mode the last row takes the remainder of the others. */
+  const setAmount = (v: number) => {
+    touched.current = true;
+    setRows((rs) => {
+      const next = rs.map((r, j) => (j === active ? { ...r, amountMinor: v } : r));
+      const last = next.length - 1;
+      if (!split || last < 1) return next;
+      if (active === last) {
+        autoLast.current = false;
+        return next;
+      }
+      if (!autoLast.current) return next;
+      const others = next.slice(0, last).reduce((s, r) => s + r.amountMinor, 0);
+      next[last] = { ...next[last]!, amountMinor: Math.max(0, total - others) };
+      return next;
+    });
+  };
   const chooseMethod = (m: PaymentMethod) => {
     setErr(null);
     if (!split) {
@@ -116,6 +137,8 @@ export default function Pay() {
     } catch (e) {
       fx.error();
       setErr(salesErrorMessage(t, e));
+      // Over the customer's credit limit: a manager may approve it with their PIN.
+      if (e instanceof SalesError && e.code === 'credit_limit' && !approvedBy) setApproval('credit');
     } finally {
       // After a successful post the screen is leaving: keep the guard on so a late tap can't post twice.
       if (!posted) inFlight.current = false;
@@ -153,7 +176,9 @@ export default function Pay() {
           <MethodCard key={x.m} label={t(`pay.methods.${x.m}`)} icon={x.icon} selected={row.method === x.m} onPress={() => chooseMethod(x.m)} />
         ))}
       </View>
-      {row.method === 'credit' && !draft.customerId ? <Banner tone="warn" text={t('pay.needCustomer')} /> : null}
+      {row.method === 'credit' && !draft.customerId ? (
+        <Banner tone="warn" text={t('pay.needCustomer')} action={t('pay.pickCustomer')} onAction={() => setCustOpen(true)} />
+      ) : null}
       {row.method === 'wallet' && wallets.length ? (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {wallets.map((w) => (
@@ -162,17 +187,11 @@ export default function Pay() {
         </View>
       ) : null}
 
-      <MoneyField testID="pay-amount" label={t('pay.received')} valueMinor={row.amountMinor} onValue={(v) => {
-          touched.current = true;
-          setRow(active, { amountMinor: v ?? 0 });
-        }} />
+      <MoneyField testID="pay-amount" label={t('pay.received')} valueMinor={row.amountMinor} onValue={(v) => setAmount(v ?? 0)} />
       {row.method === 'cash' ? (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {cashSuggestions(split ? remaining + row.amountMinor : total).map((v, i) => (
-            <Chip key={v} label={i === 0 ? t('pay.exact') : fmt(v)} selected={row.amountMinor === v} onPress={() => {
-              touched.current = true;
-              setRow(active, { amountMinor: v });
-            }} />
+            <Chip key={v} label={i === 0 ? t('pay.exact') : fmt(v)} selected={row.amountMinor === v} onPress={() => setAmount(v)} />
           ))}
         </View>
       ) : null}
@@ -200,12 +219,18 @@ export default function Pay() {
         icon="plus"
         title={t('pay.split')}
         onPress={() => {
+          // Untouched single row still holds the whole total: the cashier has not said what the first method
+          // covers yet → keep editing the FIRST row; the new row follows whatever is left.
+          const firstUntouched = !split && !touched.current && rows.length === 1;
           setSplit(true);
+          autoLast.current = true;
           setRows((rs) => {
-            const next = [...rs, { method: (rs.some((r) => r.method === 'cash') ? 'card' : 'cash') as PaymentMethod, amountMinor: Math.max(0, total - rs.reduce((s, r) => s + r.amountMinor, 0)) }];
-            setActive(next.length - 1);
-            return next;
+            const base = firstUntouched ? [{ ...rs[0]!, amountMinor: 0 }] : rs;
+            const left = Math.max(0, total - base.reduce((s, r) => s + r.amountMinor, 0));
+            const method = (base.some((r) => r.method === 'cash') ? 'card' : 'cash') as PaymentMethod;
+            return [...base, { method, amountMinor: left, label: null }];
           });
+          setActive(firstUntouched ? 0 : rows.length);
         }}
       />
 
@@ -217,6 +242,20 @@ export default function Pay() {
         {cashIn > 0 && change > 0 ? <Text variant="caption">{t('pay.received')}: {fmt(cashIn)}</Text> : null}
       </Card>
       {err ? <Banner tone="danger" text={err} /> : null}
+      <CustomerSheet
+        visible={custOpen}
+        ctx={ctx}
+        canAdd={roleHas(ctx?.user.permissions ?? [], 'parties.manage')}
+        currency={currency}
+        lang={i18n.language}
+        onClose={() => setCustOpen(false)}
+        onPick={(c) => {
+          setCustOpen(false);
+          // Prices stay as shown here (the tier is not switched on the payment screen).
+          if (c) useCart.getState().setCustomer(c.id, c.name);
+          setErr(null);
+        }}
+      />
       <ApproveSheet visible={!!approval} needs={approval ?? 'discount'} onClose={() => setApproval(null)} onApproved={(u) => { setApproval(null); void finish(u); }} />
     </Screen>
   );

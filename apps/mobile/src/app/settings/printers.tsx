@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Platform, Switch, View } from 'react-native';
+import { Alert, Platform, Switch, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Screen, Text, Button, Card, Chip, ListGroup, ListRow, SectionTitle, Banner, Icon, colors, fonts } from '../../ui';
@@ -27,9 +27,12 @@ export default function Printers() {
   const [scanning, setScanning] = useState(false);
   const [cfg, setCfg] = useState<PrinterConfig | null>(saved);
   const [busy, setBusy] = useState(false);
+  /** A scan finished (to tell "nothing found" apart from "not searched yet"). */
+  const [searched, setSearched] = useState(false);
 
   const scan = async () => {
     setFound([]);
+    setSearched(false);
     setScanning(true);
     try {
       await Promise.all(platformDrivers().map((d) => d.scan((p) => setFound((f) => (f.some((x) => x.address === p.address) ? f : [...f, p])))));
@@ -37,19 +40,34 @@ export default function Printers() {
       toast(t(`printers.errors.${e instanceof PrintError ? e.code : 'connect'}`), 'error');
     } finally {
       setScanning(false);
+      setSearched(true);
     }
   };
 
-  const save = async (c: PrinterConfig | null) => {
+  const save = async (c: PrinterConfig | null, quiet = false) => {
+    setCfg(c);
     try {
       await changeSetting(getDb(), 'printer', c, { userId: user.id, deviceId: device.id });
       await reloadAppData();
-      setCfg(c);
-      toast(t('printers.saved'));
+      if (!quiet) toast(c ? t('printers.saved') : t('printers.removed'));
     } catch (e) {
       toast(errorMessage(t, e), 'error');
     }
   };
+  /** Every option change is saved right away (no separate save step to forget). */
+  const update = (c: PrinterConfig) => void save(c, true);
+  const remove = () =>
+    Alert.alert(t('printers.removeTitle'), t('printers.removeBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('printers.remove'),
+        style: 'destructive',
+        onPress: () => {
+          if (saved) void driverFor(saved).disconnect();
+          void save(null);
+        },
+      },
+    ]);
 
   const test = async () => {
     if (!cfg) return;
@@ -82,7 +100,7 @@ export default function Printers() {
       tenderedMinor: 0,
       payments: [{ method: 'cash', label: null, amountMinor: 11_850 }],
       voided: false,
-      qr: 'https://daftarak.app',
+      qr: null,
       currency: business?.currency ?? 'EGP',
       template: DEFAULT_RECEIPT,
     };
@@ -96,7 +114,8 @@ export default function Printers() {
     }
   };
 
-  const pick = (p: FoundPrinter) => setCfg({ driver: p.driver, address: p.address, name: p.name, paperWidth: cfg?.paperWidth ?? 58, dots: defaultDots(cfg?.paperWidth ?? 58), autoPrint: cfg?.autoPrint ?? true, openDrawer: cfg?.openDrawer ?? false, copies: cfg?.copies ?? 1 });
+  // Picking a printer saves it as this phone's printer at once.
+  const pick = (p: FoundPrinter) => void save({ driver: p.driver, address: p.address, name: p.name, paperWidth: cfg?.paperWidth ?? 58, dots: defaultDots(cfg?.paperWidth ?? 58), autoPrint: cfg?.autoPrint ?? true, openDrawer: cfg?.openDrawer ?? false, copies: cfg?.copies ?? 1 });
 
   return (
     <Screen back title={t('printers.title')}>
@@ -106,7 +125,7 @@ export default function Printers() {
         <Card>
           <View style={{ gap: 12 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <Icon name="clipboard" color={colors.primary[600]} />
+              <Icon name="printer" color={colors.primary[600]} />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: fonts.bold, fontSize: 16, lineHeight: 24, color: colors.ink.DEFAULT }}>{cfg.name}</Text>
                 <Text variant="caption">{cfg.driver === 'spp' ? t('printers.classic') : t('printers.ble')}</Text>
@@ -114,10 +133,17 @@ export default function Printers() {
             </View>
             <Text variant="label">{t('printers.paper')}</Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Chip label={t('printers.mm58')} selected={cfg.paperWidth === 58} onPress={() => setCfg({ ...cfg, paperWidth: 58, dots: defaultDots(58) })} />
-              <Chip label={t('printers.mm80')} selected={cfg.paperWidth === 80} onPress={() => setCfg({ ...cfg, paperWidth: 80, dots: defaultDots(80) })} />
-              {cfg.paperWidth === 80 ? <Chip label="72 mm (512)" selected={cfg.dots === 512} onPress={() => setCfg({ ...cfg, dots: cfg.dots === 512 ? 576 : 512 })} /> : null}
+              <Chip label={t('printers.mm58')} selected={cfg.paperWidth === 58} onPress={() => update({ ...cfg, paperWidth: 58, dots: defaultDots(58) })} />
+              <Chip label={t('printers.mm80')} selected={cfg.paperWidth === 80} onPress={() => update({ ...cfg, paperWidth: 80, dots: defaultDots(80) })} />
             </View>
+            {cfg.paperWidth === 80 ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <Text variant="caption" style={{ flex: 1 }}>
+                  {t('printers.narrowHint')}
+                </Text>
+                <Switch value={cfg.dots === 512} onValueChange={(v) => update({ ...cfg, dots: v ? 512 : 576 })} trackColor={{ true: colors.primary[500], false: colors.paper.line }} />
+              </View>
+            ) : null}
             {[
               ['autoPrint', t('printers.autoPrint')],
               ['openDrawer', t('printers.drawer')],
@@ -126,7 +152,7 @@ export default function Printers() {
                 <Text variant="subtitle" style={{ flex: 1 }}>
                   {label}
                 </Text>
-                <Switch value={!!cfg[k as 'autoPrint']} onValueChange={(v) => setCfg({ ...cfg, [k as string]: v })} trackColor={{ true: colors.primary[500], false: colors.paper.line }} />
+                <Switch value={!!cfg[k as 'autoPrint']} onValueChange={(v) => update({ ...cfg, [k as string]: v })} trackColor={{ true: colors.primary[500], false: colors.paper.line }} />
               </View>
             ))}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -134,18 +160,11 @@ export default function Printers() {
                 {t('printers.copies')}
               </Text>
               {[1, 2].map((n) => (
-                <Chip key={n} label={String(n)} selected={cfg.copies === n} onPress={() => setCfg({ ...cfg, copies: n })} />
+                <Chip key={n} label={String(n)} selected={cfg.copies === n} onPress={() => update({ ...cfg, copies: n })} />
               ))}
             </View>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <View style={{ flex: 1 }}>
-                <Button compact kind="secondary" title={t('printers.test')} loading={busy} onPress={test} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Button compact title={t('printers.save')} onPress={() => void save(cfg)} />
-              </View>
-            </View>
-            {saved ? <Button compact kind="ghost" title={t('printers.remove')} onPress={() => { void driverFor(saved).disconnect(); void save(null); }} /> : null}
+            <Button compact kind="secondary" icon="printer" title={t('printers.test')} loading={busy} onPress={test} />
+            <Button compact kind="ghost" title={t('printers.remove')} onPress={remove} />
           </View>
         </Card>
       ) : (
@@ -155,9 +174,11 @@ export default function Printers() {
       {found.length ? (
         <ListGroup>
           {found.map((p, i) => (
-            <ListRow key={p.address} icon="clipboard" hue={p.paired ? 'primary' : 'ink'} title={p.name} subtitle={`${p.driver === 'spp' ? t('printers.classic') : t('printers.ble')}${p.paired ? ` · ${t('printers.paired')}` : ''}`} onPress={() => pick(p)} last={i === found.length - 1} />
+            <ListRow key={p.address} icon="printer" hue={p.paired ? 'primary' : 'ink'} title={p.name} subtitle={`${p.driver === 'spp' ? t('printers.classic') : t('printers.ble')}${p.paired ? ` · ${t('printers.paired')}` : ''}`} onPress={() => pick(p)} last={i === found.length - 1} />
           ))}
         </ListGroup>
+      ) : searched && !scanning ? (
+        <Banner tone="info" icon="printer" text={t('printers.noneFound')} />
       ) : null}
       <ListGroup>
         <ListRow icon="edit" hue="amber" title={t('printers.receipt')} onPress={() => router.push('/settings/receipt')} last />
