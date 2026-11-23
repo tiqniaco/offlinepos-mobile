@@ -17,7 +17,7 @@ and clear reports — all working without internet.
 • Security: encrypted on the phone, a PIN per employee with permissions, posted invoices can't be edited, tampering
   is detected.
 • Encrypted daily backup and easy move to a new phone.
-• Egypt & Saudi Arabia: EGP/SAR, VAT, simplified-invoice QR (KSA).
+• Made for Egypt: Egyptian pound and 14% VAT.
 
 Try every feature free for 14 days, then continue on the free plan or subscribe.
 

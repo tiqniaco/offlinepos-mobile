@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { normalizePhone, passwordProblem } from '@daftarak/shared';
+import { EGYPT_ONLY, isEgyptianMobile } from '../config/market';
 import { OnboardingScreen, Button, PhoneField, PasswordField, OtpInput, Banner, Card, Text } from '../ui';
 import { api } from '../api/client';
 import { getDb } from '../db/client';
@@ -35,7 +36,7 @@ export default function UnlockReset() {
     void getMeta(getDb(), 'account.phone').then((p) => p && setRaw(`+${p}`));
   }, []);
 
-  const phone = normalizePhone(raw);
+  const phone = (() => { const p = normalizePhone(raw); return p && (!EGYPT_ONLY || isEgyptianMobile(p)) ? p : null; })();
   const run = async (fn: () => Promise<void>) => {
     setErr(null);
     setBusy(true);

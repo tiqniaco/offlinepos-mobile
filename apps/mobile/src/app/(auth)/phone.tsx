@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { normalizePhone } from '@daftarak/shared';
+import { EGYPT_ONLY, isEgyptianMobile } from '../../config/market';
 import { OnboardingScreen, Button, PhoneField, Banner } from '../../ui';
 import { api } from '../../api/client';
 import { errorMessage } from '../../lib/errors';
@@ -16,7 +17,7 @@ export default function PhoneScreen() {
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
-    const phone = normalizePhone(raw);
+    const phone = (() => { const p = normalizePhone(raw); return p && (!EGYPT_ONLY || isEgyptianMobile(p)) ? p : null; })();
     if (!phone) return setError(t('phone.invalid'));
     setError(null);
     setBusy(true);

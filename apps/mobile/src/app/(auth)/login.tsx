@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { normalizePhone } from '@daftarak/shared';
+import { EGYPT_ONLY, isEgyptianMobile } from '../../config/market';
 import { OnboardingScreen, Button, PhoneField, PasswordField, Banner } from '../../ui';
 import { api, ApiError } from '../../api/client';
 import { errorMessage } from '../../lib/errors';
@@ -19,13 +20,13 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
 
   const viaSms = (mode: 'signup' | 'reset') => {
-    const phone = normalizePhone(raw);
+    const phone = (() => { const p = normalizePhone(raw); return p && (!EGYPT_ONLY || isEgyptianMobile(p)) ? p : null; })();
     useOnboarding.getState().set({ mode, phone: phone ?? useOnboarding.getState().phone });
     router.push('/phone');
   };
 
   const submit = async () => {
-    const phone = normalizePhone(raw);
+    const phone = (() => { const p = normalizePhone(raw); return p && (!EGYPT_ONLY || isEgyptianMobile(p)) ? p : null; })();
     if (!phone) return setError(t('phone.invalid'));
     if (!password) return setError(t('login.enterPassword'));
     setError(null);

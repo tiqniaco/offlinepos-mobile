@@ -5,14 +5,16 @@ import { useTranslation } from 'react-i18next';
 import { COUNTRY_PROFILES, countryOfPhone, digitsOnly } from '@daftarak/shared';
 import { OnboardingScreen, Text, Button, TextField, Choice, SectionTitle, Card } from '../../ui';
 import { useOnboarding } from '../../state/app';
+import { EGYPT_ONLY } from '../../config/market';
 
-/** Business name → country → type → VAT. Country defaults from the phone prefix. */
+/** Business name → VAT (Egypt only for now; type is always 'shop'). */
 export default function BusinessScreen() {
   const { t } = useTranslation();
   const phone = useOnboarding((s) => s.phone);
   const [name, setName] = useState('');
-  const [country, setCountry] = useState<'EG' | 'SA'>(countryOfPhone(phone) ?? 'EG');
-  const [type, setType] = useState<'shop' | 'trading'>('shop');
+  const [country, setCountry] = useState<'EG' | 'SA'>(EGYPT_ONLY ? 'EG' : (countryOfPhone(phone) ?? 'EG'));
+  // Business type is no longer asked: every business starts as a shop (owner decision).
+  const type = 'shop' as const;
   const [vat, setVat] = useState(false);
   const [vatNumber, setVatNumber] = useState('');
   const [errors, setErrors] = useState<{ name?: string; vat?: string }>({});
@@ -37,17 +39,15 @@ export default function BusinessScreen() {
     >
       <TextField testID="business-name" icon="store" label={t('business.name')} placeholder={t('business.namePlaceholder')} value={name} onChangeText={setName} error={errors.name} latinDigits={false} />
 
-      <SectionTitle>{t('business.country')}</SectionTitle>
-      <View className="flex-row gap-3">
-        <Choice compact testID="country-EG" emoji="🇪🇬" title={t('business.EG')} selected={country === 'EG'} onPress={() => setCountry('EG')} />
-        <Choice compact testID="country-SA" emoji="🇸🇦" title={t('business.SA')} selected={country === 'SA'} onPress={() => setCountry('SA')} />
-      </View>
-
-      <SectionTitle>{t('business.type')}</SectionTitle>
-      <View className="gap-3">
-        <Choice testID="type-shop" icon="store" hue="amber" title={t('business.shop')} hint={t('business.shopHint')} selected={type === 'shop'} onPress={() => setType('shop')} />
-        <Choice testID="type-trading" icon="truck" hue="sky" title={t('business.trading')} hint={t('business.tradingHint')} selected={type === 'trading'} onPress={() => setType('trading')} />
-      </View>
+      {!EGYPT_ONLY ? (
+        <>
+          <SectionTitle>{t('business.country')}</SectionTitle>
+          <View className="flex-row gap-3">
+            <Choice compact testID="country-EG" emoji="🇪🇬" title={t('business.EG')} selected={country === 'EG'} onPress={() => setCountry('EG')} />
+            <Choice compact testID="country-SA" emoji="🇸🇦" title={t('business.SA')} selected={country === 'SA'} onPress={() => setCountry('SA')} />
+          </View>
+        </>
+      ) : null}
 
       <SectionTitle>{t('business.vat')}</SectionTitle>
       <Card>

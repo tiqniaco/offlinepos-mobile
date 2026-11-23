@@ -5,12 +5,13 @@ import { normalizeDigits } from '@daftarak/shared';
 import { Text } from './Text';
 import { Icon } from './Icon';
 import colors from './colors';
+import { EGYPT_ONLY } from '../config/market';
 
 /** Mobile number with a country hint chip (EG/SA detected from what is typed). LTR always. */
 export function PhoneField({ value, onChangeText, error, onSubmitEditing, testID, placeholder }: { value: string; onChangeText: (v: string) => void; error?: string | null; onSubmitEditing?: () => void; testID?: string; placeholder?: string }) {
   const [focus, setFocus] = useState(false);
   const d = normalizeDigits(value).replace(/\D/g, '');
-  const sa = d.startsWith('05') || d.startsWith('9665') || d.startsWith('5');
+  const sa = !EGYPT_ONLY && (d.startsWith('05') || d.startsWith('9665') || d.startsWith('5'));
   return (
     <View className="gap-1.5">
       <View

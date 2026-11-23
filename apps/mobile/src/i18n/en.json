@@ -27,7 +27,7 @@
     "point1": "100% offline",
     "point2": "Invoices, printing, WhatsApp",
     "point3": "Your data is encrypted on your phone",
-    "badge": "Made for shops in Egypt & Saudi Arabia",
+    "badge": "Made for shops in Egypt",
     "point1Hint": "Sell and print even with no internet",
     "point2Hint": "Receipt on the printer or PDF on WhatsApp",
     "point3Hint": "Fingerprint or password, and a PIN for each employee",
@@ -39,7 +39,7 @@
     "label": "Mobile number",
     "placeholder": "01xxxxxxxxx or 05xxxxxxxx",
     "send": "Send code",
-    "invalid": "This number isn't valid. Use an Egyptian or Saudi mobile number."
+    "invalid": "This number isn't valid. Use an Egyptian mobile (010/011/012/015)."
   },
   "otp": {
     "title": "Enter the code",
@@ -267,7 +267,7 @@
   },
   "errors": {
     "network": "No internet connection. Check it and try again.",
-    "invalid_phone": "This number isn't valid. Use an Egyptian or Saudi mobile number.",
+    "invalid_phone": "This number isn't valid. Use an Egyptian mobile (010/011/012/015).",
     "otp_cooldown": "Please wait before requesting a new code.",
     "otp_rate_limited": "Too many codes requested. Try again in an hour.",
     "otp_invalid": "Wrong code. Check it and try again.",
