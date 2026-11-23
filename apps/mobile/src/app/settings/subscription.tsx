@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
 import Constants from 'expo-constants';
 import { Segmented } from '../../features/common/Segmented';
 import { buy, configureStore, restoreStore, storeAvailable, storePlans, type StorePlan } from '../../features/billing/store';
@@ -12,7 +13,7 @@ import { fonts } from '../../ui/fonts';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { LinearGradient } from 'expo-linear-gradient';
-import { DEFAULT_PLANS, UNLIMITED } from '@daftarak/shared';
+import { DEFAULT_PLANS, UNLIMITED, type PaymentRequestSummary } from '@daftarak/shared';
 import { Screen, Text, Card, Button, SectionTitle, IconBadge, colors, shadow } from '../../ui';
 import { useApp } from '../../state/app';
 import { backgroundCheckin } from '../../state/boot';
@@ -40,6 +41,28 @@ export default function Subscription() {
   const [code, setCode] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
+  const [requests, setRequests] = useState<PaymentRequestSummary[]>([]);
+  useFocusEffect(
+    useCallback(() => {
+      const id = business?.serverBusinessId;
+      if (!id) return;
+      let alive = true;
+      void (async () => {
+        try {
+          const r = await api.listPaymentRequests(await accessToken(), id);
+          if (!alive) return;
+          setRequests(r.requests);
+          // An approved request may not be in the licence yet: refresh it.
+          if (r.requests.some((x) => x.status === 'approved' && x.reviewedAt && x.reviewedAt > Date.now() - 86_400_000)) void backgroundCheckin(true).catch(() => null);
+        } catch {
+          /* offline: keep the list empty */
+        }
+      })();
+      return () => {
+        alive = false;
+      };
+    }, [business?.serverBusinessId]),
+  );
   const support = (Constants.expoConfig?.extra as { supportWhatsApp?: string } | undefined)?.supportWhatsApp ?? '';
   useEffect(() => {
     if (!business?.serverBusinessId || !storeAvailable()) return;
@@ -143,10 +166,38 @@ export default function Subscription() {
               ))}
               <Text variant="caption">{t('subscription.limitsLine', { users: lim(p.limits.users), products: lim(p.limits.products) })}</Text>
             </View>
-            {current ? <Banner tone="success" text={t('subscription.current')} /> : sp ? <Button testID={`buy-${p.code}`} title={t('subscription.subscribe')} loading={working === `buy-${p.code}`} disabled={!!working} onPress={() => void purchase(sp)} /> : null}
+            {current ? <Banner tone="success" text={t('subscription.current')} /> : (
+              <View style={{ gap: 8 }}>
+                {sp ? <Button testID={`buy-${p.code}`} title={t('subscription.subscribe')} loading={working === `buy-${p.code}`} disabled={!!working} onPress={() => void purchase(sp)} /> : null}
+                <Button
+                  testID={`manual-${p.code}`}
+                  kind={sp ? 'secondary' : 'primary'}
+                  icon="wallet"
+                  title={sp ? t('upgrade.payManual') : t('subscription.subscribe')}
+                  onPress={() => router.push({ pathname: '/settings/upgrade', params: { plan: p.code, period } })}
+                />
+              </View>
+            )}
           </Card>
         );
       })}
+      {requests.length ? (
+        <>
+          <SectionTitle>{t('upgrade.requests')}</SectionTitle>
+          {requests.map((r) => (
+            <Card key={r.id}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <Text style={{ flex: 1, fontFamily: fonts.semibold, fontSize: 13.5, color: colors.ink.DEFAULT }}>
+                  {(DEFAULT_PLANS.find((x) => x.code === r.plan)?.[i18n.language === 'en' ? 'nameEn' : 'nameAr'] ?? r.plan) + ' · ' + t(r.period === 'yearly' ? 'subscription.perYear' : 'subscription.perMonth') + ' · ' + (r.amountMinor / 100).toLocaleString('en-US') + ' ج.م'}
+                </Text>
+                <Text style={{ fontFamily: fonts.bold, fontSize: 12.5, color: r.status === 'approved' ? colors.leaf[700] : r.status === 'rejected' ? colors.rose[700] : colors.amber[700] }}>{t(`upgrade.status.${r.status}`)}</Text>
+              </View>
+              <Text variant="caption">{new Date(r.createdAt).toLocaleString(i18n.language === 'en' ? 'en-GB' : 'ar-EG')} · {t(`upgrade.m.${r.method}`)}</Text>
+              {r.status === 'rejected' && r.rejectReason ? <Text variant="caption" style={{ color: colors.rose[700] }}>{t('upgrade.rejectReason', { reason: r.rejectReason })}</Text> : null}
+            </Card>
+          ))}
+        </>
+      ) : null}
       {storeAvailable() ? <Button kind="ghost" icon="refresh" title={t('subscription.restore')} onPress={() => void restoreStore().then(() => afterChange(t('subscription.restored')), (e) => setErr(errorMessage(t, e)))} /> : null}
       <SectionTitle>{t('subscription.codeTitle')}</SectionTitle>
       <Card>

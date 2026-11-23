@@ -296,7 +296,10 @@
     "invalid_credentials": "Wrong mobile number or password",
     "password_locked": "Too many wrong attempts. Wait a bit or reset the password",
     "password_weak": "Weak password. Use 8+ characters with a letter and a number",
-    "password_not_set": "This account has no password. Sign in with an SMS code"
+    "password_not_set": "This account has no password. Sign in with an SMS code",
+    "receipt_invalid": "Receipt photo not accepted. Upload a JPG or PNG under 2 MB.",
+    "too_many_pending": "You have requests still under review. Please wait for them.",
+    "rate_limited": "Too many requests today. Try tomorrow."
   },
   "audit": {
     "intact": "The log is intact — nothing was edited",
@@ -1342,6 +1345,40 @@
     "revokeConfirm": "That phone is signed out and becomes read-only when it next connects."
   },
   "upgrade": {
+    "title": "Upgrade",
+    "subtitle": "Pay and upload the receipt — activated within {{hours}} h",
+    "step1": "1. Choose plan and period",
+    "step2": "2. Pay to this number",
+    "step3": "3. Send us the receipt",
+    "m": {
+      "instapay": "InstaPay",
+      "vodafone_cash": "Vodafone Cash"
+    },
+    "transferTo": "Transfer with {{method}} to:",
+    "amount": "Amount: {{amount}}",
+    "copyHint": "Long-press the number to copy it",
+    "payerPhone": "Phone you paid from",
+    "fromGallery": "From gallery",
+    "fromCamera": "Take a photo",
+    "changeReceipt": "Change photo",
+    "note": "Note (optional)",
+    "sla": "Our team reviews the receipt and activates your plan within {{hours}} hours; you'll get a notification.",
+    "send": "Send upgrade request {{amount}}",
+    "sentTitle": "Request received ✓",
+    "sentBody": "We'll review the receipt and activate your plan within {{hours}} hours at most. You'll be notified.",
+    "backToPlans": "Back to plans",
+    "phoneBad": "Enter the mobile number you paid from (01xxxxxxxxx)",
+    "needReceipt": "Upload the receipt photo first",
+    "tooBig": "The photo is too large, take it again",
+    "cameraDenied": "Camera permission is needed to photograph the receipt",
+    "requests": "Upgrade requests",
+    "status": {
+      "pending": "Under review",
+      "approved": "Activated ✓",
+      "rejected": "Rejected"
+    },
+    "rejectReason": "Reason: {{reason}}",
+    "payManual": "Pay with InstaPay / Vodafone Cash",
     "limitTitle": "You reached the free plan limit",
     "limitBody": "All your data stays. To add more, subscribe to a plan.",
     "featureTitle": "This is a paid feature",

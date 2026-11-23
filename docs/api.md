@@ -48,3 +48,17 @@ Normal day: **1 check-in** (+1 direct R2 upload from Phase 6). Visible per busin
 | `GET /admin/metrics` | admin | total, active30, trials, paid by plan, MRR, churn30, requests/business/day |
 Errors added: `step_up_required`, `code_invalid`, `code_used`, `backup_not_uploaded`.
 New Worker config: R2 binding `BACKUPS`, vars `R2_ACCOUNT_ID`, `R2_BUCKET`; secrets `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `REVENUECAT_WEBHOOK_SECRET`.
+
+## Manual payments (InstaPay / Vodafone Cash)
+Owner pays, uploads the receipt photo; a super admin activates within `pay_sla_hours` (default 12). Numbers live in `app_settings` (`pay_instapay`, `pay_vodafone_cash`, `pay_sla_hours`).
+| Method & path | Auth | Purpose |
+|---|---|---|
+| `GET /v1/billing/manual/info?businessId=` | access (owner) | `{ methods: [{id, number}], slaHours, plans: [{code, nameAr, nameEn, monthlyMinor, yearlyMinor, limits, features}] }` (paid, active plans; EGP minor) |
+| `POST /v1/billing/manual/requests` | access (owner) | `{ businessId, plan, period, method, payerPhone, note?, receipt }` (base64 JPEG/PNG ≤ 2 MB → R2 `receipts/<businessId>/<id>.<ext>`); amount from the plan; ≤ 3 pending (409 `too_many_pending`), ≤ 10 / 24 h (429 `rate_limited`) |
+| `GET /v1/billing/manual/requests?businessId=` | access (owner) | latest 20 requests |
+| `GET /admin/payment-requests?status=pending\|approved\|rejected\|all` | admin | rows + `pendingCount` (also `pendingPayments` in `/admin/metrics`) |
+| `GET /admin/payment-requests/:id/receipt` | admin | streams the receipt image |
+| `POST /admin/payment-requests/:id/approve` `{ days? }` | admin | pending only (409 `not_pending`); activates the plan (`plan_source='manual'`, default 31 / 366 days, extends the same plan) + targeted announcement |
+| `POST /admin/payment-requests/:id/reject` `{ reason }` | admin | pending only; reason sent to the business as an announcement |
+| `PUT /admin/settings/payments` `{ instapay, vodafoneCash, slaHours }` | admin | edit numbers + SLA |
+Errors added: `receipt_invalid`, `too_many_pending`, `rate_limited`, `not_pending`.
