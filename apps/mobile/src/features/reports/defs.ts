@@ -351,4 +351,14 @@ export const REPORTS: ReportDef[] = [
       });
     },
   },
+  {
+    // Opens its own screen (products/counts); build() is the same list as a shareable report.
+    id: 'stock_counts',
+    group: 'stock',
+    icon: 'clipboard',
+    hue: 'sky',
+    perm: 'reports.view',
+    ranged: false,
+    build: async (db, { user, biz }) => countsListDoc(await listCounts(db), biz, roleHas(user.permissions, 'cost.view')),
+  },
 ];

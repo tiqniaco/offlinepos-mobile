@@ -35,7 +35,9 @@ export default function Reports() {
       onOpen={(r) =>
         locked(r)
           ? Alert.alert(t(`reports.names.${r.id}`), t('licence.feature'), [{ text: t('common.cancel'), style: 'cancel' }, { text: t('more.subscription'), onPress: () => router.push('/settings/subscription') }])
-          : router.push({ pathname: '/reports/[id]', params: { id: r.id } })
+          : r.id === 'stock_counts'
+            ? router.push('/products/counts')
+            : router.push({ pathname: '/reports/[id]', params: { id: r.id } })
       }
     />
   );
