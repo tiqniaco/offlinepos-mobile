@@ -116,7 +116,8 @@ jobs:
           DAFTARAK_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           [ "$HAS_KEYSTORE" = "true" ] || echo "::warning::No ANDROID_KEYSTORE_BASE64 secret — signed with the debug key (testing only, not for Play)."
-          ./gradlew assembleRelease bundleRelease --no-daemon -Dorg.gradle.jvmargs="-Xmx6g -XX:MaxMetaspaceSize=1g"
+          # Real phones only (arm64 + armv7); x86 is for emulators and doubles the build time.
+          ./gradlew assembleRelease bundleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a -Dorg.gradle.jvmargs="-Xmx6g -XX:MaxMetaspaceSize=1g"
           mkdir -p "$GITHUB_WORKSPACE/out"
           cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/out/daftarak-${APP_VERSION:-dev}-${BUILD_NUMBER}.apk"
           cp app/build/outputs/bundle/release/app-release.aab "$GITHUB_WORKSPACE/out/daftarak-${APP_VERSION:-dev}-${BUILD_NUMBER}.aab"
