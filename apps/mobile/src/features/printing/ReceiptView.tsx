@@ -52,7 +52,7 @@ export function ReceiptView({ d, dots }: { d: ReceiptData; dots: number }) {
   const vat = tpl.showTax && d.taxRatePct != null;
   const sm = wide ? 22 : 20;
   return (
-    <View collapsable={false} style={{ width: dots, backgroundColor: '#FFFFFF', paddingHorizontal: 6, paddingVertical: 14 }}>
+    <View collapsable={false} style={{ width: dots, backgroundColor: '#FFFFFF', paddingHorizontal: 8, paddingVertical: 16 }}>
       {tpl.showLogo && d.logoPath ? <Image source={{ uri: d.logoPath }} style={{ width: dots * 0.32, height: dots * 0.32, alignSelf: 'center', marginBottom: 6 }} resizeMode="contain" /> : null}
       <T s={wide ? 38 : 32} b center>
         {d.businessName}
@@ -100,7 +100,7 @@ export function ReceiptView({ d, dots }: { d: ReceiptData; dots: number }) {
       </View>
       <Rule />
       {d.lines.map((l, i) => (
-        <View key={i} style={{ marginBottom: 6 }}>
+        <View key={i} style={{ marginBottom: 8 }}>
           <T s={wide ? 24 : 22} b>
             {l.name}
           </T>
@@ -160,7 +160,7 @@ export function ReceiptView({ d, dots }: { d: ReceiptData; dots: number }) {
       ) : null}
       <Rule />
       {tpl.footer ? (
-        <T s={wide ? 24 : 22} center>
+        <T s={wide ? 24 : 22} center style={{ marginBottom: 2 }}>
           {tpl.footer}
         </T>
       ) : null}

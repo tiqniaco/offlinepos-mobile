@@ -1,0 +1,1 @@
+ALTER TABLE `products` ADD `needs_price_review` integer DEFAULT false NOT NULL;

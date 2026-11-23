@@ -224,10 +224,10 @@ function A4Mini({ d, tpl, brand }: { d: ReceiptData; tpl: Tpl; brand: string }) 
   const quote = d.kind === 'QUOTATION';
   return (
     <View style={{ width: w, aspectRatio: 1 / 1.414, backgroundColor: '#FFFFFF', borderRadius: 4, padding: 10, gap: 6, overflow: 'hidden' }}>
-      {!classic ? <View style={{ height: 5, backgroundColor: brand, marginHorizontal: -10, marginTop: -10, marginBottom: 4 }} /> : null}
+      {!classic ? <View style={{ height: 3, backgroundColor: brand, borderRadius: 2, marginBottom: 2 }} /> : null}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: classic ? 2 : 0, borderColor: '#101828', paddingBottom: classic ? 4 : 0 }}>
         <View style={{ flex: 1 }}>
-          <Text allowFontScaling={false} numberOfLines={1} style={tx(11, true, classic ? '#101828' : brand)}>
+          <Text allowFontScaling={false} numberOfLines={1} style={tx(11, true)}>
             {d.businessName}
           </Text>
           {d.address ? <Text allowFontScaling={false} numberOfLines={1} style={tx(6.5, false, '#475467')}>{d.address}</Text> : null}
@@ -238,14 +238,14 @@ function A4Mini({ d, tpl, brand }: { d: ReceiptData; tpl: Tpl; brand: string }) 
         </View>
       </View>
       {tpl.headerNote ? <Text allowFontScaling={false} numberOfLines={1} style={[tx(6.5, true, classic ? '#101828' : brand), { textAlign: 'center' }]}>{tpl.headerNote}</Text> : null}
-      <View style={{ backgroundColor: classic ? '#FFFFFF' : '#F8F9FC', borderWidth: classic ? 1 : 0, borderColor: line, borderStartWidth: classic ? 1 : 3, borderStartColor: classic ? line : brand, borderRadius: classic ? 0 : 5, padding: 4 }}>
+      <View style={{ backgroundColor: classic ? '#FFFFFF' : '#F8F9FC', borderWidth: classic ? 1 : 0, borderColor: line, borderRadius: classic ? 0 : 5, padding: 4 }}>
         <Text allowFontScaling={false} style={tx(6.5, true)}>{`${quote ? 'مقدَّم إلى' : 'العميل'}: ${d.customerName}`}</Text>
       </View>
       <View style={{ borderWidth: classic ? 1 : 0, borderColor: line }}>
-        <View style={{ flexDirection: 'row', backgroundColor: classic ? '#F2F4F7' : brand, paddingHorizontal: 4, borderTopLeftRadius: classic ? 0 : 4, borderTopRightRadius: classic ? 0 : 4 }}>
-          <Text allowFontScaling={false} style={[tx(6.5, true, classic ? '#101828' : '#FFFFFF'), { flex: 1 }]}>الصنف</Text>
-          <Text allowFontScaling={false} style={[tx(6.5, true, classic ? '#101828' : '#FFFFFF'), { width: 34, textAlign: 'center' }]}>الكمية</Text>
-          <Text allowFontScaling={false} style={[tx(6.5, true, classic ? '#101828' : '#FFFFFF'), { width: 48, textAlign: 'left' }]}>الإجمالي</Text>
+        <View style={{ flexDirection: 'row', backgroundColor: classic ? '#F2F4F7' : `${brand}24`, borderBottomWidth: classic ? 0 : 1.5, borderColor: brand, paddingHorizontal: 4 }}>
+          <Text allowFontScaling={false} style={[tx(6.5, true), { flex: 1 }]}>الصنف</Text>
+          <Text allowFontScaling={false} style={[tx(6.5, true), { width: 34, textAlign: 'center' }]}>الكمية</Text>
+          <Text allowFontScaling={false} style={[tx(6.5, true), { width: 48, textAlign: 'left' }]}>الإجمالي</Text>
         </View>
         {d.lines.map((l, i) => (
           <View key={i} style={{ flexDirection: 'row', paddingHorizontal: 4, borderTopWidth: 1, borderColor: line, backgroundColor: !classic && i % 2 ? '#F8F9FC' : '#FFFFFF' }}>

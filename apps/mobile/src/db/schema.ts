@@ -193,6 +193,8 @@ export const products = sqliteTable(
     imagePath: text('image_path'),
     isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
     notes: text('notes'),
+    /** Created automatically (invoice scan / list / quick add) with a guessed or missing sale price: the owner should check it. */
+    needsPriceReview: integer('needs_price_review', { mode: 'boolean' }).notNull().default(false),
   },
   (t) => [
     index('products_name').on(t.name),
