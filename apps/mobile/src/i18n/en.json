@@ -1576,6 +1576,7 @@
     "pickTitle": "Pick product",
     "searchPh": "Search products",
     "unitCost": "Unit cost",
-    "noProductsHint": "Items without a product will not be added. Pick one or add it as a new product."
+    "noProductsHint": "Items without a product will not be added. Pick one or add it as a new product.",
+    "rateLimited": "Please wait a minute and try again."
   }
 }
