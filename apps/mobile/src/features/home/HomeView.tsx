@@ -35,6 +35,7 @@ export function HomeView({
   banner,
   tasks,
   onLock,
+  onSearch,
   stats,
   onSell,
   quick,
@@ -49,6 +50,7 @@ export function HomeView({
   banner?: React.ReactNode;
   tasks: SetupTask[];
   onLock: () => void;
+  onSearch?: () => void;
   stats?: { key: string; label: string; value: string; icon: IconName; hue: Hue; onPress?: () => void }[];
   onSell?: () => void;
   quick?: Tile[];
@@ -67,6 +69,11 @@ export function HomeView({
               <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 20, fontFamily: fonts.medium }}>{dateLabel}</Text>
               <Text style={{ color: '#FFFFFF', fontSize: 19, lineHeight: 28, fontFamily: fonts.bold }}>{greeting}</Text>
             </View>
+            {onSearch ? (
+              <Pressable testID="home-search" accessibilityRole="search" onPress={onSearch} style={({ pressed }) => ({ width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)', opacity: pressed ? 0.7 : 1 })}>
+                <Icon name="search" size={20} color="#FFFFFF" tint="rgba(255,255,255,0.2)" />
+              </Pressable>
+            ) : null}
             <Pressable testID="home-lock" accessibilityRole="button" onPress={onLock} style={({ pressed }) => ({ width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)', opacity: pressed ? 0.7 : 1 })}>
               <Icon name="lock" color="#FFFFFF" tint="rgba(255,255,255,0.2)" />
             </Pressable>

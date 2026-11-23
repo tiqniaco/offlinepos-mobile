@@ -40,6 +40,8 @@ export function AppearanceView({
   onTextSize,
   sounds = true,
   onSounds,
+  notifications = true,
+  onNotifications,
   onPalette,
   onAppearance,
   onFont,
@@ -52,6 +54,8 @@ export function AppearanceView({
   onTextSize?: (z: TextSize) => void;
   sounds?: boolean;
   onSounds?: (on: boolean) => void;
+  notifications?: boolean;
+  onNotifications?: (on: boolean) => void;
   onPalette: (p: PaletteId) => void;
   onAppearance: (a: Appearance) => void;
   onFont: (f: FontId) => void;
@@ -138,6 +142,14 @@ export function AppearanceView({
         </View>
         <Chip label={t('appearance.soundTry')} onPress={() => { playSound('scan'); setTimeout(() => playSound('sale'), 350); }} />
         <Switch testID="sounds-switch" value={sounds} onValueChange={(v) => onSounds?.(v)} trackColor={{ true: colors.primary[500], false: colors.paper.line }} />
+      </View>
+
+      <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 16, backgroundColor: colors.paper.card }, shadow.soft]}>
+        <View style={{ flex: 1 }}>
+          <Text variant="subtitle">{t('appearance.notificationsOn')}</Text>
+          <Text variant="caption">{t('appearance.notificationsHint')}</Text>
+        </View>
+        <Switch testID="notifications-switch" value={notifications} onValueChange={(v) => onNotifications?.(v)} trackColor={{ true: colors.primary[500], false: colors.paper.line }} />
       </View>
 
       <SectionTitle>{t('appearance.textSize')}</SectionTitle>

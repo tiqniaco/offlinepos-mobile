@@ -125,7 +125,11 @@
     "todayInvoices": "{{n}} invoices",
     "startSale": "Start selling",
     "lateCustomers": "{{n}} customers are late paying — send a reminder",
-    "owedToUs": "Owed to you"
+    "owedToUs": "Owed to you",
+    "taskSample": "Try with sample data (20 products & customers)",
+    "taskSampleRemove": "Remove the sample data",
+    "sampleAdded": "{{n}} sample products added — try a sale now",
+    "sampleRemoved": "Sample data removed"
   },
   "licence": {
     "trial": "Trial: {{days}} days left",
@@ -561,7 +565,10 @@
     "sounds": "Sounds",
     "soundsOn": "Light action sounds",
     "soundsHint": "Barcode beep, sale chime, saved, errors",
-    "soundTry": "Try"
+    "soundTry": "Try",
+    "notifications": "Notifications",
+    "notificationsOn": "Morning summary & reminders",
+    "notificationsHint": "Late customers, supplier dues, low stock, plan renewal"
   },
   "pos": {
     "title": "New sale",
@@ -1280,5 +1287,30 @@
       "invoices_month": "Invoices this month",
       "users": "Users"
     }
+  },
+  "search": {
+    "placeholder": "Search products, customers, invoices or what to do",
+    "actions": "Do something",
+    "nothing": "Nothing found for “{{q}}”"
+  },
+  "notify": {
+    "channel": "Daily summary",
+    "morningTitle": "Good morning ☀️ your Daftarak summary",
+    "late": "{{n}} customers are late — {{amount}}",
+    "supplierDue": "{{n}} suppliers due — {{amount}}",
+    "out": "{{n}} items out of stock",
+    "low": "{{n}} items running low",
+    "trialTitle": "Your trial ends soon",
+    "graceTitle": "Your plan needs renewal",
+    "trialBody": "{{n}} days left. Subscribe to keep every feature.",
+    "backupTitle": "No recent backup",
+    "backupBody": "Open Daftarak and back up so your data stays safe."
+  },
+  "tips": {
+    "ok": "Got it",
+    "home": "Quick actions take you anywhere in one tap. The search button finds any product, customer or invoice.",
+    "pos": "Scan with the camera or a scanner — scanning the same item again adds one. Tap an item to change quantity or discount.",
+    "parties": "Tap a customer to collect money, send a statement or a WhatsApp reminder.",
+    "reports": "Every report has a date filter and can be shared as PDF, Excel, WhatsApp or printed."
   }
 }

@@ -13,6 +13,7 @@ import { useAutoLock } from '../hooks/useAutoLock';
 import { ToastHost } from '../ui/Toast';
 import { AdsProvider } from '../features/ads/AdsProvider';
 import { UpgradeSheet } from '../features/UpgradeSheet';
+import { onNotificationTap } from '../features/notify/notify';
 import { modalOptions, stackOptions } from '../ui/motion';
 import { PrintHost } from '../features/printing/PrintHost';
 import { colors, useTheme, applyTheme } from '../ui';
@@ -43,6 +44,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     void boot();
+    return onNotificationTap((url) => router.push(url as never));
   }, []);
 
   // boot() loads the chosen font family before leaving 'booting'.
@@ -84,6 +86,7 @@ export default function RootLayout() {
             <Stack.Screen name="offers" />
             <Stack.Screen name="reports" />
             <Stack.Screen name="scan" options={modalOptions} />
+            <Stack.Screen name="search" options={{ presentation: 'modal', animation: 'fade_from_bottom' }} />
           </Stack.Protected>
         </Stack>
         <ToastHost />

@@ -10,6 +10,7 @@ import { hasFeature } from '../../domain/licence/guard';
 import { DashboardView } from '../../features/reports/DashboardView';
 import { REPORTS, type ReportDef } from '../../features/reports/defs';
 import { useCurrency } from '../../features/inventory/useInvCtx';
+import { Tip } from '../../features/Tip';
 
 export default function Reports() {
   const { t, i18n } = useTranslation();
@@ -26,6 +27,7 @@ export default function Reports() {
       currency={currency}
       lang={i18n.language}
       showProfit={roleHas(user.permissions, 'profit.view')}
+      tip={<Tip id="reports" />}
       reports={visible}
       locked={locked}
       onOpen={(r) =>

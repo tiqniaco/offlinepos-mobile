@@ -11,6 +11,7 @@ import { PartiesListView, type PartyFilter, type PartyListItem } from '../../fea
 import { useCurrency } from '../../features/inventory/useInvCtx';
 import { openWhatsApp } from '../../features/export/whatsapp';
 import { reminderText } from '../../features/parties/format';
+import { Tip } from '../../features/Tip';
 
 export default function Parties() {
   const { t, i18n } = useTranslation();
@@ -76,6 +77,7 @@ export default function Parties() {
       onFilter={setFilter}
       onOpen={(id) => router.push({ pathname: '/parties/[id]', params: { id, type } })}
       onAdd={() => router.push({ pathname: '/parties/form', params: { type } })}
+      tip={<Tip id="parties" />}
       onRemind={(id) => {
         const r = rows.find((x) => x.id === id);
         if (!r) return;

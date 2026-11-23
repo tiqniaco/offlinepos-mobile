@@ -35,6 +35,7 @@ export function PartiesListView({
   onOpen,
   onAdd,
   onRemind,
+  tip,
 }: {
   topInset: number;
   type: 'C' | 'S';
@@ -52,6 +53,7 @@ export function PartiesListView({
   onOpen: (id: string) => void;
   onAdd: () => void;
   onRemind?: (id: string) => void;
+  tip?: React.ReactNode;
 }) {
   const { t } = useTranslation();
   const filters: { key: PartyFilter; label: string }[] =
@@ -81,6 +83,7 @@ export function PartiesListView({
             <Text style={{ fontFamily: fonts.bold, fontSize: 18, lineHeight: 26, color: colors.ink.DEFAULT }}>{count}</Text>
           </View>
         </View>
+        {tip}
         <TextField icon="search" placeholder={t('parties.search')} value={search} onChangeText={onSearch} latinDigits={false} />
         <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
           {filters.map((f) => (

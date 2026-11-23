@@ -9,7 +9,7 @@ import { Bars } from './Bars';
 import type { ReportDef } from './defs';
 import { AdBanner } from '../ads/AdBanner';
 
-export function DashboardView({ d, currency, lang, showProfit, reports, locked, onOpen }: { d: Dashboard | null; currency: 'EGP' | 'SAR'; lang: string; showProfit: boolean; reports: ReportDef[]; locked: (r: ReportDef) => boolean; onOpen: (r: ReportDef) => void }) {
+export function DashboardView({ d, currency, lang, showProfit, reports, locked, onOpen, tip }: { tip?: React.ReactNode; d: Dashboard | null; currency: 'EGP' | 'SAR'; lang: string; showProfit: boolean; reports: ReportDef[]; locked: (r: ReportDef) => boolean; onOpen: (r: ReportDef) => void }) {
   const { t } = useTranslation();
   const fmt = (v: number) => money(v, currency, lang);
   const group = (g: ReportDef['group']) => reports.filter((r) => r.group === g);
@@ -21,6 +21,7 @@ export function DashboardView({ d, currency, lang, showProfit, reports, locked, 
   );
   return (
     <Screen back title={t('reports.title')}>
+      {tip}
       {d ? (
         <>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>

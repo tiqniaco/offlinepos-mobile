@@ -12,6 +12,12 @@ import { partyTotals } from '../../domain/parties/parties';
 import { customersDue } from '../../domain/parties/statement';
 import { currentShift } from '../../domain/shifts/shifts';
 import { verifyChain } from '../../domain/integrity/chain';
+import { planNotifications } from '../../features/notify/notify';
+import { addSampleData, hasSampleData, removeSampleData } from '../../domain/sample/sample';
+import { useInvCtx } from '../../features/inventory/useInvCtx';
+import { toast } from '../../state/toast';
+import { errorMessage } from '../../lib/errors';
+import { Tip } from '../../features/Tip';
 import { LicenceBanner } from '../../features/LicenceBanner';
 import { HomeView, type SetupTask } from '../../features/home/HomeView';
 import type { Tile } from '../../features/common/ActionTiles';
@@ -36,6 +42,26 @@ export default function Home() {
   const [late, setLate] = useState(0);
   const [shiftOpen, setShiftOpen] = useState(true);
   const [tamper, setTamper] = useState(false);
+  const [sample, setSample] = useState(false);
+  const invCtx = useInvCtx();
+  const trySample = async () => {
+    if (!invCtx) return;
+    try {
+      const n = await addSampleData(invCtx, cur);
+      setSample(true);
+      void inventorySummary(getDb()).then(setInv);
+      toast(t('home.sampleAdded', { n }), 'success');
+    } catch (e) {
+      toast(errorMessage(t, e), 'error');
+    }
+  };
+  const dropSample = async () => {
+    if (!invCtx) return;
+    await removeSampleData(invCtx);
+    setSample(false);
+    void inventorySummary(getDb()).then(setInv);
+    toast(t('home.sampleRemoved'));
+  };
   const can = (p: Parameters<typeof roleHas>[1]) => roleHas(user.permissions, p);
   const cur = business?.currency ?? 'EGP';
 
@@ -49,6 +75,8 @@ export default function Home() {
       void partyTotals(db, 'C').then((x) => setOwedToUs(x.owedMinor));
       void customersDue(db, day, reminderDays).then((d) => setLate(d.length));
       if (device) void currentShift(db, device.id).then((s) => setShiftOpen(!!s));
+      void planNotifications({ ask: true });
+      void hasSampleData({ db }).then(setSample);
       // Daily background integrity check for owners/managers (tamper alert on the home screen).
       if (device && integrityCheckedDay !== day && roleHas(user.permissions, 'settings.manage')) {
         integrityCheckedDay = day;
@@ -66,6 +94,8 @@ export default function Home() {
     ...(can('users.manage') ? [{ key: 'team', title: t('home.taskTeam'), icon: 'users' as const, hue: 'amber' as const, done: users > 1, onPress: () => router.push('/settings/users') }] : []),
     { key: 'lock', title: t('home.taskLock'), icon: 'fingerprint', hue: 'sky', done: user.biometricEnabled, onPress: () => router.push('/settings/security') },
     { key: 'products', title: inv?.products ? t('home.taskProductsDone') : t('home.taskProducts'), icon: 'box', hue: 'rose', done: !!inv?.products, onPress: () => router.push('/(main)/products') },
+    ...(!inv?.products && can('products.manage') ? [{ key: 'sample', title: t('home.taskSample'), icon: 'layers' as const, hue: 'sky' as const, done: false, onPress: () => void trySample() }] : []),
+    ...(sample && can('products.manage') ? [{ key: 'sampleOff', title: t('home.taskSampleRemove'), icon: 'trash' as const, hue: 'rose' as const, done: false, onPress: () => void dropSample() }] : []),
   ];
 
   const quick: Tile[] = [
@@ -81,6 +111,7 @@ export default function Home() {
 
   const alerts = (
     <>
+      <Tip id="home" />
       {tamper ? <Banner tone="danger" title={t('integrity.alertTitle')} text={t('integrity.alertBody')} action={t('integrity.open')} onAction={() => router.push('/settings/integrity')} /> : null}
       {requireShift && !shiftOpen && can('sales.create') ? <Banner tone="warn" text={t('shift.mustOpen')} action={t('shift.open')} onAction={() => router.push('/shifts')} /> : null}
       {late > 0 && can('parties.manage') ? (
@@ -104,6 +135,7 @@ export default function Home() {
       banner={licence && licence.mode !== 'full' ? <LicenceBanner /> : null}
       tasks={tasks}
       onLock={() => useApp.getState().lock()}
+      onSearch={() => router.push('/search')}
       onSell={can('sales.create') ? () => router.push('/(main)/sell') : undefined}
       quick={quick}
       alerts={alerts}

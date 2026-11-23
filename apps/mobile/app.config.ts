@@ -42,6 +42,8 @@ const config: ExpoConfig = {
     ['expo-image-picker', { cameraPermission: 'لقراءة الباركود وتصوير المنتجات', photosPermission: 'لاختيار صورة المنتج' }],
     'expo-document-picker',
     ['react-native-ble-plx', { isBackgroundEnabled: false, modes: [], bluetoothAlwaysPermission: 'للطباعة على طابعة الفواتير بالبلوتوث', neverForLocation: true }],
+    ['expo-notifications', { color: '#0F4CC7' }],
+    'expo-audio',
     // AdMob (free plan only, PLAN.md §18). Google's public TEST app ids unless real ids are provided at build time.
     [
       'react-native-google-mobile-ads',

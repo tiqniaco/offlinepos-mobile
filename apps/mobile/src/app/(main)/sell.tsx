@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { roleHas } from '@daftarak/shared';
 import { getDb } from '../../db/client';
 import { fx } from '../../ui/fx';
+import { Tip } from '../../features/Tip';
 import { useCart } from '../../state/cart';
 import { useScanner } from '../../state/scanner';
 import { toast } from '../../state/toast';
@@ -122,6 +123,7 @@ export default function Sell() {
         topInset={insets.top}
         lines={cart.lines}
         priced={priced}
+        tip={<Tip id="pos" />}
         offerNames={Object.fromEntries(Object.entries(priced?.offers?.lines ?? {}).map(([k, v]) => [k, v.name]))}
         couponLabel={cart.couponCode ? `${t('offers.coupon')}: ${cart.couponCode}` : null}
         onCoupon={oc.offers.some((o) => o.type === 'COUPON') || cart.couponCode ? () => { setCouponText(cart.couponCode ?? ''); setCouponOpen(true); } : undefined}

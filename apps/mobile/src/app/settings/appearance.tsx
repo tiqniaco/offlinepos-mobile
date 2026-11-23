@@ -7,6 +7,7 @@ import { reloadAppData } from '../../state/boot';
 import { applyFont, applyTheme, setTextSize, useTheme, type Appearance, type FontId, type PaletteId, type TextSize } from '../../ui';
 import { AppearanceView } from '../../features/settings/AppearanceView';
 import { playSound, setSoundsEnabled } from '../../ui/sounds';
+import { planNotifications } from '../../features/notify/notify';
 
 /** Palette + light/dark/comfort/system. Applies instantly to the whole app and is saved per device. */
 export default function AppearanceScreen() {
@@ -18,6 +19,7 @@ export default function AppearanceScreen() {
   const font = useTheme((s) => s.font);
   const textSize = useTheme((s) => s.textSize);
   const soundsOn = useApp((s) => s.settings.sounds ?? true);
+  const notifOn = useApp((s) => s.settings.notifications ?? true);
   const setSize = async (z: TextSize) => {
     useTheme.setState({ returnTo: '/settings/appearance' });
     setTextSize(z);
@@ -45,6 +47,8 @@ export default function AppearanceScreen() {
       font={font}
       textSize={textSize}
       sounds={soundsOn}
+      notifications={notifOn}
+      onNotifications={(v) => void changeSetting(getDb(), 'notifications', v, { userId: user.id, deviceId: device.id }).then(reloadAppData).then(() => planNotifications({ ask: v }))}
       onSounds={(v) => {
         setSoundsEnabled(v);
         if (v) playSound('success');

@@ -41,6 +41,7 @@ export function PosView(p: {
   offerNames?: Record<string, string>;
   couponLabel?: string | null;
   onCoupon?: () => void;
+  tip?: React.ReactNode;
   lastKey: string | null;
   customerName: string | null;
   customerNote: string | null;
@@ -110,6 +111,7 @@ export function PosView(p: {
         </View>
       </View>
 
+      {p.tip ? <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>{p.tip}</View> : null}
       <View style={{ flex: 1 }}>
         {lines.length === 0 ? (
           <ScrollView contentContainerStyle={{ paddingHorizontal: 16 }}>
