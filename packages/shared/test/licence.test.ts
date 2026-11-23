@@ -77,6 +77,9 @@ describe('licence modes', () => {
     const s = state(payload({ status: 'trial', expires_at: NOW + 14 * DAY_MS }), NOW + 4 * DAY_MS);
     expect(s.reason).toBe('trial');
     expect(s.trialDaysLeft).toBe(10);
+    // Trial has every feature but shows ads (upgrading removes them); the server kill switch still wins.
+    expect(s.showAds).toBe(true);
+    expect(state(payload({ status: 'trial', expires_at: NOW + 14 * DAY_MS, ads_enabled: false }), NOW).showAds).toBe(false);
   });
   it('paid plan: 7 days grace after expiry', () => {
     const s = state(payload(), NOW + 33 * DAY_MS, { maxSeenTime: NOW + 33 * DAY_MS });

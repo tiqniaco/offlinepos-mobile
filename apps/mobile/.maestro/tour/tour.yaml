@@ -44,6 +44,22 @@ appId: app.daftarak
 - waitForAnimationToEnd: { timeout: 8000 }
 - scroll
 - takeScreenshot: shots/b03-home-after-sample
+# Ad slot (trial and free plans show ads, labelled, with «remove ads — upgrade»)
+- scrollUntilVisible: { element: { id: ads-remove }, direction: DOWN, timeout: 15000, optional: true }
+- waitForAnimationToEnd: { timeout: 5000 }
+- takeScreenshot: shots/b04-home-ad
+- tapOn: { id: ads-remove, optional: true }
+- waitForAnimationToEnd
+- takeScreenshot: shots/b05-ad-to-plans
+- scrollUntilVisible: { element: { id: manual-pro }, direction: DOWN, timeout: 8000, optional: true }
+- tapOn: { id: manual-pro, optional: true }
+- waitForAnimationToEnd
+- takeScreenshot: shots/b06-upgrade
+- scroll
+- takeScreenshot: shots/b07-upgrade-bottom
+- launchApp: { stopApp: false }
+- openLink: "daftarak://"
+- waitForAnimationToEnd
 # Tabs
 - tapOn: { id: tab-plus }
 - waitForAnimationToEnd
