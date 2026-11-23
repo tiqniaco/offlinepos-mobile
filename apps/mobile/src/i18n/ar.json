@@ -794,7 +794,12 @@
     "newCustomer": "عميل جديد",
     "newProduct": "منتج جديد",
     "shift": "الوردية",
-    "reports": "التقارير"
+    "reports": "التقارير",
+    "sheetTitle": "عايز تعمل إيه؟",
+    "sell": "بيع جديد",
+    "sellHint": "امسح أو دوّر وابدأ الفاتورة",
+    "invoices": "الفواتير",
+    "plus": "إضافة سريعة"
   },
   "share": {
     "whatsapp": "واتساب",

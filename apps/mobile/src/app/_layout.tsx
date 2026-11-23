@@ -20,6 +20,7 @@ import { PrintHost } from '../features/printing/PrintHost';
 import { colors, useTheme, applyTheme } from '../ui';
 
 import { CrashScreen, reportClientError } from '../features/errors/CrashScreen';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -76,6 +77,7 @@ export default function RootLayout() {
   if (!ready) return null;
 
   return (
+    <KeyboardProvider>
     <SafeAreaProvider>
       <StatusBar style={theme.isDark ? 'light' : 'dark'} />
       {/* Theme colours as CSS variables for NativeWind; `key` repaints every screen when the theme changes.
@@ -121,5 +123,6 @@ export default function RootLayout() {
         ) : null}
       </View>
     </SafeAreaProvider>
+    </KeyboardProvider>
   );
 }

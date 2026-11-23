@@ -40,6 +40,7 @@ export function OtpInput({ value, onChange, length = 6, error, testID }: { value
         })}
       </View>
       <TextInput
+          maxFontSizeMultiplier={1.15}
         ref={ref}
         testID={testID}
         value={value}

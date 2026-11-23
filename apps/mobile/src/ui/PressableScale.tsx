@@ -4,21 +4,19 @@
  */
 import { Pressable, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { cssInterop } from 'nativewind';
 import { haptic } from './haptics';
 
+// No NativeWind interop on the animated component: on device it dropped the passed style (backgrounds, borders),
+// which left chips with white-on-nothing text and tiles without cards. Callers pass plain style objects.
 const APressable = Animated.createAnimatedComponent(Pressable);
-// Let NativeWind classes (Card's rounded/bg/padding) reach the animated component.
-cssInterop(APressable, { className: 'style' });
 const SPRING = { damping: 18, stiffness: 420, mass: 0.6 };
 
-export function PressableScale({ style, className, scaleTo = 0.97, feedback, onPressIn, onPressOut, onPress, disabled, children, ...rest }: Omit<PressableProps, 'style'> & { style?: StyleProp<ViewStyle>; className?: string; scaleTo?: number; feedback?: 'tap' | 'select' }) {
+export function PressableScale({ style, scaleTo = 0.97, feedback, onPressIn, onPressOut, onPress, disabled, children, ...rest }: Omit<PressableProps, 'style'> & { style?: StyleProp<ViewStyle>; scaleTo?: number; feedback?: 'tap' | 'select' }) {
   const s = useSharedValue(1);
   const anim = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
   return (
     <APressable
       {...rest}
-      {...({ className } as object)}
       disabled={disabled}
       onPressIn={(e) => {
         s.value = withSpring(scaleTo, SPRING);

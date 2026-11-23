@@ -96,6 +96,7 @@ export function PosView(p: {
         <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 8, height: 54, borderRadius: 18, backgroundColor: colors.paper.card, paddingStart: 14, paddingEnd: 6, borderWidth: 2, borderColor: colors.primary[100] }, shadow.soft]}>
           <Icon name="search" color={colors.ink.faint} size={22} />
           <TextInput
+          maxFontSizeMultiplier={1.15}
             testID="pos-search"
             value={p.search}
             onChangeText={(v) => p.onSearch(normalizeDigits(v))}

@@ -72,6 +72,15 @@ export default function Home() {
 
   useFocusEffect(
     useCallback(() => {
+      // Load after the screen transition finishes, so switching tabs stays smooth.
+      const id = setTimeout(load, 220);
+      return () => clearTimeout(id);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tz, reminderDays, device, user.permissions, inboxBump]),
+  );
+
+  function load() {
+    {
       const db = getDb();
       const day = businessDay(Date.now(), tz);
       void activeUserCount(db).then(setUsers);
@@ -89,8 +98,8 @@ export default function Home() {
         integrityCheckedDay = day;
         setTimeout(() => void verifyChain(db, device.id).then((r) => setTamper(!r.ok), () => undefined), 1500);
       }
-    }, [tz, reminderDays, device, user.permissions, inboxBump]),
-  );
+    }
+  }
 
   const plan = DEFAULT_PLANS.find((p) => p.code === licence?.plan);
   const planName = plan ? (i18n.language === 'en' ? plan.nameEn : plan.nameAr) : null;

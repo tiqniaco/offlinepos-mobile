@@ -35,6 +35,7 @@ export function PhoneField({ value, onChangeText, error, onSubmitEditing, testID
           </Text>
         </View>
         <TextInput
+          maxFontSizeMultiplier={1.15}
           testID={testID}
           value={value}
           onChangeText={(v) => onChangeText(normalizeDigits(v))}

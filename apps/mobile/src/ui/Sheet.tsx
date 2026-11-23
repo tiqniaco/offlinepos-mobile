@@ -1,4 +1,5 @@
-import { KeyboardAvoidingView, Modal, Platform, ScrollView, View } from 'react-native';
+import { Modal, ScrollView, View } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { Pressable } from './Press';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { fonts } from './fonts';
@@ -11,7 +12,7 @@ export function Sheet({ visible, onClose, title, children, footer }: { visible: 
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <Animated.View entering={FadeIn.duration(180)} style={{ flex: 1, backgroundColor: 'rgba(16,24,40,0.45)' }}>
           <Pressable onPress={onClose} style={{ flex: 1 }} />
         </Animated.View>

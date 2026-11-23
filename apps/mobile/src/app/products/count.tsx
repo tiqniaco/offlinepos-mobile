@@ -98,6 +98,7 @@ export default function StockCount() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, height: 50, borderRadius: 14, borderWidth: 2, borderColor: colors.paper.line, paddingHorizontal: 12, backgroundColor: colors.paper.DEFAULT }}>
             <Icon name="scan" color={colors.ink.faint} size={20} />
             <TextInput
+          maxFontSizeMultiplier={1.15}
               testID="count-input"
               value={code}
               onChangeText={(v) => setCode(normalizeDigits(v))}

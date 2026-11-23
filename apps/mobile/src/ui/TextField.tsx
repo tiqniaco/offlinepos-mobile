@@ -38,6 +38,7 @@ export function TextField({ label, error, hint, icon, onChangeText, latinDigits 
       >
         {icon ? <Icon name={icon} size={19} color={focus ? colors.primary[600] : colors.ink.faint} /> : null}
         <TextInput
+          maxFontSizeMultiplier={1.15}
           placeholderTextColor={colors.ink.faint}
           onFocus={(e) => {
             setFocus(true);

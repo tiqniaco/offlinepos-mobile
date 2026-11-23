@@ -1,4 +1,6 @@
-import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { useState } from 'react';
+import { View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { KeyboardAwareScrollView, KeyboardStickyView } from 'react-native-keyboard-controller';
 import { Pressable } from './Press';
 import { fonts } from './fonts';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,7 +34,20 @@ function Footer({ children }: { children: React.ReactNode }) {
   return <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 12) + 4, backgroundColor: colors.paper.DEFAULT, gap: 8 }}>{children}</View>;
 }
 
-/** Standard screen: large title header, optional back, scrollable content, sticky footer. */
+/** Hairline under the header once the content scrolls under it (reads as a native app bar). */
+function useScrolled() {
+  const [scrolled, setScrolled] = useState(false);
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y = e.nativeEvent.contentOffset.y > 4;
+    if (y !== scrolled) setScrolled(y);
+  };
+  return { scrolled, onScroll };
+}
+
+/**
+ * Standard screen: compact app bar (back · title · actions), scrollable content that always scrolls the focused
+ * field above the keyboard, and a footer that rides on top of the keyboard.
+ */
 export function Screen({
   children,
   title,
@@ -52,38 +67,59 @@ export function Screen({
   className?: string;
   right?: React.ReactNode;
 }) {
-  const Body = scroll ? ScrollView : View;
+  const { scrolled, onScroll } = useScrolled();
   return (
     <SafeAreaView className="flex-1 bg-paper" edges={['top']}>
-      <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        {title || back ? (
-          <View className="gap-2 px-4 pb-2 pt-2">
-            {back || right ? (
-              <View className="flex-row items-center justify-between">
-                {back ? <BackButton /> : <View />}
-                {right}
-              </View>
-            ) : null}
+      {title || back || right ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+            paddingHorizontal: 16,
+            paddingTop: 6,
+            paddingBottom: 10,
+            backgroundColor: colors.paper.DEFAULT,
+            borderBottomWidth: scrolled ? 1 : 0,
+            borderBottomColor: colors.paper.line,
+          }}
+        >
+          {back ? <BackButton /> : null}
+          <View style={{ flex: 1 }}>
             {title ? (
-              <View className="gap-0.5">
-                <Text variant="display" style={{ fontSize: 26, lineHeight: 38 }}>
-                  {title}
-                </Text>
-                {subtitle ? <Text variant="body">{subtitle}</Text> : null}
-              </View>
+              <Text variant="title" numberOfLines={1} style={{ fontSize: back ? 19 : 23, fontFamily: fonts.bold }}>
+                {title}
+              </Text>
+            ) : null}
+            {subtitle ? (
+              <Text variant="caption" numberOfLines={2}>
+                {subtitle}
+              </Text>
             ) : null}
           </View>
-        ) : null}
-        <Body
-          className="flex-1"
-          {...(scroll
-            ? { contentContainerClassName: `px-4 pb-8 gap-3 ${className}`, keyboardShouldPersistTaps: 'handled' as const, showsVerticalScrollIndicator: false }
-            : { className: `flex-1 px-4 ${className}` })}
+          {right}
+        </View>
+      ) : null}
+      {scroll ? (
+        <KeyboardAwareScrollView
+          style={{ flex: 1 }}
+          bottomOffset={footer ? 96 : 24}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          onScroll={onScroll}
+          scrollEventThrottle={32}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 32 }}
         >
-          {children}
-        </Body>
-        {footer ? <Footer>{footer}</Footer> : null}
-      </KeyboardAvoidingView>
+          <View className={`gap-3 ${className}`}>{children}</View>
+        </KeyboardAwareScrollView>
+      ) : (
+        <View className={`flex-1 px-4 ${className}`}>{children}</View>
+      )}
+      {footer ? (
+        <KeyboardStickyView>
+          <Footer>{footer}</Footer>
+        </KeyboardStickyView>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -113,8 +149,7 @@ export function OnboardingScreen({
 }) {
   return (
     <View className="flex-1 bg-paper">
-      <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView className="flex-1" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+        <KeyboardAwareScrollView style={{ flex: 1 }} bottomOffset={footer ? 96 : 24} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
           <Hero>
             <View className="gap-5 px-5 pt-3">
               <View className="flex-row items-center justify-between">
@@ -126,15 +161,18 @@ export function OnboardingScreen({
                 ) : null}
               </View>
               <View className="gap-1 pb-2">
-                <Text style={{ color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 28, lineHeight: 40 }}>{title}</Text>
-                {subtitle ? <Text style={{ color: 'rgba(255,255,255,0.88)', fontSize: 15, lineHeight: 24, fontFamily: fonts.regular }}>{subtitle}</Text> : null}
+                <Text style={{ color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 25 }}>{title}</Text>
+                {subtitle ? <Text style={{ color: 'rgba(255,255,255,0.88)', fontSize: 14, fontFamily: fonts.regular }}>{subtitle}</Text> : null}
               </View>
             </View>
           </Hero>
           <View className="gap-4 px-5 pt-2">{children}</View>
-        </ScrollView>
-        {footer ? <Footer>{footer}</Footer> : null}
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
+        {footer ? (
+          <KeyboardStickyView>
+            <Footer>{footer}</Footer>
+          </KeyboardStickyView>
+        ) : null}
     </View>
   );
 }

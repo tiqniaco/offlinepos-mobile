@@ -80,6 +80,7 @@ export function ProductsListView(props: {
         <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 8, height: 52, borderRadius: 16, backgroundColor: colors.paper.card, paddingStart: 14, paddingEnd: 6 }, shadow.soft]}>
           <Icon name="search" color={colors.ink.faint} size={22} />
           <TextInput
+          maxFontSizeMultiplier={1.15}
             testID="products-search"
             value={p.search}
             onChangeText={(v) => p.onSearch(normalizeDigits(v))}

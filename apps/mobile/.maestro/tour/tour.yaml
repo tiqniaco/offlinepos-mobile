@@ -48,7 +48,10 @@ appId: app.daftarak
 - scroll
 - takeScreenshot: shots/b03-home-after-sample
 # Tabs
-- tapOn: { text: "البيع" }
+- tapOn: { id: tab-plus }
+- waitForAnimationToEnd
+- takeScreenshot: shots/c00-quick-sheet
+- tapOn: { id: quick-sell }
 - waitForAnimationToEnd
 - takeScreenshot: shots/c01-sell-empty
 - tapOn: { id: pos-search, optional: true }

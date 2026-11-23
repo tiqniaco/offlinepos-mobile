@@ -794,7 +794,12 @@
     "newCustomer": "New customer",
     "newProduct": "New product",
     "shift": "Shift",
-    "reports": "Reports"
+    "reports": "Reports",
+    "sheetTitle": "What do you want to do?",
+    "sell": "New sale",
+    "sellHint": "Scan or search and start the invoice",
+    "invoices": "Invoices",
+    "plus": "Quick add"
   },
   "share": {
     "whatsapp": "WhatsApp",

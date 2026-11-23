@@ -1,5 +1,5 @@
 import { StyleSheet, Text as RNText, type TextProps, type TextStyle } from 'react-native';
-import { fonts, type } from './fonts';
+import { fonts, type, LINE, MAX_FONT_MULTIPLIER } from './fonts';
 
 type Variant = 'display' | 'title' | 'subtitle' | 'body' | 'label' | 'caption' | 'money';
 
@@ -31,8 +31,9 @@ export function Text({ variant = 'body', className = '', style, ...rest }: TextP
   };
   if (flat.fontSize) sized.fontSize = flat.fontSize * k;
   if (flat.lineHeight) sized.lineHeight = flat.lineHeight * k;
-  else if (flat.fontSize) sized.lineHeight = flat.fontSize * k * 1.45;
-  return <RNText className={`${v.cls} text-start ${className}`} style={sized} {...rest} />;
+  // Never let the line be shorter than the Arabic glyphs (clipped text on device).
+  sized.lineHeight = Math.max(Number(sized.lineHeight ?? 0), Number(sized.fontSize ?? 14) * LINE);
+  return <RNText maxFontSizeMultiplier={MAX_FONT_MULTIPLIER} className={`${v.cls} text-start ${className}`} style={sized} {...rest} />;
 }
 
 /** Scale a raw size for components that render TextInput etc. directly. */
