@@ -37,7 +37,10 @@ const config: ExpoConfig = {
     predictiveBackGestureEnabled: false,
     // Data stays on the phone and in our own encrypted backups (Phase 6), never in Google auto-backup.
     allowBackup: false,
-    permissions: ['CAMERA', 'BLUETOOTH', 'BLUETOOTH_ADMIN', 'BLUETOOTH_CONNECT', 'BLUETOOTH_SCAN', 'ACCESS_FINE_LOCATION'],
+    // Location only for Bluetooth scanning on Android ≤ 11 (added by react-native-ble-plx with maxSdkVersion 30).
+    permissions: ['CAMERA', 'BLUETOOTH', 'BLUETOOTH_ADMIN', 'BLUETOOTH_CONNECT', 'BLUETOOTH_SCAN'],
+    // Never ask for what the app does not use (store review + customer trust).
+    blockedPermissions: ['android.permission.RECORD_AUDIO', 'android.permission.SYSTEM_ALERT_WINDOW', 'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK'],
   },
   plugins: [
     'expo-router',
@@ -46,12 +49,13 @@ const config: ExpoConfig = {
     ['expo-localization', { supportedLocales: { ios: ['ar', 'en'], android: ['ar', 'en'] } }],
     'expo-font',
     ['expo-local-authentication', { faceIDPermission: 'لفتح دفترك بالبصمة بدل الرقم السري' }],
-    ['expo-image-picker', { cameraPermission: 'لقراءة الباركود وتصوير المنتجات', photosPermission: 'لاختيار صورة المنتج' }],
+    ['expo-image-picker', { cameraPermission: 'لقراءة الباركود وتصوير المنتجات', photosPermission: 'لاختيار صورة المنتج', microphonePermission: false }],
     'expo-document-picker',
     ['react-native-ble-plx', { isBackgroundEnabled: false, modes: [], bluetoothAlwaysPermission: 'للطباعة على طابعة الفواتير بالبلوتوث', neverForLocation: true }],
     // Store/TestFlight builds need the production push environment (IOS_APS_MODE=production in CI).
     ['expo-notifications', { color: '#0F4CC7', mode: process.env.IOS_APS_MODE === 'production' ? 'production' : 'development' }],
-    'expo-audio',
+    // Short UI sounds only: no microphone, no background playback (Apple rejects unused background audio).
+    ['expo-audio', { microphonePermission: false, recordAudioAndroid: false, enableBackgroundPlayback: false }],
     // AdMob (free plan only, PLAN.md §18). Google's public TEST app ids unless real ids are provided at build time.
     [
       'react-native-google-mobile-ads',
