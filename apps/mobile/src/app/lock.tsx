@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { getDb } from '../db/client';
-import { listActiveUsers, unlockWithBiometric, unlockWithPin, PinError } from '../domain/auth/users';
+import { listActiveUsers, unlockWithBiometric, unlockWithPin, usersAllowedByPlan, PinError } from '../domain/auth/users';
 import { useApp } from '../state/app';
 import { LockView, type LockUser } from '../features/lock/LockView';
 import { PIN_MAX } from '../domain/auth/pin';
@@ -19,8 +19,10 @@ export default function LockScreen() {
   const [bioAvailable, setBioAvailable] = useState(false);
 
   useEffect(() => {
-    void listActiveUsers(getDb()).then(
-      (u) => {
+    void Promise.all([listActiveUsers(getDb()), usersAllowedByPlan(getDb())]).then(
+      ([all, allowed]) => {
+        // Staff above the plan's user limit stay listed but paused (they come back when the shop upgrades).
+        const u = all.map((x) => (allowed.has(x.id) ? x : { ...x, biometricEnabled: false, roleName: t('lock.pausedByPlan', { role: x.roleName }) }));
         setUsers(u);
         if (u.length === 1) setSelected(u[0]!);
       },
@@ -39,8 +41,8 @@ export default function LockScreen() {
       try {
         const r = await LocalAuthentication.authenticateAsync({ promptMessage: t('lock.biometricPrompt'), disableDeviceFallback: false, fallbackLabel: t('lock.usePhoneCode'), cancelLabel: t('common.cancel') });
         if (r.success) useApp.getState().unlock(await unlockWithBiometric(getDb(), u.id));
-      } catch {
-        setMsg(t(u.secretKind === 'password' ? 'lock.wrongPassword' : 'lock.wrong'));
+      } catch (e) {
+        setMsg(e instanceof PinError && e.code === 'plan_limit' ? t('lock.planLimit') : t(u.secretKind === 'password' ? 'lock.wrongPassword' : 'lock.wrong'));
       }
     },
     [t],
@@ -60,7 +62,8 @@ export default function LockScreen() {
       if (e instanceof PinError && e.code === 'locked' && e.lockedUntil) {
         const secs = Math.ceil((e.lockedUntil - Date.now()) / 1000);
         setMsg(t('lock.lockedFor', { time: secs >= 60 ? t('lock.minutes', { n: Math.ceil(secs / 60) }) : t('lock.seconds', { n: Math.max(1, secs) }) }));
-      } else setMsg(t(selected.secretKind === 'password' ? 'lock.wrongPassword' : 'lock.wrong'));
+      } else if (e instanceof PinError && e.code === 'plan_limit') setMsg(t('lock.planLimit'));
+      else setMsg(t(selected.secretKind === 'password' ? 'lock.wrongPassword' : 'lock.wrong'));
     } finally {
       setBusy(false);
     }

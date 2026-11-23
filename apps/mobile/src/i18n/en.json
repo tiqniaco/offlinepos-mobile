@@ -112,7 +112,9 @@
     "biometricEnable": "Confirm to turn on fingerprint",
     "open": "Open",
     "minutes": "{{n}} min",
-    "seconds": "{{n}} s"
+    "seconds": "{{n}} s",
+    "pausedByPlan": "{{role}} · paused (plan)",
+    "planLimit": "This user is paused because the current plan allows fewer users. The owner can upgrade from Subscription and every account comes back as it was."
   },
   "home": {
     "greeting": "Good morning, {{name}}",
@@ -1812,5 +1814,42 @@
     "walletsDefault": "We added the common Egyptian wallets. Save or edit.",
     "up": "Move up",
     "down": "Move down"
+  },
+  "templates": {
+    "title": "Invoice design",
+    "subtitle": "Thermal 58 / 80 and A4 — with preview",
+    "invoice": "Invoice",
+    "quote": "Quotation",
+    "fmt58": "Thermal 58",
+    "fmt80": "Thermal 80",
+    "previewHint": "This is exactly how it prints, with sample data — changes show instantly",
+    "fullPreview": "Open full A4 preview",
+    "thermalSize": "Thermal paper size",
+    "thermalNote": "Your printer prints on {{mm}} mm paper — change it in printer settings.",
+    "a4Style": "A4 style",
+    "modern": "Modern",
+    "modernHint": "Brand colour bar",
+    "classic": "Classic",
+    "classicHint": "Formal bordered table",
+    "brand": "Invoice colour",
+    "themeColor": "App colour",
+    "show": "Show on the invoice",
+    "showCashier": "Cashier name",
+    "showItemCode": "Item barcode / code",
+    "showQr": "QR code",
+    "showWords": "Amount in words (A4)",
+    "texts": "Invoice texts",
+    "headerNote": "Line under the shop name",
+    "headerNoteHint": "e.g. Free home delivery",
+    "quoteTerms": "Quotation terms",
+    "quoteDays": "Quotation valid for (days)",
+    "shopDetails": "Logo, address and phones",
+    "shopDetailsHint": "Shop details printed at the top",
+    "reset": "Restore default design",
+    "printThermal": "Print thermal",
+    "a4Title": "PDF A4",
+    "a4Body": "Send the file or print it?",
+    "a4Share": "Send (WhatsApp…)",
+    "a4Print": "Print / save"
   }
 }

@@ -8,7 +8,7 @@ import type { Db as AppDb } from '../../db/types';
 import { withTx } from '../../db/tx';
 import { roles, users } from '../../db/schema';
 import { appendAudit } from '../audit/audit';
-import { assertCanWrite, assertWithinLimit } from '../licence/guard';
+import { assertCanWrite, assertWithinLimit, getLicenceState } from '../licence/guard';
 import { passwordProblem } from '@daftarak/shared';
 import { checkPin, hashPin, isDefaultParams, isValidPin, isWeakPin, lockoutAfterFailure } from './pin';
 
@@ -31,7 +31,7 @@ export interface SessionUser {
 }
 
 export class PinError extends Error {
-  constructor(public readonly code: 'wrong' | 'locked' | 'invalid' | 'weak' | 'password_weak', public readonly lockedUntil?: number) {
+  constructor(public readonly code: 'wrong' | 'locked' | 'invalid' | 'weak' | 'password_weak' | 'plan_limit', public readonly lockedUntil?: number) {
     super(code);
   }
 }
@@ -127,6 +127,22 @@ export async function listActiveUsers(db: AppDb) {
     .orderBy(asc(users.createdAt));
 }
 
+/**
+ * Users the current plan lets in: owners first, then the earliest-created staff, up to the plan's user limit
+ * (e.g. after a trial ends on the free plan only the owner can unlock). Nobody is deleted; paused users come
+ * back as soon as the shop upgrades. No licence yet / unlimited → everyone.
+ */
+export async function usersAllowedByPlan(db: AppDb, limit = getLicenceState()?.limits.users): Promise<Set<string>> {
+  const list = await listActiveUsers(db);
+  if (limit == null || limit < 0 || list.length <= limit) return new Set(list.map((u) => u.id));
+  const ordered = [...list.filter((u) => u.roleKey === 'owner'), ...list.filter((u) => u.roleKey !== 'owner')];
+  return new Set(ordered.slice(0, Math.max(1, limit)).map((u) => u.id));
+}
+
+async function assertAllowedByPlan(db: AppDb, userId: string) {
+  if (!(await usersAllowedByPlan(db)).has(userId)) throw new PinError('plan_limit');
+}
+
 export async function listRoles(db: AppDb) {
   return db.select().from(roles).where(isNull(roles.deletedAt)).orderBy(asc(roles.createdAt));
 }
@@ -153,6 +169,7 @@ async function toSessionUser(db: AppDb, userId: string): Promise<SessionUser> {
 export async function unlockWithPin(db: AppDb, userId: string, pin: string, now = Date.now()): Promise<SessionUser> {
   const u = (await db.select().from(users).where(eq(users.id, userId)).limit(1))[0];
   if (!u || !u.isActive) throw new PinError('invalid');
+  await assertAllowedByPlan(db, userId);
   if (u.lockedUntil && u.lockedUntil > now) throw new PinError('locked', u.lockedUntil);
   if (!(await checkPin(pin, u))) {
     const failed = u.failedPinAttempts + 1;
@@ -177,6 +194,7 @@ export async function sessionAfterSetup(db: AppDb, userId: string, now = Date.no
 export async function unlockWithBiometric(db: AppDb, userId: string): Promise<SessionUser> {
   const s = await toSessionUser(db, userId);
   if (!s.biometricEnabled) throw new PinError('invalid');
+  await assertAllowedByPlan(db, userId);
   await db.update(users).set({ lastLoginAt: Date.now() }).where(eq(users.id, userId));
   return s;
 }
