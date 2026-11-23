@@ -1,0 +1,285 @@
+# Build the phone apps on GitHub's own machines (no EAS needed). See docs/build-github.md.
+#
+#  • Android (Ubuntu): APK (install directly) + AAB (Play Store). Signed with your upload key when the
+#    ANDROID_* secrets exist; otherwise signed with a debug key (fine for testing, NOT for the store).
+#    Optional: uploads the AAB to Play "internal testing" when PLAY_SERVICE_ACCOUNT_JSON exists.
+#  • iOS (macOS): without Apple secrets → a simulator build (proves the app compiles).
+#    With IOS_* secrets → signed IPA; with ASC_* secrets too → uploaded to TestFlight.
+#  • A tag v1.2.3 builds both and attaches the files to a GitHub Release.
+#
+# App settings (not secret) come from repository Variables: API_URL, EAS_PROJECT_ID, ADMOB_*, REVENUECAT_*,
+# GCP_PROJECT_NUMBER, SUPPORT_WHATSAPP, APP_STORE_ID, BUILD_NUMBER_OFFSET.
+name: build-apps
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Which app to build
+        type: choice
+        options: [all, android, ios]
+        default: all
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-apps-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  APP_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+  EXPO_PUBLIC_API_URL: ${{ vars.API_URL || 'https://api.daftarak.app' }}
+  EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
+  ADMOB_ANDROID_APP_ID: ${{ vars.ADMOB_ANDROID_APP_ID }}
+  ADMOB_IOS_APP_ID: ${{ vars.ADMOB_IOS_APP_ID }}
+  ADMOB_BANNER_ANDROID: ${{ vars.ADMOB_BANNER_ANDROID }}
+  ADMOB_BANNER_IOS: ${{ vars.ADMOB_BANNER_IOS }}
+  ADMOB_INTERSTITIAL_ANDROID: ${{ vars.ADMOB_INTERSTITIAL_ANDROID }}
+  ADMOB_INTERSTITIAL_IOS: ${{ vars.ADMOB_INTERSTITIAL_IOS }}
+  REVENUECAT_ANDROID_KEY: ${{ vars.REVENUECAT_ANDROID_KEY }}
+  REVENUECAT_IOS_KEY: ${{ vars.REVENUECAT_IOS_KEY }}
+  GCP_PROJECT_NUMBER: ${{ vars.GCP_PROJECT_NUMBER }}
+  SUPPORT_WHATSAPP: ${{ vars.SUPPORT_WHATSAPP }}
+  APP_STORE_ID: ${{ vars.APP_STORE_ID }}
+  NODE_ENV: production
+  EXPO_NO_TELEMETRY: '1'
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+        env: { NODE_ENV: development }
+      - run: pnpm --filter @daftarak/shared typecheck && pnpm --filter @daftarak/mobile typecheck
+      - run: pnpm --filter @daftarak/shared test && pnpm --filter @daftarak/mobile test
+        env: { NODE_ENV: test }
+
+  android:
+    needs: checks
+    if: github.event_name == 'push' || inputs.platform != 'ios'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      HAS_PLAY: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: gradle/actions/setup-gradle@v4
+      - run: pnpm install --frozen-lockfile
+        env: { NODE_ENV: development }
+
+      - name: Version
+        run: |
+          echo "APP_VERSION=${APP_VERSION#v}" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=$(( ${{ github.run_number }} + ${{ vars.BUILD_NUMBER_OFFSET || 0 }} ))" >> "$GITHUB_ENV"
+
+      - name: Generate native project
+        working-directory: apps/mobile
+        run: npx expo prebuild --platform android --clean --no-install
+
+      - name: Upload key (from secrets)
+        if: env.HAS_KEYSTORE == 'true'
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          echo "DAFTARAK_UPLOAD_STORE_FILE=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+
+      - name: Build APK + AAB
+        working-directory: apps/mobile/android
+        env:
+          DAFTARAK_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          DAFTARAK_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          DAFTARAK_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          [ "$HAS_KEYSTORE" = "true" ] || echo "::warning::No ANDROID_KEYSTORE_BASE64 secret — signed with the debug key (testing only, not for Play)."
+          ./gradlew assembleRelease bundleRelease --no-daemon -Dorg.gradle.jvmargs="-Xmx6g -XX:MaxMetaspaceSize=1g"
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/out/daftarak-${APP_VERSION:-dev}-${BUILD_NUMBER}.apk"
+          cp app/build/outputs/bundle/release/app-release.aab "$GITHUB_WORKSPACE/out/daftarak-${APP_VERSION:-dev}-${BUILD_NUMBER}.aab"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: out/*
+          retention-days: 30
+
+      - name: Upload to Google Play (internal testing)
+        if: env.HAS_PLAY == 'true' && env.HAS_KEYSTORE == 'true'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: app.daftarak
+          releaseFiles: out/*.aab
+          track: internal
+          status: draft
+
+  ios:
+    needs: checks
+    if: github.event_name == 'push' || inputs.platform != 'android'
+    runs-on: macos-26
+    timeout-minutes: 120
+    env:
+      HAS_SIGNING: ${{ secrets.IOS_DIST_CERT_P12_BASE64 != '' && secrets.IOS_PROVISION_PROFILE_BASE64 != '' }}
+      HAS_ASC: ${{ secrets.ASC_KEY_P8_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with: { xcode-version: latest-stable }
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+        env: { NODE_ENV: development }
+
+      - name: Version
+        run: |
+          echo "APP_VERSION=${APP_VERSION#v}" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=$(( ${{ github.run_number }} + ${{ vars.BUILD_NUMBER_OFFSET || 0 }} ))" >> "$GITHUB_ENV"
+          [ "$HAS_SIGNING" = "true" ] && echo "IOS_APS_MODE=production" >> "$GITHUB_ENV" || true
+
+      - name: Generate native project
+        working-directory: apps/mobile
+        run: npx expo prebuild --platform ios --clean --no-install
+
+      - uses: actions/cache@v4
+        with:
+          path: apps/mobile/ios/Pods
+          key: pods-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app.config.ts') }}
+      - name: CocoaPods
+        working-directory: apps/mobile/ios
+        run: pod install
+
+      - name: Project name
+        working-directory: apps/mobile/ios
+        run: |
+          WS=$(ls -d *.xcworkspace | head -1)
+          echo "WORKSPACE=$WS" >> "$GITHUB_ENV"
+          echo "SCHEME=${WS%.xcworkspace}" >> "$GITHUB_ENV"
+
+      # ── Without Apple secrets: simulator build (proves it compiles; runs on the iOS Simulator) ──
+      - name: Simulator build
+        if: env.HAS_SIGNING != 'true'
+        working-directory: apps/mobile/ios
+        run: |
+          echo "::notice::No IOS_* signing secrets — building for the iOS Simulator only."
+          set -o pipefail
+          xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration Release -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build | tail -50
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          APP=$(ls -d build/Build/Products/Release-iphonesimulator/*.app | head -1)
+          (cd "$(dirname "$APP")" && zip -qry "$GITHUB_WORKSPACE/out/daftarak-${APP_VERSION:-dev}-${BUILD_NUMBER}-simulator.zip" "$(basename "$APP")")
+
+      # ── With Apple secrets: signed IPA (App Store / TestFlight, or Ad Hoc if the profile lists devices) ──
+      - name: Signing keychain + profile
+        if: env.HAS_SIGNING == 'true'
+        env:
+          CERT: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          PROFILE: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
+        run: |
+          KC="$RUNNER_TEMP/build.keychain-db"; KC_PASS=$(openssl rand -hex 16)
+          security create-keychain -p "$KC_PASS" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p "$KC_PASS" "$KC"
+          echo "$CERT" | base64 -d > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KC"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KC_PASS" "$KC" > /dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          echo "$PROFILE" | base64 -d > "$RUNNER_TEMP/app.mobileprovision"
+          security cms -D -i "$RUNNER_TEMP/app.mobileprovision" > "$RUNNER_TEMP/profile.plist"
+          UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/profile.plist")
+          NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/profile.plist")
+          TEAM=$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$RUNNER_TEMP/profile.plist")
+          if /usr/libexec/PlistBuddy -c 'Print :ProvisionedDevices' "$RUNNER_TEMP/profile.plist" >/dev/null 2>&1; then METHOD=release-testing; else METHOD=app-store-connect; fi
+          for d in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+            mkdir -p "$d"; cp "$RUNNER_TEMP/app.mobileprovision" "$d/$UUID.mobileprovision"
+          done
+          { echo "PROFILE_NAME=$NAME"; echo "TEAM_ID=$TEAM"; echo "EXPORT_METHOD=$METHOD"; echo "KEYCHAIN=$KC"; } >> "$GITHUB_ENV"
+          echo "::notice::Signing with profile '$NAME' (team $TEAM, $METHOD)"
+
+      - name: Manual signing on the app target only
+        if: env.HAS_SIGNING == 'true'
+        working-directory: apps/mobile/ios
+        run: |
+          ruby -rxcodeproj -e '
+            p = Xcodeproj::Project.open(Dir["*.xcodeproj"].first)
+            t = p.targets.find { |x| x.product_type == "com.apple.product-type.application" }
+            t.build_configurations.each do |c|
+              s = c.build_settings
+              s["CODE_SIGN_STYLE"] = "Manual"; s["DEVELOPMENT_TEAM"] = ENV["TEAM_ID"]
+              s["CODE_SIGN_IDENTITY"] = "Apple Distribution"; s["CODE_SIGN_IDENTITY[sdk=iphoneos*]"] = "Apple Distribution"
+              s["PROVISIONING_PROFILE_SPECIFIER"] = ENV["PROFILE_NAME"]
+            end
+            p.save'
+
+      - name: Archive + export IPA
+        if: env.HAS_SIGNING == 'true'
+        working-directory: apps/mobile/ios
+        run: |
+          set -o pipefail
+          xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath build/app.xcarchive OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN" archive | tail -50
+          cat > build/ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>${EXPORT_METHOD}</string>
+            <key>teamID</key><string>${TEAM_ID}</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key><dict><key>app.daftarak</key><string>${PROFILE_NAME}</string></dict>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive -archivePath build/app.xcarchive -exportOptionsPlist build/ExportOptions.plist -exportPath build/ipa | tail -20
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp build/ipa/*.ipa "$GITHUB_WORKSPACE/out/daftarak-${APP_VERSION:-dev}-${BUILD_NUMBER}.ipa"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios
+          path: out/*
+          retention-days: 30
+
+      - name: Upload to TestFlight
+        if: env.HAS_SIGNING == 'true' && env.HAS_ASC == 'true' && env.EXPORT_METHOD == 'app-store-connect'
+        env:
+          ASC_KEY: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$ASC_KEY" | base64 -d > ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+          xcrun altool --upload-app -t ios -f out/*.ipa --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+
+      - name: Clean up keychain
+        if: always() && env.KEYCHAIN != ''
+        run: security delete-keychain "$KEYCHAIN" || true
+
+  release:
+    needs: [android, ios]
+    if: github.ref_type == 'tag' && !cancelled() && (needs.android.result == 'success' || needs.ios.result == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: out, merge-multiple: true }
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          draft: true
+          generate_release_notes: true

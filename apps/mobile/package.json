@@ -52,6 +52,7 @@
     "expo-splash-screen": "~58.0.14",
     "expo-sqlite": "~58.0.18",
     "expo-status-bar": "~58.0.5",
+    "expo-system-ui": "~58.0.7",
     "expo-updates": "~58.0.22",
     "fast-png": "^8.0.0",
     "i18next": "^27.2.4",
