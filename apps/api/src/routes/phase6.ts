@@ -12,7 +12,7 @@ import { requireSession } from '../auth/tokens';
 import { effectiveLimits, getPlan, type BusinessRow } from '../licence/issue';
 import { bumpCounter } from '../otp/service';
 import { presign } from '../backups/r2';
-import { activatePlan } from '../billing/activate';
+import { activatePlan, planRank, storeEndStatement } from '../billing/activate';
 import type { Deps } from './v1';
 
 type CheckIntegrity = (env: Env, input: z.infer<typeof attachDeviceSchema>['integrity'], action: 'signup' | 'activate' | 'checkin', now: number) => Promise<unknown>;
@@ -31,6 +31,15 @@ export async function ownedBusiness(env: Env, businessId: string, accountId: str
 
 /** Max backup file size per (effective) plan. Unknown paid plans get the basic cap. */
 export const BACKUP_MAX_BYTES: Record<string, number> = { free: 50 * 1024 * 1024, basic: 300 * 1024 * 1024, pro: 1024 * 1024 * 1024 };
+/**
+ * Hard cap on COMMITTED backups per business (all devices together), per effective plan: count and total bytes.
+ * Unknown paid plans get the basic cap.
+ */
+export const BACKUP_HARD_CAP: Record<string, { count: number; bytes: number }> = {
+  free: { count: 3, bytes: 3 * 50 * 1024 * 1024 },
+  basic: { count: 7, bytes: 7 * 300 * 1024 * 1024 },
+  pro: { count: 30, bytes: 30 * 1024 * 1024 * 1024 },
+};
 /** Manual "backup now" uploads per business per UTC day (the daily automatic backup rides on the check-in). */
 export const BACKUP_UPLOADS_PER_DAY = 6;
 /** Uncommitted backup rows (and their R2 objects) older than this are garbage. */
@@ -88,8 +97,8 @@ export async function commitBackup(env: Env, backupId: string, businessId: strin
   const head = await env.BACKUPS.head(row.r2_key);
   if (!head || head.size !== row.size) throw new ApiError(409, 'backup_not_uploaded');
   await env.DB.prepare(`UPDATE backups SET committed_at = ?2 WHERE id = ?1`).bind(backupId, now).run();
-  const biz = await env.DB.prepare(`SELECT plan_code FROM businesses WHERE id = ?1`).bind(businessId).first<{ plan_code: string }>();
-  const keep = JSON.parse((await getPlan(env, biz!.plan_code)).limits_json).backups_kept as number;
+  const biz = (await env.DB.prepare(`SELECT * FROM businesses WHERE id = ?1`).bind(businessId).first<BusinessRow>())!;
+  const keep = JSON.parse((await getPlan(env, biz.plan_code)).limits_json).backups_kept as number;
   const prev = await env.DB.prepare(`SELECT counts_json FROM backups WHERE business_id = ?1 AND committed_at IS NOT NULL AND id != ?2 ORDER BY committed_at DESC LIMIT 1`)
     .bind(businessId, backupId)
     .first<{ counts_json: string }>();
@@ -102,6 +111,30 @@ export async function commitBackup(env: Env, backupId: string, businessId: strin
       .all<{ id: string; r2_key: string }>();
     if (old.results.length) await deleteBackups(env, old.results);
   }
+  // Hard cap per business (all devices), whatever the retention / shrink rules decided: newest first, at most
+  // `count` backups and `bytes` in total. The shrink guard may keep ONE extra older backup: the one holding the most
+  // records (the real history a wiped phone must not push out).
+  const { plan } = await effectiveLimits(env, biz, now);
+  const cap = BACKUP_HARD_CAP[plan] ?? BACKUP_HARD_CAP.basic!;
+  const all = await env.DB.prepare(`SELECT id, r2_key, size, counts_json FROM backups WHERE business_id = ?1 AND committed_at IS NOT NULL ORDER BY committed_at DESC, id DESC`)
+    .bind(businessId)
+    .all<{ id: string; r2_key: string; size: number; counts_json: string }>();
+  let guarded: string | null = null;
+  if (shrunk) {
+    let best = -1;
+    for (const b of all.results) if (b.id !== backupId && totalCount(b.counts_json) > best) (best = totalCount(b.counts_json)), (guarded = b.id);
+  }
+  const drop: { id: string; r2_key: string }[] = [];
+  let n = 0;
+  let bytes = 0;
+  for (const b of all.results) {
+    if (b.id === guarded) continue;
+    if (b.id === backupId || (n < cap.count && bytes + b.size <= cap.bytes)) {
+      n++;
+      bytes += b.size;
+    } else drop.push(b);
+  }
+  if (drop.length) await deleteBackups(env, drop);
   // Uncommitted leftovers (row + object) older than the TTL are garbage.
   const stale = await env.DB.prepare(`SELECT id, r2_key FROM backups WHERE business_id = ?1 AND committed_at IS NULL AND created_at < ?2`)
     .bind(businessId, now - UNCOMMITTED_TTL_MS)
@@ -223,10 +256,11 @@ export function addPhase6Routes(app: Hono<AppEnv>, deps: Deps, registerDevice: R
    * RevenueCat webhook (Authorization header = shared secret). app_user_id = business id.
    * Idempotent by event id: the business update and the "seen" row are written in ONE batch, so a failure leaves
    * the event unseen and RevenueCat's retry applies it.
-   *  - purchases / renewals / product changes set the plan until the store expiry; when the plan came from another
-   *    source (manual / code / admin) the expiry is never shortened (max of both);
-   *  - billing issue → past_due; refund (CANCELLATION with cancel_reason CUSTOMER_SUPPORT) → back to the free plan;
-   *  - EXPIRATION ends a store plan at the store's expiry; other cancellations keep access until expiry;
+   *  - purchases / renewals / product changes set the plan until the store expiry; paid manual time (activation
+   *    code / manual payment / admin: manual_plan_code + manual_until) is kept apart and never lost;
+   *  - billing issue → past_due; refund (CANCELLATION with cancel_reason CUSTOMER_SUPPORT) → the manual plan while it
+   *    runs, else the free plan;
+   *  - EXPIRATION ends a store plan (back to the manual plan while it runs); other cancellations keep access until expiry;
    *  - SANDBOX events are recorded but ignored unless REVENUECAT_ALLOW_SANDBOX = "1".
    */
   app.post('/webhooks/revenuecat', async (c) => {
@@ -265,12 +299,22 @@ export function addPhase6Routes(app: Hono<AppEnv>, deps: Deps, registerDevice: R
       now,
     );
     const sandboxIgnored = (e.environment ?? '').toUpperCase() === 'SANDBOX' && c.env.REVENUECAT_ALLOW_SANDBOX !== '1';
-    const biz = businessId ? await c.env.DB.prepare(`SELECT id, plan_source, plan_expires_at FROM businesses WHERE id = ?1`).bind(businessId).first<{ id: string; plan_source: string; plan_expires_at: number }>() : null;
+    const biz = businessId
+      ? await c.env.DB.prepare(`SELECT id, plan_code, plan_source, plan_expires_at, manual_plan_code, manual_until FROM businesses WHERE id = ?1`)
+          .bind(businessId)
+          .first<{ id: string; plan_code: string; plan_source: string; plan_expires_at: number; manual_plan_code: string | null; manual_until: number | null }>()
+      : null;
     if (!biz || sandboxIgnored) {
       await markSeen.run();
       return c.json({ ok: true, ...(sandboxIgnored ? { ignored: 'sandbox' } : {}), ...(businessId && !biz ? { unknownBusiness: true } : {}) });
     }
     const updates: D1PreparedStatement[] = [];
+    // The manual entitlement; a row whose plan came from a manual source without the columns (set before they
+    // existed / by hand) counts its current plan as manual.
+    const legacyManual = !biz.manual_plan_code && ['manual', 'code', 'admin'].includes(biz.plan_source) && biz.plan_code !== FREE_PLAN_CODE;
+    const manualPlan = biz.manual_plan_code ?? (legacyManual ? biz.plan_code : null);
+    const manualUntil = biz.manual_plan_code ? (biz.manual_until ?? 0) : legacyManual ? biz.plan_expires_at : 0;
+    const manualRunning = !!manualPlan && manualUntil > now;
     switch (e.type) {
       case 'INITIAL_PURCHASE':
       case 'RENEWAL':
@@ -278,13 +322,18 @@ export function addPhase6Routes(app: Hono<AppEnv>, deps: Deps, registerDevice: R
       case 'UNCANCELLATION':
       case 'NON_RENEWING_PURCHASE':
         if (mapped && e.expiration_at_ms) {
-          // Another source (manual payment, activation code, admin) may already cover a later date: keep it.
-          const until = biz.plan_source === 'store' ? e.expiration_at_ms : Math.max(biz.plan_expires_at, e.expiration_at_ms);
+          // The manual entitlement (manual_plan_code / manual_until) is kept apart and never shortened:
+          //  - a higher store plan applies until the store expiry, then EXPIRATION falls back to the manual plan;
+          //  - the same plan runs until the later of both dates;
+          //  - a lower store plan does not replace a better manual plan that is still running.
+          if (manualRunning && planRank(mapped.plan) < planRank(manualPlan)) break;
+          const until = manualRunning && mapped.plan === manualPlan ? Math.max(manualUntil, e.expiration_at_ms) : e.expiration_at_ms;
           updates.push(
             c.env.DB.prepare(
               `UPDATE businesses SET plan_code = ?2, plan_expires_at = ?3, plan_source = 'store', billing_period = ?4,
+                 manual_plan_code = COALESCE(?5, manual_plan_code), manual_until = COALESCE(?6, manual_until),
                  status = CASE WHEN status = 'suspended' THEN 'suspended' ELSE 'active' END WHERE id = ?1`,
-            ).bind(biz.id, mapped.plan, until, mapped.period),
+            ).bind(biz.id, mapped.plan, until, mapped.period, legacyManual ? manualPlan : null, legacyManual ? manualUntil : null),
           );
         }
         break;
@@ -292,20 +341,12 @@ export function addPhase6Routes(app: Hono<AppEnv>, deps: Deps, registerDevice: R
         updates.push(c.env.DB.prepare(`UPDATE businesses SET status = 'past_due' WHERE id = ?1 AND plan_source = 'store' AND status != 'suspended'`).bind(biz.id));
         break;
       case 'CANCELLATION':
-        // A refund (granted by store support) takes the paid plan away now; a normal cancellation keeps it until expiry.
-        if ((e.cancel_reason ?? '').toUpperCase() === 'CUSTOMER_SUPPORT') {
-          updates.push(
-            c.env.DB.prepare(
-              `UPDATE businesses SET plan_code = ?2, plan_expires_at = ?3, billing_period = NULL,
-                 status = CASE WHEN status = 'suspended' THEN 'suspended' ELSE 'active' END WHERE id = ?1 AND plan_source = 'store'`,
-            ).bind(biz.id, FREE_PLAN_CODE, now),
-          );
-        }
+        // A refund (granted by store support) takes the paid store plan away now (back to the manual plan while it
+        // runs, else free); a normal cancellation keeps it until expiry.
+        if ((e.cancel_reason ?? '').toUpperCase() === 'CUSTOMER_SUPPORT') updates.push(storeEndStatement(c.env, biz.id, 'refund', now, now, FREE_PLAN_CODE));
         break;
       case 'EXPIRATION':
-        updates.push(
-          c.env.DB.prepare(`UPDATE businesses SET plan_expires_at = MIN(plan_expires_at, ?2) WHERE id = ?1 AND plan_source = 'store'`).bind(biz.id, e.expiration_at_ms ?? now),
-        );
+        updates.push(storeEndStatement(c.env, biz.id, 'expire', now, e.expiration_at_ms ?? now, FREE_PLAN_CODE));
         break;
       default:
         break; // TRANSFER / TEST / SUBSCRIPTION_PAUSED …: nothing to change

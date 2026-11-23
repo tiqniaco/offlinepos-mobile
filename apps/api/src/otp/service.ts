@@ -48,10 +48,18 @@ export const isProduction = (env: Pick<Env, 'ENVIRONMENT'>) => env.ENVIRONMENT =
 /** Anti SMS-pumping caps (all SMS, every phone / purpose). */
 export const OTP_DEFAULT_DAILY_CAP = 3000;
 export const OTP_PREFIX_HOURLY_CAP = 100;
-/** Verify limits: calls per phone per hour, calls per IP per hour, wrong codes per phone per day. */
+/**
+ * Verify limits. Only calls that hit a LIVE code count against the phone (junk guesses for a phone with no pending code
+ * can never lock its owner out): per (phone, IP) per hour, a higher phone-wide cap per hour, and per IP per hour.
+ * Wrong codes are bounded per SENT code (each dies after OTP_POLICY.maxAttempts wrong tries); a phone whose codes
+ * were burned OTP_BURNED_CODES_PER_DAY times in a day gets no more code checks until tomorrow.
+ */
 export const OTP_VERIFY_PER_PHONE_HOUR = 10;
+export const OTP_VERIFY_PER_PHONE_ALL_IPS_HOUR = 30;
 export const OTP_VERIFY_PER_IP_HOUR = 60;
-export const OTP_WRONG_PER_PHONE_DAY = 20;
+export const OTP_BURNED_CODES_PER_DAY = 4;
+/** Wrong codes per phone per day this allows (burned codes × attempts per code). */
+export const OTP_WRONG_PER_PHONE_DAY = OTP_BURNED_CODES_PER_DAY * OTP_POLICY.maxAttempts;
 
 const positive = (v: string | undefined, dflt: number) => {
   const n = Number(v);
@@ -153,15 +161,13 @@ export async function requestOtp(
  */
 export async function verifyOtp(env: Env, args: { phone: string; purpose: Purpose; code: string; now: number; ip?: string }): Promise<void> {
   const { phone, purpose, code, now } = args;
+  const ip = args.ip ?? 'unknown';
   const db = env.DB;
-  if ((await bumpCounter(db, `otp-verify-ip:${args.ip ?? 'unknown'}`, HOUR, now)) > OTP_VERIFY_PER_IP_HOUR) {
+  if ((await bumpCounter(db, `otp-verify-ip:${ip}`, HOUR, now)) > OTP_VERIFY_PER_IP_HOUR) {
     throw new ApiError(429, 'otp_rate_limited', 'too many attempts from this network');
   }
-  if ((await bumpCounter(db, `otp-verify:${phone}`, HOUR, now)) > OTP_VERIFY_PER_PHONE_HOUR) {
-    throw new ApiError(429, 'otp_too_many_attempts', 'too many attempts, try again later');
-  }
-  const wrongKey = `otp-wrong:${phone}`;
-  if ((await readCounter(db, wrongKey, DAY, now)) >= OTP_WRONG_PER_PHONE_DAY) {
+  const burnedKey = `otp-burned:${phone}`;
+  if ((await readCounter(db, burnedKey, DAY, now)) >= OTP_BURNED_CODES_PER_DAY) {
     throw new ApiError(429, 'otp_too_many_attempts', 'too many wrong codes today');
   }
 
@@ -172,7 +178,14 @@ export async function verifyOtp(env: Env, args: { phone: string; purpose: Purpos
   )
     .bind(phone, purpose)
     .first<{ id: string; code_hash: string; attempts: number; expires_at: number }>();
+  // No live code: nothing to guess, and nothing is counted against the phone.
   if (!row) throw new ApiError(400, 'otp_invalid', 'no active code');
+  if ((await bumpCounter(db, `otp-verify:${phone}|${ip}`, HOUR, now)) > OTP_VERIFY_PER_PHONE_HOUR) {
+    throw new ApiError(429, 'otp_too_many_attempts', 'too many attempts, try again later');
+  }
+  if ((await bumpCounter(db, `otp-verify:${phone}`, HOUR, now)) > OTP_VERIFY_PER_PHONE_ALL_IPS_HOUR) {
+    throw new ApiError(429, 'otp_too_many_attempts', 'too many attempts, try again later');
+  }
   if (row.attempts >= OTP_POLICY.maxAttempts) throw new ApiError(429, 'otp_too_many_attempts', 'request a new code');
   if (now > row.expires_at) throw new ApiError(400, 'otp_expired', 'code expired');
 
@@ -185,13 +198,16 @@ export async function verifyOtp(env: Env, args: { phone: string; purpose: Purpos
 
   const ok = safeEqual(await codeHash(env, phone, purpose, code), row.code_hash);
   if (!ok) {
-    const wrong = await bumpCounter(db, wrongKey, DAY, now);
-    if (wrong >= OTP_WRONG_PER_PHONE_DAY) {
-      // Daily cap: every open code of this phone stops working.
-      await db.prepare(`UPDATE otp_codes SET consumed_at = ?2 WHERE phone = ?1 AND consumed_at IS NULL`).bind(phone, now).run();
-      throw new ApiError(429, 'otp_too_many_attempts', 'too many wrong codes today');
+    if (claim.attempts >= OTP_POLICY.maxAttempts) {
+      // This code is burned. Counted once per code (the claim reaching the max happens exactly once).
+      const burned = await bumpCounter(db, burnedKey, DAY, now);
+      if (burned >= OTP_BURNED_CODES_PER_DAY) {
+        // Daily cap: every open code of this phone stops working.
+        await db.prepare(`UPDATE otp_codes SET consumed_at = ?2 WHERE phone = ?1 AND consumed_at IS NULL`).bind(phone, now).run();
+        throw new ApiError(429, 'otp_too_many_attempts', 'too many wrong codes today');
+      }
+      throw new ApiError(429, 'otp_too_many_attempts', 'request a new code');
     }
-    if (claim.attempts >= OTP_POLICY.maxAttempts) throw new ApiError(429, 'otp_too_many_attempts', 'request a new code');
     throw new ApiError(400, 'otp_invalid', 'wrong code');
   }
   // Consume atomically: only one concurrent verify can win.

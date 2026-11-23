@@ -19,7 +19,7 @@ import { z } from 'zod';
 import type { AppEnv, Env } from '../env';
 import { ApiError, body, clientIp } from '../lib/http';
 import { wrapSecret } from '../lib/crypto';
-import { requestOtp, verifyOtp } from '../otp/service';
+import { bumpCounter, requestOtp, verifyOtp } from '../otp/service';
 import { providerFor, type OtpProvider } from '../otp/providers';
 import { checkRefresh, commitRefresh, createSession, requireSession, revokeSession, rotateRefresh } from '../auth/tokens';
 import { buildLicence, getPlan, signAnchorReceipt, type BusinessRow, type DeviceRow } from '../licence/issue';
@@ -28,6 +28,7 @@ import { addReleaseRoutes } from './releases';
 import { effectiveStatus, pendingAnnouncements, sendExpoPush, type PushMessage } from '../announce/announce';
 import { addPhase6Routes, commitBackup, setIntegrityChecker, startBackup } from './phase6';
 import { addManualBillingRoutes } from '../billing/manual';
+import { storeEndStatement } from '../billing/activate';
 import { addOcrRoutes, type OcrClient } from '../ocr/scan';
 import { blocks, verifyIntegrity, type IntegrityInput } from '../integrity/verify';
 
@@ -52,6 +53,8 @@ export const defaultDeps: Deps = { now: () => Date.now(), provider: providerFor,
 
 /** Anti trial-farming: shops one account may own. */
 export const MAX_BUSINESSES_PER_ACCOUNT = 2;
+/** Automatic backups (backupMeta on the check-in) started per business per UTC day. */
+export const CHECKIN_BACKUPS_PER_DAY = 1;
 
 function utcDay(now: number): number {
   const d = new Date(now);
@@ -165,8 +168,9 @@ export function v1Routes(deps: Deps = defaultDeps) {
   app.get('/licence/public-key', (c) => c.json({ kid: c.env.LICENCE_KID, publicKey: ed25519PublicKey(c.env.LICENCE_SIGNING_KEY) }));
 
   app.post('/auth/refresh', async (c) => {
-    const b = await body(c, z.object({ refreshToken: z.string() }));
-    const t = await rotateRefresh(c.env, b.refreshToken, deps.now());
+    // installId (optional): the app's install id; a grace retry from another install is treated as token theft.
+    const b = await body(c, z.object({ refreshToken: z.string(), installId: z.string().max(100).optional() }));
+    const t = await rotateRefresh(c.env, b.refreshToken, deps.now(), b.installId);
     return c.json({ accessToken: t.accessToken, refreshToken: t.refreshToken, accessExpiresAt: t.accessExpiresAt });
   });
 
@@ -229,7 +233,12 @@ export function v1Routes(deps: Deps = defaultDeps) {
     // by phone), and only the account's first shop gets the trial; later ones start on the free plan.
     const owned = await c.env.DB.prepare(`SELECT COUNT(*) AS n FROM businesses WHERE owner_account_id = ?1`).bind(s.aid).first<{ n: number }>();
     if ((owned?.n ?? 0) >= MAX_BUSINESSES_PER_ACCOUNT) throw new ApiError(403, 'business_limit_reached', `at most ${MAX_BUSINESSES_PER_ACCOUNT} businesses per account`);
-    const withTrial = (owned?.n ?? 0) === 0;
+    // Parallel creates must not farm trials: the account's ONE trial is claimed atomically, and the business row is
+    // inserted only while the account is still under the limit (one conditional INSERT; a loser gets 409).
+    const claimed = await c.env.DB.prepare(`UPDATE accounts SET trial_used_at = ?2 WHERE id = ?1 AND trial_used_at IS NULL RETURNING id`)
+      .bind(s.aid, now)
+      .first<{ id: string }>();
+    const withTrial = !!claimed && (owned?.n ?? 0) === 0;
     const trial = await getPlan(c.env, withTrial ? TRIAL_PLAN_CODE : FREE_PLAN_CODE);
     const id = uuidv7(now);
     const business: BusinessRow = {
@@ -246,9 +255,10 @@ export function v1Routes(deps: Deps = defaultDeps) {
       last_seen_at: now,
       app_version: b.device.appVersion,
     };
-    await c.env.DB.prepare(
+    const ins = await c.env.DB.prepare(
       `INSERT INTO businesses (id, owner_account_id, name, country, type, vat_registered, plan_code, status, plan_expires_at, backup_key_wrapped, created_at, last_seen_at, app_version)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11, ?12)`,
+       SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11, ?12
+       WHERE (SELECT COUNT(*) FROM businesses WHERE owner_account_id = ?2) < ?13`,
     )
       .bind(
         id,
@@ -263,8 +273,10 @@ export function v1Routes(deps: Deps = defaultDeps) {
         await wrapSecret(base64urlDecode(b.backupKey), c.env.BACKUP_WRAP_KEY),
         now,
         b.device.appVersion,
+        MAX_BUSINESSES_PER_ACCOUNT,
       )
       .run();
+    if (ins.meta.changes !== 1) throw new ApiError(409, 'business_limit_reached', `at most ${MAX_BUSINESSES_PER_ACCOUNT} businesses per account`);
     const registration = await registerDevice(c.env, business, s.sid, b.device, now);
     await c.env.DB.prepare(`UPDATE devices SET integrity_status = ?2, integrity_reason = ?3, integrity_at = ?4 WHERE id = ?1`).bind(registration.deviceId, verdict.status, verdict.reason ?? null, now).run();
     await countRequest(c.env, id, now);
@@ -289,7 +301,10 @@ export function v1Routes(deps: Deps = defaultDeps) {
       .bind(business.id)
       .first<{ session_id: string | null }>();
     if (active && active.session_id !== s.sid && (!s.stepUpUntil || s.stepUpUntil < now)) throw new ApiError(403, 'step_up_required');
+    // Same device-integrity policy as /devices/activate (a new phone joins the shop either way).
+    const verdict = await checkIntegrity(c.env, b.integrity, 'activate', now);
     const registration = await registerDevice(c.env, business, s.sid, b.device, now);
+    await c.env.DB.prepare(`UPDATE devices SET integrity_status = ?2, integrity_reason = ?3, integrity_at = ?4 WHERE id = ?1`).bind(registration.deviceId, verdict.status, verdict.reason ?? null, now).run();
     await countRequest(c.env, business.id, now);
     return c.json({ business: { id: business.id, name: business.name, country: business.country, type: business.type, role: 'owner' }, registration });
   });
@@ -297,10 +312,10 @@ export function v1Routes(deps: Deps = defaultDeps) {
   /** The ONE daily call (PLAN.md D-02): refresh-token rotation + licence + anchor. */
   app.post('/checkin', async (c) => {
     const now = deps.now();
-    const b = await body(c, checkinSchema);
-    // Validate only; the token is rotated LAST, after all the work succeeded (a failure never burns the token),
-    // and a retry of a lost response is accepted once within the grace window (auth/tokens.ts).
-    const t = await checkRefresh(c.env, b.refreshToken, now);
+    const b = await body(c, checkinSchema.extend({ installId: z.string().max(100).optional() }));
+    // Validate only; the token is rotated after the checks succeeded (a failure never burns the token), and a retry
+    // of a lost response is accepted once within the grace window (auth/tokens.ts).
+    const t = await checkRefresh(c.env, b.refreshToken, now, b.installId);
     const device = await c.env.DB.prepare(
       `SELECT d.id, d.business_id, d.code, d.deactivated_at FROM devices d
        JOIN businesses bz ON bz.id = d.business_id
@@ -309,19 +324,14 @@ export function v1Routes(deps: Deps = defaultDeps) {
       .bind(b.deviceId, t.accountId)
       .first<DeviceRow>();
     if (!device) throw new ApiError(404, 'not_found', 'device not registered');
-    const business = (await c.env.DB.prepare(`SELECT * FROM businesses WHERE id = ?1`).bind(device.business_id).first<BusinessRow>())!;
-
-    let anchorReceipt = null;
-    if (b.anchor && !device.deactivated_at) {
-      await c.env.DB.prepare(
-        `INSERT INTO anchors (id, business_id, device_id, chain_seq, chain_head, audit_seq, audit_head, server_time)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
-      )
-        .bind(uuidv7(now), business.id, device.id, b.anchor.chainSeq, b.anchor.chainHead, b.anchor.auditSeq, b.anchor.auditHead, now)
-        .run();
-      const r = { deviceId: device.id, ...b.anchor, serverTime: now };
-      anchorReceipt = { ...b.anchor, serverTime: now, sig: signAnchorReceipt(c.env, r) };
+    let business = (await c.env.DB.prepare(`SELECT * FROM businesses WHERE id = ?1`).bind(device.business_id).first<BusinessRow & { plan_source?: string; manual_until?: number | null }>())!;
+    // A store plan that ran out while paid manual time remains (the store's EXPIRATION webhook may be late or lost):
+    // fall back to the manual plan now.
+    if (business.plan_source === 'store' && business.plan_expires_at <= now && (business.manual_until ?? 0) > now) {
+      await storeEndStatement(c.env, business.id, 'expire', now, business.plan_expires_at, FREE_PLAN_CODE).run();
+      business = (await c.env.DB.prepare(`SELECT * FROM businesses WHERE id = ?1`).bind(device.business_id).first<BusinessRow>())!;
     }
+
     await c.env.DB.batch([
       c.env.DB.prepare(`UPDATE devices SET last_checkin_at = ?2, app_version = ?3 WHERE id = ?1`).bind(device.id, now, b.appVersion),
       c.env.DB.prepare(`UPDATE businesses SET last_seen_at = ?2, app_version = ?3 WHERE id = ?1`).bind(business.id, now, b.appVersion),
@@ -329,19 +339,6 @@ export function v1Routes(deps: Deps = defaultDeps) {
     if (b.integrity) await checkIntegrity(c.env, b.integrity, 'checkin', now, device.id);
     if (b.pushToken) await c.env.DB.prepare(`UPDATE devices SET push_token = ?2 WHERE id = ?1`).bind(device.id, b.pushToken).run();
     await countRequest(c.env, business.id, now);
-
-    // Backups ride on the daily check-in (no extra request): commit yesterday's upload, hand out today's PUT URL.
-    let backupCommitted: boolean | undefined;
-    if (b.committedBackupId) backupCommitted = await commitBackup(c.env, b.committedBackupId, business.id, now).catch(() => false);
-    let backupError: string | undefined;
-    const backupPut =
-      b.backupMeta && !device.deactivated_at
-        ? await startBackup(c.env, business.id, device.id, b.backupMeta, 'auto', now).catch((e) => {
-            // A refused backup (too large for the plan…) must never fail the licence check-in.
-            backupError = e instanceof ApiError ? e.code : 'backup_failed';
-            return null;
-          })
-        : null;
 
     const notices: { kind: string; textAr: string; textEn: string }[] = [];
     if (Math.abs(b.deviceTime - now) > DAY_MS) {
@@ -353,15 +350,50 @@ export function v1Routes(deps: Deps = defaultDeps) {
     const since = (await c.env.DB.prepare(`SELECT announcements_until AS u, activated_at AS a FROM devices WHERE id = ?1`).bind(device.id).first<{ u: number; a: number }>())!;
     const rows = await pendingAnnouncements(c.env, { ...business, status: effectiveStatus(business, now) }, since.u, since.a, now);
     const announcements = rows.map((a) => ({ id: a.id, titleAr: a.title_ar, bodyAr: a.body_ar, titleEn: a.title_en, bodyEn: a.body_en, url: a.url, at: a.created_at }));
+    const licence = await buildLicence(c.env, business, device, now);
+
+    // Rotate the token BEFORE any one-shot side effect: a check-in that loses the token race (parallel / replayed
+    // request) must not move the announcement cursor, store an anchor or start a backup. A lost response after this
+    // point is retried with the grace token and simply redoes the (idempotent / capped) work below.
+    const tokens = await commitRefresh(c.env, t, now);
+
+    let anchorReceipt = null;
+    const effects: D1PreparedStatement[] = [];
+    if (b.anchor && !device.deactivated_at) {
+      effects.push(
+        c.env.DB.prepare(
+          `INSERT INTO anchors (id, business_id, device_id, chain_seq, chain_head, audit_seq, audit_head, server_time)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
+        ).bind(uuidv7(now), business.id, device.id, b.anchor.chainSeq, b.anchor.chainHead, b.anchor.auditSeq, b.anchor.auditHead, now),
+      );
+      const r = { deviceId: device.id, ...b.anchor, serverTime: now };
+      anchorReceipt = { ...b.anchor, serverTime: now, sig: signAnchorReceipt(c.env, r) };
+    }
     if (rows.length) {
       const last = rows[rows.length - 1]!.created_at;
-      await c.env.DB.batch([
+      effects.push(
         c.env.DB.prepare(`UPDATE devices SET announcements_until = MAX(announcements_until, ?2) WHERE id = ?1`).bind(device.id, last),
         ...announcements.map((a) => c.env.DB.prepare(`UPDATE announcements SET delivered = delivered + 1 WHERE id = ?1`).bind(a.id)),
-      ]);
+      );
     }
-    const licence = await buildLicence(c.env, business, device, now);
-    const tokens = await commitRefresh(c.env, t, now);
+    if (effects.length) await c.env.DB.batch(effects);
+
+    // Backups ride on the daily check-in (no extra request): commit yesterday's upload, hand out today's PUT URL.
+    let backupCommitted: boolean | undefined;
+    if (b.committedBackupId) backupCommitted = await commitBackup(c.env, b.committedBackupId, business.id, now).catch(() => false);
+    let backupError: string | undefined;
+    let backupPut: Awaited<ReturnType<typeof startBackup>> | null = null;
+    if (b.backupMeta && !device.deactivated_at) {
+      // At most CHECKIN_BACKUPS_PER_DAY automatic backups per shop per UTC day (the app backs up once a day).
+      if ((await bumpCounter(c.env.DB, `backup-checkin:${business.id}`, DAY_MS, now)) > CHECKIN_BACKUPS_PER_DAY) backupError = 'rate_limited';
+      else
+        backupPut = await startBackup(c.env, business.id, device.id, b.backupMeta, 'auto', now).catch((e) => {
+          // A refused backup (too large for the plan…) must never fail the licence check-in.
+          backupError = e instanceof ApiError ? e.code : 'backup_failed';
+          return null;
+        });
+    }
+
     return c.json({
       announcements,
       licence,

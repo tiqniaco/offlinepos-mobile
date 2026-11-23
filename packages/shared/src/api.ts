@@ -313,5 +313,6 @@ export const API_ERROR_CODES = [
   'pdf_unsupported',
   'business_suspended',
   'backup_too_large',
+  'concurrent_update',
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];

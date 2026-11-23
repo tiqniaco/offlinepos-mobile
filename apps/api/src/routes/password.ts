@@ -33,6 +33,7 @@ async function check(acc: AccRow, password: string) {
 }
 
 const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
 /** Password attempts per IP / per phone per hour (on top of the per-account lock). */
 export const PASSWORD_PER_IP_HOUR = 30;
 export const PASSWORD_PER_PHONE_HOUR = 20;
@@ -72,6 +73,36 @@ async function settleAttempt(env: AppEnv['Bindings'], acc: AccRow, ok: boolean, 
   return until;
 }
 
+/**
+ * Mirror of claimAttempt/settleAttempt for a phone with no password (unknown, or SMS-only): failures and the doubling
+ * lock live in rate_counters ("pw-fail:<phone>" = failures, "pw-lock:<phone>" = locked-until ms), so the response
+ * sequence (invalid_credentials ×4, then password_locked with the same remaining seconds) and the work done (one
+ * PBKDF2 per unlocked attempt, none while locked) match an account that has a password. Kept for 30 days by the
+ * rate_counters cleanup (window_start = the day the counter started).
+ */
+async function dummyAttempt(env: AppEnv['Bindings'], phone: string, password: string, now: number): Promise<void> {
+  const lock = await env.DB.prepare(`SELECT count FROM rate_counters WHERE key = ?1 ORDER BY window_start DESC LIMIT 1`).bind(`pw-lock:${phone}`).first<{ count: number }>();
+  if (lock && lock.count > now) throw lockedError(lock.count, now);
+  const fail = await env.DB.prepare(`SELECT window_start FROM rate_counters WHERE key = ?1 ORDER BY window_start DESC LIMIT 1`).bind(`pw-fail:${phone}`).first<{ window_start: number }>();
+  const ws = fail?.window_start ?? Math.floor(now / DAY) * DAY;
+  const failed = (await env.DB.prepare(
+    `INSERT INTO rate_counters (key, window_start, count) VALUES (?1, ?2, 1)
+     ON CONFLICT (key, window_start) DO UPDATE SET count = count + 1 RETURNING count`,
+  )
+    .bind(`pw-fail:${phone}`, ws)
+    .first<{ count: number }>())!.count;
+  await pbkdf2Hex(password, '00'.repeat(16));
+  if (failed < FREE_FAILS) return;
+  const until = now + lockMs(failed);
+  await env.DB.prepare(
+    `INSERT INTO rate_counters (key, window_start, count) VALUES (?1, ?2, ?3)
+     ON CONFLICT (key, window_start) DO UPDATE SET count = MAX(count, ?3)`,
+  )
+    .bind(`pw-lock:${phone}`, ws, until)
+    .run();
+  throw lockedError(until, now);
+}
+
 export function addPasswordRoutes(app: Hono<AppEnv>, deps: Deps, businessesOf: (env: AppEnv['Bindings'], accountId: string) => Promise<unknown[]>) {
   app.post('/auth/password/login', async (c) => {
     const b = await body(c, passwordLoginSchema);
@@ -82,8 +113,8 @@ export function addPasswordRoutes(app: Hono<AppEnv>, deps: Deps, businessesOf: (
     if ((await bumpCounter(c.env.DB, `pw-phone:${phone}`, HOUR, now)) > PASSWORD_PER_PHONE_HOUR) throw new ApiError(429, 'rate_limited', 'too many attempts for this number');
     const acc = await claimAttempt(c.env, { phone }, now);
     if (!acc) {
-      // Unknown phone or an SMS-only account: same answer and the same work, so neither is revealed.
-      await pbkdf2Hex(b.password, '00'.repeat(16));
+      // Unknown phone or an SMS-only account: same answers (lock included), same work, so neither is revealed.
+      await dummyAttempt(c.env, phone, b.password, now);
       throw new ApiError(401, 'invalid_credentials');
     }
     const ok = await check(acc, b.password);

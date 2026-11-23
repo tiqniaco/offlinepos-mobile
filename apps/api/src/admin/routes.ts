@@ -214,7 +214,11 @@ export function adminRoutes(deps: Deps = defaultDeps) {
     // gift on their current plan and status.
     const paying = b.status !== 'trial' && !b.is_free && (b.plan_expires_at > now || b.status === 'suspended');
     if (paying) {
-      await c.env.DB.prepare(`UPDATE businesses SET plan_expires_at = ?2 WHERE id = ?1`).bind(id, until).run();
+      // A gift on a manual plan also extends the manual entitlement (it survives a later store purchase / expiry).
+      await c.env.DB.prepare(
+        `UPDATE businesses SET plan_expires_at = ?2,
+           manual_until = CASE WHEN plan_source != 'store' AND manual_plan_code = plan_code THEN ?2 ELSE manual_until END WHERE id = ?1`,
+      ).bind(id, until).run();
     } else {
       await c.env.DB.prepare(`UPDATE businesses SET status = 'trial', plan_code = 'pro', plan_expires_at = ?2 WHERE id = ?1 AND status != 'suspended'`).bind(id, until).run();
     }
@@ -487,16 +491,25 @@ export function adminRoutes(deps: Deps = defaultDeps) {
     const days = b.days ?? (req.period === 'yearly' ? 366 : 31);
     const { until, creditDays } = await planActivation(c.env, business, req.plan_code, days, now);
     // Approve + activate in ONE batch (a D1 batch is a transaction): only the call that flipped the request to
-    // approved (its nonce) activates the plan, so a double click or two admins can never activate twice.
+    // approved (its nonce) activates the plan, so a double click or two admins can never activate twice. The flip
+    // also requires the business plan / expiry to be exactly what `until` was computed from: two approvals for the
+    // same shop in parallel cannot overwrite each other's days (the loser gets 409 concurrent_update and retries).
     const nonce = uuidv7(now);
     const res = await c.env.DB.batch([
-      c.env.DB.prepare(`UPDATE payment_requests SET status = 'approved', reviewed_by = ?2, reviewed_at = ?3, review_nonce = ?4 WHERE id = ?1 AND status = 'pending'`).bind(id, adminId, now, nonce),
+      c.env.DB.prepare(
+        `UPDATE payment_requests SET status = 'approved', reviewed_by = ?2, reviewed_at = ?3, review_nonce = ?4
+         WHERE id = ?1 AND status = 'pending' AND EXISTS (SELECT 1 FROM businesses WHERE id = ?5 AND plan_code = ?6 AND plan_expires_at = ?7)`,
+      ).bind(id, adminId, now, nonce, business.id, business.plan_code, business.plan_expires_at),
       activationStatement(c.env, business.id, req.plan_code, until, 'manual', req.period, {
         sql: `EXISTS (SELECT 1 FROM payment_requests WHERE id = ?6 AND review_nonce = ?7)`,
         args: [id, nonce],
       }),
     ]);
-    if (res[0]!.meta.changes !== 1) throw new ApiError(409, 'not_pending', 'request already reviewed');
+    if (res[0]!.meta.changes !== 1) {
+      const st = await c.env.DB.prepare(`SELECT status FROM payment_requests WHERE id = ?1`).bind(id).first<{ status: string }>();
+      if (st?.status === 'pending') throw new ApiError(409, 'concurrent_update', 'the plan changed meanwhile (another approval?), try again');
+      throw new ApiError(409, 'not_pending', 'request already reviewed');
+    }
     const plan = await c.env.DB.prepare(`SELECT name_ar FROM plans WHERE code = ?1`).bind(req.plan_code).first<{ name_ar: string }>();
     const annId = await notifyBusiness(
       c.env,

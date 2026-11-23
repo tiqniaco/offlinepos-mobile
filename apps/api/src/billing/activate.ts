@@ -1,6 +1,7 @@
 /** Shared plan activation used by activation codes and manual (InstaPay / Vodafone Cash) payments. */
 import { DAY_MS } from '@daftarak/shared';
 import type { Env } from '../env';
+import { ApiError } from '../lib/http';
 
 export type PlanSource = 'code' | 'manual' | 'admin';
 
@@ -56,10 +57,13 @@ export async function planActivation(env: Env, business: ActivationBusiness, pla
 /**
  * The UPDATE that applies an activation. A suspended business stays suspended (an admin lifts it explicitly);
  * its status before suspension becomes 'active' so unsuspending restores the paid plan.
- * `guard` = extra SQL condition (e.g. "the payment request was approved by this call") for atomic batches.
+ * The activation is also recorded as the MANUAL entitlement (manual_plan_code / manual_until): a later store purchase
+ * may cover it for a while, but its expiry or refund falls back to it (routes/phase6.ts).
+ * `guard` = extra SQL condition (e.g. "the plan is still what was read") for atomic batches; its args start at ?6.
  */
 export function activationStatement(env: Env, businessId: string, planCode: string, until: number, source: PlanSource, period?: 'monthly' | 'yearly', guard?: { sql: string; args: unknown[] }) {
   const base = `UPDATE businesses SET plan_code = ?2, plan_expires_at = ?3, plan_source = ?4, billing_period = COALESCE(?5, billing_period),
+      manual_plan_code = ?2, manual_until = ?3,
       status = CASE WHEN status = 'suspended' THEN 'suspended' ELSE 'active' END,
       status_before_suspend = CASE WHEN status = 'suspended' THEN 'active' ELSE status_before_suspend END
     WHERE id = ?1`;
@@ -67,9 +71,14 @@ export function activationStatement(env: Env, businessId: string, planCode: stri
   return env.DB.prepare(`${base} AND ${guard.sql}`).bind(businessId, planCode, until, source, period ?? null, ...guard.args);
 }
 
+/** SQL guard (args at ?6, ?7): the business still has the plan / expiry the activation was computed from. */
+export const unchangedPlanGuard = (b: Pick<ActivationBusiness, 'plan_code' | 'plan_expires_at'>) => ({ sql: `plan_code = ?6 AND plan_expires_at = ?7`, args: [b.plan_code, b.plan_expires_at] });
+
 /**
  * Activates `planCode` for `days` (see computeActivation for the start date). Sets plan_code / status='active'
  * (a suspension is kept) / plan_expires_at / plan_source (and billing_period when given). Returns the new expiry (ms).
+ * Optimistic: the UPDATE only applies while the plan is still what was read; a concurrent activation makes it re-read
+ * and recompute (never losing either one's days), and after a few lost races it gives up with 409 concurrent_update.
  */
 export async function activatePlan(
   env: Env,
@@ -80,7 +89,35 @@ export async function activatePlan(
   now: number,
   period?: 'monthly' | 'yearly',
 ): Promise<number> {
-  const { until } = await planActivation(env, business, planCode, days, now);
-  await activationStatement(env, business.id, planCode, until, source, period).run();
-  return until;
+  let cur: ActivationBusiness = business;
+  for (let i = 0; i < 5; i++) {
+    const { until } = await planActivation(env, cur, planCode, days, now);
+    const res = await activationStatement(env, cur.id, planCode, until, source, period, unchangedPlanGuard(cur)).run();
+    if (res.meta.changes === 1) return until;
+    const fresh = await env.DB.prepare(`SELECT id, plan_code, plan_expires_at, status, country FROM businesses WHERE id = ?1`).bind(cur.id).first<ActivationBusiness>();
+    if (!fresh) break;
+    cur = fresh;
+  }
+  throw new ApiError(409, 'concurrent_update', 'the plan changed meanwhile, try again');
+}
+
+/** Store plan ranking (higher = more features). Unknown paid plans rank as basic. */
+export const planRank = (code: string | null | undefined) => (code === 'pro' ? 2 : code && code !== 'free' && code !== 'trial' ? 1 : 0);
+
+/**
+ * When the store plan ends: back to the manual entitlement (activation code / manual payment / admin) while it still
+ * runs; otherwise an expiry ends the store plan at the store's date and a refund drops to the free plan now.
+ * Applies only while the business is on the store plan.
+ */
+export function storeEndStatement(env: Env, businessId: string, kind: 'expire' | 'refund', now: number, storeUntil: number, freePlan: string) {
+  const manual = `(manual_until > ?2 AND manual_plan_code IS NOT NULL)`;
+  return env.DB.prepare(
+    `UPDATE businesses SET
+       plan_code = CASE WHEN ${manual} THEN manual_plan_code WHEN ?5 = 'refund' THEN ?4 ELSE plan_code END,
+       plan_expires_at = CASE WHEN ${manual} THEN manual_until WHEN ?5 = 'refund' THEN ?2 ELSE MIN(plan_expires_at, ?3) END,
+       plan_source = CASE WHEN ${manual} THEN 'manual' ELSE plan_source END,
+       billing_period = CASE WHEN ${manual} OR ?5 = 'refund' THEN NULL ELSE billing_period END,
+       status = CASE WHEN status = 'suspended' THEN 'suspended' WHEN ${manual} OR ?5 = 'refund' THEN 'active' ELSE status END
+     WHERE id = ?1 AND plan_source = 'store'`,
+  ).bind(businessId, now, storeUntil, freePlan, kind);
 }

@@ -218,6 +218,11 @@ export interface OcrCall { model: string; in: number; out: number; outcome: Outc
 
 export interface ScanUpload { contentType: 'image/jpeg' | 'image/png' | 'application/pdf'; base64: string; pages?: number }
 
+/** PDF name tokens with their #xx hex escapes decoded (PDF 1.2+: "/O#62jStm" is the name "/ObjStm"). */
+export function decodePdfNames(bin: string): string {
+  return bin.replace(/\/[^\s/\[\]<>(){}%]*/g, (n) => (n.includes('#') ? n.replace(/#([0-9a-fA-F]{2})/g, (_, h: string) => String.fromCharCode(parseInt(h, 16))) : n));
+}
+
 /** Decodes and checks the upload: JPEG / PNG magic bytes, or %PDF with at most OCR_PDF_MAX_PAGES pages. */
 export function decodeScanUpload(b: { image?: string; file?: string; mediaType?: string }): ScanUpload {
   if (b.image || b.mediaType !== 'application/pdf') return decodeImage((b.image ?? b.file)!, OCR_IMAGE_MAX_BYTES, 'image_invalid');
@@ -230,10 +235,14 @@ export function decodeScanUpload(b: { image?: string; file?: string; mediaType?:
   }
   if (bin.length === 0 || bin.length > OCR_IMAGE_MAX_BYTES) throw new ApiError(400, 'pdf_too_large', 'file must be at most 1.5 MB');
   if (!bin.startsWith('%PDF-')) throw new ApiError(400, 'image_invalid', 'file is not a PDF');
-  // Cheap page count: page objects are "/Type /Page" (not "/Pages"). Compressed object streams (/ObjStm) can hide
-  // them, so such PDFs (and any where no page is found) are refused: the user uploads photos instead.
-  if (/\/ObjStm/.test(bin)) throw new ApiError(400, 'pdf_unsupported', 'this PDF cannot be checked, upload photos of the pages instead');
-  const pages = (bin.match(/\/Type\s*\/Page(?![a-zA-Z])/g) ?? []).length;
+  // Cheap page count: page objects are "/Type /Page" (not "/Pages"). Name tokens may hide letters as #xx escapes
+  // ("/P#61ge" = "/Page"), so names are decoded first. Compressed object streams (/ObjStm) can hide pages and
+  // encrypted files cannot be inspected: such PDFs (and any where no page is found) are refused — upload photos.
+  const names = decodePdfNames(bin);
+  if (/\/(ObjStm|Encrypt)/.test(names)) {
+    throw new ApiError(400, 'pdf_unsupported', 'this PDF cannot be checked, upload photos of the pages instead');
+  }
+  const pages = (names.match(/\/Type\s*\/Page(?![^\s/\[\]<>(){}%])/g) ?? []).length;
   if (pages === 0) throw new ApiError(400, 'pdf_unsupported', 'this PDF cannot be checked, upload photos of the pages instead');
   if (pages > OCR_PDF_MAX_PAGES) throw new ApiError(400, 'pdf_too_large', `PDF must have at most ${OCR_PDF_MAX_PAGES} pages`);
   return { contentType: 'application/pdf', base64: b64, pages };
@@ -411,7 +420,7 @@ export function addOcrRoutes(app: Hono<AppEnv>, deps: Deps) {
     // The mode is part of the stored key: the same photo read as a list is a different scan.
     const rawKey = c.req.header('X-Idempotency-Key');
     const idemKey = rawKey && IDEM_RE.test(rawKey) ? (mode === 'list' ? `list:${rawKey}` : rawKey) : null;
-    if (idemKey) {
+    const replay = async () => {
       const prev = await c.env.DB.prepare(
         `SELECT status, result_json, created_at FROM ocr_scans WHERE business_id = ?1 AND idem_key = ?2 AND created_at > ?3 ORDER BY created_at DESC LIMIT 1`,
       )
@@ -421,13 +430,37 @@ export function addOcrRoutes(app: Hono<AppEnv>, deps: Deps) {
         return c.json({ ...(JSON.parse(prev.result_json) as AnyExtract), used: await usageOf(c.env, business.id, now), limit: quota } satisfies OcrScanResponse | OcrListResponse);
       }
       if (prev?.status === 'pending' && prev.created_at > now - PENDING_STALE_MS) throw new ApiError(429, 'rate_limited', 'this scan is still running', 10_000);
+      return null;
+    };
+    if (idemKey) {
+      const r = await replay();
+      if (r) return r;
     }
 
     const client = (deps.ocrClient ?? defaultOcrClient)(c.env);
     if (!client) throw new ApiError(503, 'ocr_unavailable', 'invoice scanning is not configured');
 
     const scanId = uuidv7(now);
-    await claimScan(c.env, { id: scanId, businessId: business.id, accountId: s.aid, idemKey, quota, now });
+    if (idemKey) {
+      // (business, key) is unique: a dead row (failed, stale pending, outside the window) gives its key up first.
+      await c.env.DB.prepare(
+        `UPDATE ocr_scans SET idem_key = NULL WHERE business_id = ?1 AND idem_key = ?2
+           AND (status = 'failed' OR created_at <= ?3 OR (status = 'pending' AND created_at <= ?4))`,
+      )
+        .bind(business.id, idemKey, now - OCR_IDEMPOTENCY_MS, now - PENDING_STALE_MS)
+        .run();
+    }
+    try {
+      await claimScan(c.env, { id: scanId, businessId: business.id, accountId: s.aid, idemKey, quota, now });
+    } catch (e) {
+      // A parallel request with the same key won the insert: answer like a retry (stored result / still running).
+      if (idemKey && /UNIQUE/i.test(String((e as Error)?.message ?? e))) {
+        const r = await replay();
+        if (r) return r;
+        throw new ApiError(429, 'rate_limited', 'this scan is still running', 10_000);
+      }
+      throw e;
+    }
     // Global spend circuit breaker (all businesses, UTC day).
     const cap = Number(c.env.OCR_DAILY_SCAN_CAP) > 0 ? Math.floor(Number(c.env.OCR_DAILY_SCAN_CAP)) : OCR_DEFAULT_DAILY_CAP;
     if ((await bumpCounter(c.env.DB, 'ocr-global', DAY, now)) > cap) {

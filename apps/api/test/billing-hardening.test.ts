@@ -120,13 +120,14 @@ describe('RevenueCat webhook', () => {
     const s = await shop(c, '01099990003');
     const far = c.clock.now + 200 * DAY_MS;
     await setBiz(c, s.businessId, 'pro', 'active', far, 'manual');
+    // A LOWER store plan does not replace a better manual plan that still runs.
     expect((await c.call('POST', '/v1/webhooks/revenuecat', ev(c, s.businessId, 'x1', 'INITIAL_PURCHASE'), RC)).status).toBe(200);
     let b = await biz(c, s.businessId);
-    expect(b).toMatchObject({ plan_source: 'store', plan_expires_at: far });
+    expect(b).toMatchObject({ plan_code: 'pro', plan_source: 'manual', plan_expires_at: far });
 
     await c.call('POST', '/v1/webhooks/revenuecat', ev(c, s.businessId, 'x2', 'PRODUCT_CHANGE', { product_id: 'daftarak_basic_monthly', new_product_id: 'daftarak_pro_yearly', expiration_at_ms: c.clock.now + 365 * DAY_MS }), RC);
     b = await biz(c, s.businessId);
-    expect(b).toMatchObject({ plan_code: 'pro', billing_period: 'yearly', plan_expires_at: c.clock.now + 365 * DAY_MS });
+    expect(b).toMatchObject({ plan_code: 'pro', plan_source: 'store', billing_period: 'yearly', plan_expires_at: c.clock.now + 365 * DAY_MS, manual_plan_code: 'pro', manual_until: far });
 
     // Sandbox: recorded, ignored.
     const sb = await c.call('POST', '/v1/webhooks/revenuecat', ev(c, s.businessId, 'x3', 'CANCELLATION', { cancel_reason: 'CUSTOMER_SUPPORT', environment: 'SANDBOX' }), RC);
@@ -134,17 +135,25 @@ describe('RevenueCat webhook', () => {
     expect((await biz(c, s.businessId)).plan_code).toBe('pro');
     expect((await c.call('POST', '/v1/webhooks/revenuecat', ev(c, s.businessId, 'x3', 'CANCELLATION'), RC)).json.duplicate).toBe(true);
 
-    // Normal cancellation keeps access; EXPIRATION ends it at the store expiry.
+    // Normal cancellation keeps access; EXPIRATION ends the store plan → back to the manual time still paid for.
     await c.call('POST', '/v1/webhooks/revenuecat', ev(c, s.businessId, 'x4', 'CANCELLATION', { cancel_reason: 'UNSUBSCRIBE' }), RC);
     expect((await biz(c, s.businessId)).plan_expires_at).toBe(c.clock.now + 365 * DAY_MS);
     await c.call('POST', '/v1/webhooks/revenuecat', ev(c, s.businessId, 'x5', 'EXPIRATION', { expiration_at_ms: c.clock.now + 5 * DAY_MS }), RC);
-    expect((await biz(c, s.businessId)).plan_expires_at).toBe(c.clock.now + 5 * DAY_MS);
-
-    // Refund → free plan now.
+    expect(await biz(c, s.businessId)).toMatchObject({ plan_code: 'pro', plan_source: 'manual', plan_expires_at: far });
+    // A store refund no longer touches the manual plan.
     await c.call('POST', '/v1/webhooks/revenuecat', ev(c, s.businessId, 'x6', 'CANCELLATION', { cancel_reason: 'CUSTOMER_SUPPORT' }), RC);
-    expect(await biz(c, s.businessId)).toMatchObject({ plan_code: 'free', status: 'active' });
+    expect(await biz(c, s.businessId)).toMatchObject({ plan_code: 'pro', plan_expires_at: far });
     const seen = await c.env.DB.prepare(`SELECT COUNT(*) AS n FROM billing_events WHERE business_id = ?1`).bind(s.businessId).first<any>();
     expect(seen.n).toBe(6);
+
+    // Store only (no manual time): EXPIRATION ends it at the store expiry; a refund → free plan now.
+    const t = await shop(c, '01099990013');
+    await c.call('POST', '/v1/webhooks/revenuecat', ev(c, t.businessId, 'y1', 'INITIAL_PURCHASE'), RC);
+    expect(await biz(c, t.businessId)).toMatchObject({ plan_code: 'basic', plan_source: 'store', plan_expires_at: c.clock.now + 30 * DAY_MS });
+    await c.call('POST', '/v1/webhooks/revenuecat', ev(c, t.businessId, 'y2', 'EXPIRATION', { expiration_at_ms: c.clock.now + 5 * DAY_MS }), RC);
+    expect((await biz(c, t.businessId)).plan_expires_at).toBe(c.clock.now + 5 * DAY_MS);
+    await c.call('POST', '/v1/webhooks/revenuecat', ev(c, t.businessId, 'y3', 'CANCELLATION', { cancel_reason: 'CUSTOMER_SUPPORT' }), RC);
+    expect(await biz(c, t.businessId)).toMatchObject({ plan_code: 'free', status: 'active' });
   });
 });
 
