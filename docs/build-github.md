@@ -62,7 +62,7 @@ The workflow reads the profile itself to get the team, the profile name and the 
 
 | Variable | Default when empty |
 | --- | --- |
-| `API_URL` | `https://api.daftarak.app` |
+| `API_URL` | `https://daftarak-api.mallimerp.com` |
 | `EAS_PROJECT_ID` | none (instant push needs it) |
 | `ADMOB_ANDROID_APP_ID`, `ADMOB_IOS_APP_ID`, `ADMOB_BANNER_*`, `ADMOB_INTERSTITIAL_*` | Google's **test** IDs |
 | `REVENUECAT_ANDROID_KEY`, `REVENUECAT_IOS_KEY` | in-app purchase hidden; activation codes still work |

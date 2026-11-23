@@ -31,7 +31,7 @@ concurrency:
 
 env:
   APP_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-  EXPO_PUBLIC_API_URL: ${{ vars.API_URL || 'https://api.daftarak.app' }}
+  EXPO_PUBLIC_API_URL: ${{ vars.API_URL || 'https://daftarak-api.mallimerp.com' }}
   EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
   ADMOB_ANDROID_APP_ID: ${{ vars.ADMOB_ANDROID_APP_ID }}
   ADMOB_IOS_APP_ID: ${{ vars.ADMOB_IOS_APP_ID }}

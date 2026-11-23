@@ -4,7 +4,7 @@
     "base": {
       "node": "22.12.0",
       "pnpm": "10.28.0",
-      "env": { "EXPO_PUBLIC_API_URL": "https://api.daftarak.app" }
+      "env": { "EXPO_PUBLIC_API_URL": "https://daftarak-api.mallimerp.com" }
     },
     "development": {
       "extends": "base",
