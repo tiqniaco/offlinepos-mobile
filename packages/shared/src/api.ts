@@ -227,15 +227,25 @@ export const OCR_PDF_MAX_PAGES = 3;
 export const OCR_MEDIA_TYPES = ['image/jpeg', 'image/png', 'application/pdf'] as const;
 export type OcrMediaType = (typeof OCR_MEDIA_TYPES)[number];
 const ocrB64 = z.string().min(8).max(Math.ceil((OCR_IMAGE_MAX_BYTES * 4) / 3) + 100);
+/** What is being read: a supplier invoice (default) or any list of the shop's items (handwritten / printed stock list). */
+export const OCR_SCAN_MODES = ['invoice', 'list'] as const;
+export type OcrScanMode = (typeof OCR_SCAN_MODES)[number];
 /** Send `image` (base64 JPEG / PNG, a data: prefix is accepted) or `file` + `mediaType` (JPEG / PNG / PDF ≤ 3 pages). */
 export const ocrScanRequestSchema = z
-  .object({ businessId: z.string().min(1), image: ocrB64.optional(), file: ocrB64.optional(), mediaType: z.enum(OCR_MEDIA_TYPES).optional() })
+  .object({ businessId: z.string().min(1), image: ocrB64.optional(), file: ocrB64.optional(), mediaType: z.enum(OCR_MEDIA_TYPES).optional(), mode: z.enum(OCR_SCAN_MODES).optional() })
   .refine((b) => !!b.image !== !!b.file, { message: 'send either image or file' })
   .refine((b) => !b.file || !!b.mediaType, { message: 'mediaType is required with file' });
 export type OcrScanRequest = z.infer<typeof ocrScanRequestSchema>;
 
 /** Money is in major units (EGP) as printed on the invoice; the app converts to minor units. */
-export const ocrLineSchema = z.object({ name: z.string(), qty: z.number(), unitPrice: z.number().nullable(), total: z.number().nullable() });
+export const ocrLineSchema = z.object({
+  name: z.string(),
+  qty: z.number(),
+  unitPrice: z.number().nullable(),
+  total: z.number().nullable(),
+  /** Unit as written on the line (كرتونة / علبة / كيلو…); older servers do not send it. */
+  unit: z.string().nullable().optional(),
+});
 export type OcrLine = z.infer<typeof ocrLineSchema>;
 export const ocrUsageSchema = z.object({ used: z.number(), limit: z.number() });
 export type OcrUsage = z.infer<typeof ocrUsageSchema>;
@@ -253,6 +263,12 @@ export const ocrScanResponseSchema = z.object({
   limit: z.number(),
 });
 export type OcrScanResponse = z.infer<typeof ocrScanResponseSchema>;
+
+/** List mode: any list of items (name, maybe qty / unit / cost / sale price), every field but the name may be missing. */
+export const ocrListLineSchema = z.object({ name: z.string(), qty: z.number().nullable(), unit: z.string().nullable(), cost: z.number().nullable(), price: z.number().nullable() });
+export type OcrListLine = z.infer<typeof ocrListLineSchema>;
+export const ocrListResponseSchema = z.object({ mode: z.literal('list'), lines: z.array(ocrListLineSchema), used: z.number(), limit: z.number() });
+export type OcrListResponse = z.infer<typeof ocrListResponseSchema>;
 
 export const apiErrorSchema = z.object({
   error: z.object({ code: z.string(), message: z.string(), retryAfterMs: z.number().optional() }),

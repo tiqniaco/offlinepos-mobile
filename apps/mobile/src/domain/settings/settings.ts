@@ -8,7 +8,7 @@ import { appendAudit } from '../audit/audit';
 import { assertCanWrite } from '../licence/guard';
 import { PermissionError } from '../auth/users';
 
-export type SettingKey = keyof BusinessSettings | 'language' | 'palette' | 'appearance' | 'font' | 'textSize' | 'sounds' | 'soundVolume' | 'haptics' | 'notifications' | 'tipsSeen' | 'blockScreenshots' | 'printer' | 'receipt' | 'cashRoundingMinor' | 'requireShift' | 'reminderDays' | 'reminderTemplate';
+export type SettingKey = keyof BusinessSettings | 'language' | 'palette' | 'appearance' | 'font' | 'textSize' | 'sounds' | 'soundVolume' | 'haptics' | 'notifications' | 'tipsSeen' | 'blockScreenshots' | 'printer' | 'receipt' | 'cashRoundingMinor' | 'requireShift' | 'reminderDays' | 'reminderTemplate' | 'defaultMarkupBp' | 'priceRoundingMinor';
 /** palette/appearance are personal display settings (src/ui/theme.ts). */
 export type AppSettings = BusinessSettings & { language: 'ar' | 'en'; palette: 'tiqnia' | 'teal' | 'emerald' | 'sunset' | 'graphite'; appearance: 'light' | 'dark' | 'comfort' | 'system';
   font: 'readex' | 'alexandria' | 'almarai' | 'plex';
@@ -35,6 +35,10 @@ export type AppSettings = BusinessSettings & { language: 'ar' | 'en'; palette: '
   reminderDays: number;
   /** WhatsApp reminder text; {name} {amount} {business} {days}. */
   reminderTemplate: string;
+  /** Default markup on cost for products added automatically (basis points; default 2000 = 20 %). */
+  defaultMarkupBp: number;
+  /** Sale prices made from the markup are rounded UP to this step (minor units: 0 / 25 / 50 / 100; default 50). */
+  priceRoundingMinor: number;
 };
 
 /** Receipt / invoice template options (SPEC §3 + «شكل الفواتير»). Every field has a good default. */
@@ -97,7 +101,7 @@ export async function writeSettings(tx: Pick<AppDb, 'insert'>, values: Partial<A
 }
 
 /** Security settings that protect the whole shop: only someone with settings.manage may change them. */
-const MANAGED_KEYS: ReadonlySet<SettingKey> = new Set<SettingKey>(['autoLockMinutes', 'blockScreenshots', 'negativeStock', 'wallets']);
+const MANAGED_KEYS: ReadonlySet<SettingKey> = new Set<SettingKey>(['autoLockMinutes', 'blockScreenshots', 'negativeStock', 'wallets', 'defaultMarkupBp', 'priceRoundingMinor']);
 
 /** Change one setting with an audit entry. Language and lock time are personal → allowed even read-only. */
 export async function changeSetting<K extends SettingKey>(

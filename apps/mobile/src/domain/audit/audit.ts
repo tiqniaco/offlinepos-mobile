@@ -29,6 +29,8 @@ export type AuditAction =
   | 'product.restore'
   | 'product.bulk_category'
   | 'product.import'
+  | 'product.quick_add'
+  | 'unit.create'
   | 'category.change'
   | 'stock.adjust'
   | 'stock.count'

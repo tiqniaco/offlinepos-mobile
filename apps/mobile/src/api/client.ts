@@ -11,6 +11,7 @@ import {
   createPaymentRequestResponseSchema,
   manualBillingInfoSchema,
   ocrScanResponseSchema,
+  ocrListResponseSchema,
   ocrUsageSchema,
   type OcrMediaType,
   paymentRequestListSchema,
@@ -107,6 +108,15 @@ export const api = {
       timeoutMs: 120_000,
       signal: opts.signal,
       // Same key within 10 minutes → the server returns the stored result (a retry is never charged twice).
+      headers: opts.idempotencyKey ? { 'X-Idempotency-Key': opts.idempotencyKey } : undefined,
+    }),
+  /** Any list of the shop's items (stock list / notebook / price list): same quota and protections as an invoice scan. */
+  scanList: (token: string, businessId: string, file: string, mediaType: OcrMediaType, opts: { signal?: AbortSignal; idempotencyKey?: string } = {}) =>
+    request('/v1/purchases/scan', ocrListResponseSchema, {
+      body: { businessId, file, mediaType, mode: 'list' },
+      token,
+      timeoutMs: 120_000,
+      signal: opts.signal,
       headers: opts.idempotencyKey ? { 'X-Idempotency-Key': opts.idempotencyKey } : undefined,
     }),
   scanUsage: (token: string, businessId: string) => request(`/v1/purchases/scan/usage?businessId=${encodeURIComponent(businessId)}`, ocrUsageSchema, { token }),

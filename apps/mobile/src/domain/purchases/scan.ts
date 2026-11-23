@@ -28,12 +28,34 @@ export async function defaultScanUnit(db: Db, productId: string, scannedUnitPric
   return pickUnit(await scanUnitOptions(db, productId), p?.cost ?? 0, scannedUnitPriceMinor);
 }
 
+/** A not-yet-existing product's purchase line («صنف جديد»): created when the purchase is posted. */
+export function newProductLine(ctx: Pick<PurchaseCtx, 'vatRegistered' | 'vatRateBp'>, l: ReviewLine): PurchaseLine {
+  const n = l.newItem!;
+  const tmp = `new:${l.key}`;
+  const sale = n.saleMinor ?? 0;
+  return {
+    key: tmp,
+    productId: tmp,
+    productUnitId: tmp,
+    name: n.name.trim(),
+    unitName: n.unit ?? 'قطعة',
+    qtyMilli: l.qtyMilli,
+    factorMilli: 1000,
+    unitCostMinor: l.costMinor ?? 0,
+    taxRateBp: ctx.vatRegistered ? ctx.vatRateBp : 0,
+    // Always reviewed later: the sale price was guessed from the cost (or typed in a hurry).
+    newProduct: { name: n.name.trim(), unit: n.unit, costMinor: l.costMinor ?? 0, retailPriceMinor: sale, needsPriceReview: true },
+  };
+}
+
 /** Purchase lines for the ready review lines, in their units, keeping exact line totals. */
 export async function scanPurchaseLines(db: Db, ctx: Pick<PurchaseCtx, 'vatRegistered' | 'vatRateBp'>, lines: readonly ReviewLine[]): Promise<PurchaseLine[]> {
   const out: PurchaseLine[] = [];
   for (const l of lines) {
-    if (l.skip || !l.product || !(l.qtyMilli > 0)) continue;
-    const line = await purchaseLineFor(db, ctx, l.product.id, l.unitId, l.qtyMilli);
+    if (l.skip || !(l.qtyMilli > 0)) continue;
+    if (l.match === 'create' && !l.newItem) continue;
+    if (l.match !== 'create' && !l.product) continue;
+    const line = l.match === 'create' ? newProductLine(ctx, l) : await purchaseLineFor(db, ctx, l.product!.id, l.unitId, l.qtyMilli);
     let cost = l.costMinor ?? line.unitCostMinor;
     let discountMinor: number | undefined;
     if (l.costFromTotal && l.totalMinor != null) {
@@ -42,7 +64,7 @@ export async function scanPurchaseLines(db: Db, ctx: Pick<PurchaseCtx, 'vatRegis
       const d = lineAmount(cost, l.qtyMilli) - l.totalMinor;
       if (d > 0) discountMinor = d;
     }
-    out.push({ ...line, unitCostMinor: cost, ...(discountMinor ? { discountMinor } : {}) });
+    out.push({ ...line, unitCostMinor: cost, ...(discountMinor ? { discountMinor } : {}), ...(line.newProduct ? { newProduct: { ...line.newProduct, costMinor: cost } } : {}) });
   }
   return out;
 }

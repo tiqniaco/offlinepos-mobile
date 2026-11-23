@@ -3,13 +3,13 @@
  * All writes: permission check → licence guard → one transaction → audit entry.
  */
 import { and, asc, count, desc, eq, gt, inArray, isNull, lte, or, sql, sum } from 'drizzle-orm';
-import { applyBp, divRound, HybridLogicalClock, normalizeBarcode, uuidv7 } from '@daftarak/shared';
+import { applyBp, divRound, HybridLogicalClock, normalizeBarcode, UNLIMITED, uuidv7 } from '@daftarak/shared';
 import { barcodes, categories, inventoryDocs, inventoryLines, productGroups, productUnits, products, stockLevels, stockMovements, units } from '../../db/schema';
 import type { Db } from '../../db/types';
 import { withTx } from '../../db/tx';
 import { appendAudit } from '../audit/audit';
 import { requirePermission } from '../auth/users';
-import { assertCanWrite, assertWithinLimit } from '../licence/guard';
+import { assertCanWrite, assertWithinLimit, getLicenceState, ProductLimitError } from '../licence/guard';
 import { InventoryError, nowOf, type InvCtx } from './context';
 import { defaultWarehouseId, postMovements } from './ledger';
 import { finalizeInventoryDoc } from './postDoc';
@@ -42,6 +42,8 @@ export interface ProductInput {
   largerUnit?: LargerUnitInput | null;
   groupId?: string | null;
   variantLabel?: string | null;
+  /** Created automatically with a guessed / missing sale price (shown in «أصناف محتاجة مراجعة سعر»). */
+  needsPriceReview?: boolean;
 }
 
 let hlc: HybridLogicalClock | null = null;
@@ -103,6 +105,53 @@ export async function liveProductCount(db: Db): Promise<number> {
   return (await db.select({ n: count() }).from(products).where(isNull(products.deletedAt)))[0]?.n ?? 0;
 }
 
+/** How many more products the plan allows (null = unlimited). */
+export async function productSlotsLeft(db: Db): Promise<number | null> {
+  const limit = getLicenceState()?.limits.products ?? UNLIMITED;
+  if (limit === UNLIMITED) return null;
+  return Math.max(0, limit - (await liveProductCount(db)));
+}
+
+/** Throws ProductLimitError (how many fit) when `wanted` new products would pass the plan's product limit. */
+export async function assertProductSlots(db: Db, wanted: number): Promise<void> {
+  assertCanWrite();
+  if (wanted <= 0) return;
+  const left = await productSlotsLeft(db);
+  if (left != null && wanted > left) throw new ProductLimitError(left, wanted);
+}
+
+/** Live products created with a guessed / missing sale price (badge on the products tab). */
+export async function countNeedsPriceReview(db: Db): Promise<number> {
+  return (await db.select({ n: count() }).from(products).where(and(isNull(products.deletedAt), eq(products.needsPriceReview, true))))[0]?.n ?? 0;
+}
+
+/** «مراجعة سعر»: set the sale price of a product and clear its review mark (audit as a price change). */
+export async function confirmSalePrice(ctx: InvCtx, productId: string, retailPriceMinor: number): Promise<void> {
+  requirePermission(ctx.user, 'products.manage');
+  requirePermission(ctx.user, 'price.change');
+  assertCanWrite();
+  if (!Number.isSafeInteger(retailPriceMinor) || retailPriceMinor <= 0) throw new InventoryError('invalid_price');
+  const now = nowOf(ctx);
+  await withTx(ctx.db, async (tx) => {
+    const p = (await tx.select().from(products).where(eq(products.id, productId)).limit(1))[0];
+    if (!p || p.deletedAt) throw new InventoryError('not_found');
+    // Wholesale followed the retail price when it was created (or is unset): keep it in step.
+    const wholesale = p.wholesalePriceMinor === p.retailPriceMinor || p.wholesalePriceMinor === 0 ? retailPriceMinor : p.wholesalePriceMinor;
+    await tx.update(products).set({ retailPriceMinor, wholesalePriceMinor: wholesale, needsPriceReview: false, updatedAt: now, hlc: tick(ctx) }).where(eq(products.id, productId));
+    await appendAudit(tx, {
+      action: 'product.price_change',
+      entity: 'products',
+      entityId: productId,
+      before: { retail: p.retailPriceMinor, wholesale: p.wholesalePriceMinor },
+      after: { retail: retailPriceMinor, wholesale },
+      reason: 'price review',
+      userId: ctx.user.id,
+      deviceId: ctx.device.id,
+      at: now,
+    });
+  });
+}
+
 /** Insert product rows (no permission/limit checks, no transaction) — shared by create and import. */
 export async function insertProductRows(tx: Db, ctx: InvCtx, input: ProductInput, now: number): Promise<{ productId: string; baseUnitRowId: string }> {
   const productId = uuidv7(now);
@@ -127,6 +176,7 @@ export async function insertProductRows(tx: Db, ctx: InvCtx, input: ProductInput
     lowStockMilli: input.lowStockMilli ?? null,
     imagePath: input.imagePath ?? null,
     notes: input.notes ?? null,
+    needsPriceReview: !!input.needsPriceReview,
   });
   const baseUnitRowId = uuidv7(now);
   await tx.insert(productUnits).values({ id: baseUnitRowId, ...base, productId, unitId: input.baseUnitId, factorMilli: 1000, isBase: true });
@@ -228,6 +278,8 @@ export async function updateProduct(ctx: InvCtx, productId: string, input: Produ
         lowStockMilli: input.lowStockMilli ?? null,
         imagePath: input.imagePath ?? null,
         notes: input.notes ?? null,
+        // Saved from the form with a sale price = the owner has looked at it.
+        needsPriceReview: before.needsPriceReview && !(input.retailPriceMinor > 0),
         updatedAt: now,
         hlc: tick(ctx),
       })
@@ -375,7 +427,7 @@ export async function bulkChangePrices(ctx: InvCtx, ids: string[], opts: { bp: n
     for (const p of rows) {
       const retail = opts.field === 'wholesale' ? p.retailPriceMinor : adj(p.retailPriceMinor);
       const wholesale = opts.field === 'retail' ? p.wholesalePriceMinor : adj(p.wholesalePriceMinor);
-      await tx.update(products).set({ retailPriceMinor: retail, wholesalePriceMinor: wholesale, updatedAt: now, hlc: tick(ctx) }).where(eq(products.id, p.id));
+      await tx.update(products).set({ retailPriceMinor: retail, wholesalePriceMinor: wholesale, ...(retail > 0 ? { needsPriceReview: false } : {}), updatedAt: now, hlc: tick(ctx) }).where(eq(products.id, p.id));
       const lus = await tx.select().from(productUnits).where(and(eq(productUnits.productId, p.id), eq(productUnits.isBase, false), isNull(productUnits.deletedAt)));
       for (const u of lus) {
         await tx
@@ -430,12 +482,15 @@ export interface ProductListRow {
   qtyMilli: number;
   unitName: string;
   categoryColor: string | null;
+  needsPriceReview: boolean;
 }
 
 export interface ListQuery {
   search?: string;
   categoryId?: string | null;
   lowStockOnly?: boolean;
+  /** Only products created with a guessed / missing sale price. */
+  needsPriceReviewOnly?: boolean;
   after?: { name: string; id: string } | null;
   limit?: number;
 }
@@ -449,6 +504,7 @@ export async function listProducts(db: Db, q: ListQuery = {}): Promise<ProductLi
     conds.push(eq(products.trackStock, true));
     conds.push(sql`${products.lowStockMilli} IS NOT NULL AND coalesce(${stockLevels.qtyMilli}, 0) <= ${products.lowStockMilli}`);
   }
+  if (q.needsPriceReviewOnly) conds.push(eq(products.needsPriceReview, true));
   if (q.search?.trim()) {
     const code = normalizeBarcode(q.search);
     const fts = ftsQuery(q.search);
@@ -470,6 +526,7 @@ export async function listProducts(db: Db, q: ListQuery = {}): Promise<ProductLi
       qtyMilli: sql<number>`coalesce(${stockLevels.qtyMilli}, 0)`,
       unitName: units.nameAr,
       categoryColor: categories.color,
+      needsPriceReview: products.needsPriceReview,
     })
     .from(products)
     .innerJoin(units, eq(units.id, products.baseUnitId))

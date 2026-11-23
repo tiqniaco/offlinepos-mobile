@@ -20,6 +20,7 @@ import { postPartyLedger } from '../parties/customers';
 import { getParty } from '../parties/parties';
 import { shiftIdFor } from '../shifts/shifts';
 import { assertVoidWindow, mirrorJournal } from '../vouchers/vouchers';
+import { assertCanCreate, createNewProducts, type NewProductSpec } from '../inventory/quickAdd';
 
 export interface PurchaseCtx extends InvCtx {
   vatRegistered: boolean;
@@ -38,6 +39,11 @@ export interface PurchaseLine {
   unitCostMinor: number;
   discountMinor?: number;
   taxRateBp: number;
+  /**
+   * The product does not exist yet (scanned invoice line «صنف جديد»): it is created when the purchase is posted, in
+   * the same transaction. productId / productUnitId hold a temporary key until then.
+   */
+  newProduct?: NewProductSpec;
 }
 
 export interface PurchaseDraft {
@@ -116,10 +122,26 @@ export async function postPurchase(ctx: PurchaseCtx, draft: PurchaseDraft, pays:
     throw new PurchaseError(String((e as Error).message).includes('credit') ? 'supplier_required' : 'payment', { cause: (e as Error).message });
   }
   if (st.changeMinor > 0) throw new PurchaseError('payment', { cause: 'overpaid' });
+  const specs = draft.lines.map((l) => l.newProduct).filter((x): x is NewProductSpec => !!x);
+  await assertCanCreate(ctx, specs);
 
   return withTx(ctx.db, async (tx) => {
     const t = nowOf(ctx);
     if (t < (await chainHead(tx, ctx.device.id)).postedAt) throw new PurchaseError('clock_behind');
+    if (specs.length) {
+      // New products from the scanned invoice: created here so a failed posting leaves none behind.
+      const made = await createNewProducts(tx, ctx, specs, t, 'purchase_scan');
+      let k = 0;
+      draft = {
+        ...draft,
+        lines: draft.lines.map((l) => {
+          if (!l.newProduct) return l;
+          const c = made[k++]!;
+          const { newProduct: _n, ...rest } = l;
+          return { ...rest, key: `${c.productId}:${c.baseUnitRowId}`, productId: c.productId, productUnitId: c.baseUnitRowId, unitName: c.unitName, factorMilli: 1000 };
+        }),
+      };
+    }
     const day = businessDay(t, ctx.timezone);
     const supplier = draft.supplierId ? await getParty(tx, 'S', draft.supplierId) : null;
     if (draft.supplierId && !supplier) throw new PurchaseError('supplier_required');

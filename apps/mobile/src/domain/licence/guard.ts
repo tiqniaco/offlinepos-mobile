@@ -12,6 +12,17 @@ export class LicenceError extends Error {
   }
 }
 
+/** Adding `wanted` new products would pass the plan's product limit: only `fits` more fit. */
+export class ProductLimitError extends LicenceError {
+  constructor(
+    public readonly fits: number,
+    public readonly wanted: number,
+  ) {
+    super('limit', 'products');
+    this.name = 'ProductLimitError';
+  }
+}
+
 let current: LicenceState | null = null;
 const listeners = new Set<(s: LicenceState) => void>();
 

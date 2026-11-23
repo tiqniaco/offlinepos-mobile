@@ -10,13 +10,17 @@
  *
  * Cost-abuse guards: the scan row is claimed ('pending') atomically before any model call (quota, rate, concurrency,
  * daily failed cap), a global daily cap (OCR_DAILY_SCAN_CAP), no SDK retries, a 100 s deadline, and X-Idempotency-Key.
+ *
+ * `mode: 'list'` reads any list of the shop's items instead (handwritten / printed stock list, a price list): lines of
+ * {name, qty, unit, cost, price}, every field but the name nullable. Same quota, protections and model strategy; a
+ * list has no totals, so only an unusable read (error / refusal / bad JSON / no lines) triggers the retry model.
  */
 import type { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import Anthropic from '@anthropic-ai/sdk';
 import type { BetaMessage, MessageCreateParamsNonStreaming } from '@anthropic-ai/sdk/resources/beta/messages/messages';
 import { z } from 'zod';
-import { OCR_IMAGE_MAX_BYTES, OCR_MAX_LINES, OCR_PDF_MAX_PAGES, UNLIMITED, ocrScanRequestSchema, uuidv7, type OcrScanResponse } from '@daftarak/shared';
+import { OCR_IMAGE_MAX_BYTES, OCR_MAX_LINES, OCR_PDF_MAX_PAGES, UNLIMITED, ocrScanRequestSchema, uuidv7, type OcrListResponse, type OcrScanMode, type OcrScanResponse } from '@daftarak/shared';
 import type { AppEnv, Env } from '../env';
 import { ApiError, body, errorResponse } from '../lib/http';
 import { requireSession } from '../auth/tokens';
@@ -59,6 +63,12 @@ export const OCR_SYSTEM =
   'Copy supplier and item names exactly as written; keep Arabic in Arabic. Numbers are plain decimals in the invoice currency (usually EGP): ' +
   'qty is the count, unitPrice per unit, total per line. Date as YYYY-MM-DD. Use null for anything missing or unreadable.';
 
+// ≤ 60 words.
+export const OCR_LIST_SYSTEM =
+  'You read photos of item lists from Egyptian shops: handwritten or printed stock lists, price lists, notebooks. ' +
+  'Return every item line. Copy names exactly as written; keep Arabic in Arabic. qty is the count on hand, unit as written ' +
+  '(e.g. كرتونة, علبة, كيلو), cost the buying price, price the selling price, plain decimals. Use null for anything missing.';
+
 const num = { type: ['number', 'null'] } as const;
 const str = { type: ['string', 'null'] } as const;
 export const OCR_JSON_SCHEMA = {
@@ -75,8 +85,8 @@ export const OCR_JSON_SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['name', 'qty', 'unitPrice', 'total'],
-        properties: { name: { type: 'string' }, qty: num, unitPrice: num, total: num },
+        required: ['name', 'qty', 'unit', 'unitPrice', 'total'],
+        properties: { name: { type: 'string' }, qty: num, unit: str, unitPrice: num, total: num },
       },
     },
     subtotal: num,
@@ -86,13 +96,30 @@ export const OCR_JSON_SCHEMA = {
   },
 } as const;
 
+export const OCR_LIST_JSON_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['lines'],
+  properties: {
+    lines: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['name', 'qty', 'unit', 'cost', 'price'],
+        properties: { name: { type: 'string' }, qty: num, unit: str, cost: num, price: num },
+      },
+    },
+  },
+} as const;
+
 const n = z.number().nullable();
 const modelOutputSchema = z.object({
   supplierName: z.string().nullable(),
   invoiceNo: z.string().nullable(),
   date: z.string().nullable(),
   currency: z.string().nullable(),
-  lines: z.array(z.object({ name: z.string(), qty: n, unitPrice: n, total: n })),
+  lines: z.array(z.object({ name: z.string(), qty: n, unitPrice: n, total: n, unit: z.string().nullable().optional() })),
   subtotal: n,
   discount: n,
   tax: n,
@@ -137,7 +164,8 @@ export function parseExtract(text: string): OcrExtract | null {
     const total = sane(l.total, MAX_TOTAL, 2);
     if (!qty || qty <= 0) qty = unitPrice && total ? Math.round((total / unitPrice) * 1000) / 1000 || 1 : 1;
     if (unitPrice == null && total != null) unitPrice = Math.round((total / qty) * 100) / 100;
-    lines.push({ name, qty, unitPrice, total });
+    const unit = clip(l.unit, 24);
+    lines.push({ name, qty, unitPrice, total, ...(unit ? { unit } : {}) });
   }
   const cur = clip(o.currency, 8)?.toUpperCase() ?? null;
   return {
@@ -151,6 +179,30 @@ export function parseExtract(text: string): OcrExtract | null {
     tax: sane(o.tax, MAX_TOTAL, 2),
     total: sane(o.total, MAX_TOTAL, 2),
   };
+}
+
+const listOutputSchema = z.object({ lines: z.array(z.object({ name: z.string(), qty: n, unit: z.string().nullable(), cost: n, price: n })) });
+export type OcrListExtract = Omit<OcrListResponse, 'used' | 'limit'>;
+
+/** Validates and clamps a list-mode model JSON. Returns null when it is not the expected shape. Missing numbers stay null. */
+export function parseListExtract(text: string): OcrListExtract | null {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  const r = listOutputSchema.safeParse(raw);
+  if (!r.success) return null;
+  const lines: OcrListExtract['lines'] = [];
+  for (const l of r.data.lines) {
+    if (lines.length >= OCR_MAX_LINES) break;
+    const name = clip(l.name, 120);
+    if (!name) continue;
+    const qty = sane(l.qty, MAX_QTY, 3);
+    lines.push({ name, qty: qty && qty > 0 ? qty : null, unit: clip(l.unit, 24), cost: sane(l.cost, MAX_UNIT, 2), price: sane(l.price, MAX_UNIT, 2) });
+  }
+  return { mode: 'list', lines };
 }
 
 /** Do the line totals add up to the invoice (±5 %)? True when there is nothing to compare. */
@@ -187,13 +239,14 @@ export function decodeScanUpload(b: { image?: string; file?: string; mediaType?:
   return { contentType: 'application/pdf', base64: b64, pages };
 }
 
-export function buildRequest(model: string, upload: Pick<ScanUpload, 'contentType' | 'base64'>, withFallbacks: boolean): MessageCreateParamsNonStreaming {
+export function buildRequest(model: string, upload: Pick<ScanUpload, 'contentType' | 'base64'>, withFallbacks: boolean, mode: OcrScanMode = 'invoice'): MessageCreateParamsNonStreaming {
+  const list = mode === 'list';
   return {
     model,
     max_tokens: 16000,
-    system: OCR_SYSTEM,
+    system: list ? OCR_LIST_SYSTEM : OCR_SYSTEM,
     // Thinking is adaptive by default on these models; effort low keeps it short. No temperature (rejected).
-    output_config: { effort: 'low', format: { type: 'json_schema', schema: OCR_JSON_SCHEMA as unknown as Record<string, unknown> } },
+    output_config: { effort: 'low', format: { type: 'json_schema', schema: (list ? OCR_LIST_JSON_SCHEMA : OCR_JSON_SCHEMA) as unknown as Record<string, unknown> } },
     messages: [
       {
         role: 'user',
@@ -201,7 +254,7 @@ export function buildRequest(model: string, upload: Pick<ScanUpload, 'contentTyp
           upload.contentType === 'application/pdf'
             ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: upload.base64 } }
             : { type: 'image', source: { type: 'base64', media_type: upload.contentType, data: upload.base64 } },
-          { type: 'text', text: 'Extract this purchase invoice.' },
+          { type: 'text', text: list ? 'Extract this list of items.' : 'Extract this purchase invoice.' },
         ],
       },
     ],
@@ -210,14 +263,16 @@ export function buildRequest(model: string, upload: Pick<ScanUpload, 'contentTyp
   };
 }
 
-async function readOnce(client: OcrClient, model: string, img: ScanUpload, withFallbacks: boolean, timeoutMs: number): Promise<{ call: OcrCall; extract: OcrExtract | null }> {
+type AnyExtract = OcrExtract | OcrListExtract;
+
+async function readOnce<X extends AnyExtract>(client: OcrClient, model: string, img: ScanUpload, withFallbacks: boolean, timeoutMs: number, mode: OcrScanMode): Promise<{ call: OcrCall; extract: X | null }> {
   let msg: BetaMessage;
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const deadline = new Promise<never>((_, reject) => {
       timer = setTimeout(() => reject(new Error('ocr deadline')), timeoutMs);
     });
-    msg = await Promise.race([client.beta.messages.create(buildRequest(model, img, withFallbacks), { timeout: timeoutMs, maxRetries: 0 }), deadline]);
+    msg = await Promise.race([client.beta.messages.create(buildRequest(model, img, withFallbacks, mode), { timeout: timeoutMs, maxRetries: 0 }), deadline]);
   } catch (e) {
     console.warn('ocr: api error', model, e instanceof Anthropic.APIError ? e.status : (e as Error)?.message);
     return { call: { model, in: 0, out: 0, outcome: 'api_error' }, extract: null };
@@ -229,20 +284,23 @@ async function readOnce(client: OcrClient, model: string, img: ScanUpload, withF
   if (msg.stop_reason === 'refusal') return { call: { ...base, outcome: 'refusal' }, extract: null };
   if (msg.stop_reason === 'max_tokens') return { call: { ...base, outcome: 'max_tokens' }, extract: null };
   const text = msg.content.find((b) => b.type === 'text');
-  const extract = text && text.type === 'text' ? parseExtract(text.text) : null;
+  const extract = (text && text.type === 'text' ? (mode === 'list' ? parseListExtract(text.text) : parseExtract(text.text)) : null) as X | null;
   if (!extract) return { call: { ...base, outcome: 'invalid_json' }, extract: null };
   if (!extract.lines.length) return { call: { ...base, outcome: 'no_lines' }, extract };
-  return { call: { ...base, outcome: totalsConsistent(extract) ? 'ok' : 'inconsistent' }, extract };
+  // A list has no totals to check.
+  const ok = mode === 'list' || totalsConsistent(extract as OcrExtract);
+  return { call: { ...base, outcome: ok ? 'ok' : 'inconsistent' }, extract };
 }
 
 /**
  * Cheap model first, stronger model only when the first read is unusable AND the caller allows it (paid plan, monthly
  * fallback budget left) AND enough of the overall deadline remains.
  */
-export async function extractInvoice(env: Env, client: OcrClient, img: ScanUpload, opts: { allowFallback?: boolean; deadlineMs?: number } = {}) {
+export async function extractInvoice<X extends AnyExtract = OcrExtract>(env: Env, client: OcrClient, img: ScanUpload, opts: { allowFallback?: boolean; deadlineMs?: number; mode?: OcrScanMode } = {}) {
   const calls: OcrCall[] = [];
+  const mode = opts.mode ?? 'invoice';
   const end = Date.now() + (opts.deadlineMs ?? OCR_DEADLINE_MS);
-  const first = await readOnce(client, env.OCR_MODEL || DEFAULT_OCR_MODEL, img, false, Math.max(1, end - Date.now()));
+  const first = await readOnce<X>(client, env.OCR_MODEL || DEFAULT_OCR_MODEL, img, false, Math.max(1, end - Date.now()), mode);
   calls.push(first.call);
   if (first.call.outcome === 'ok') return { calls, extract: first.extract!, model: first.call.model };
   const left = end - Date.now();
@@ -250,7 +308,7 @@ export async function extractInvoice(env: Env, client: OcrClient, img: ScanUploa
     if (first.call.outcome === 'inconsistent') return { calls, extract: first.extract!, model: first.call.model };
     return { calls, extract: null, model: first.call.model, unavailable: first.call.outcome === 'api_error' };
   }
-  const second = await readOnce(client, env.OCR_FALLBACK_MODEL || DEFAULT_OCR_FALLBACK_MODEL, img, true, left);
+  const second = await readOnce<X>(client, env.OCR_FALLBACK_MODEL || DEFAULT_OCR_FALLBACK_MODEL, img, true, left, mode);
   calls.push(second.call);
   if (second.call.outcome === 'ok' || second.call.outcome === 'inconsistent') return { calls, extract: second.extract!, model: second.call.model };
   // The retry failed outright: a readable-but-inconsistent first read is still better than nothing (the user reviews it).
@@ -347,10 +405,12 @@ export function addOcrRoutes(app: Hono<AppEnv>, deps: Deps) {
     const quota = limits.ocr_month ?? 0;
     if (quota === 0) throw new ApiError(403, 'ocr_not_in_plan', 'invoice scanning is not in this plan');
     const img = decodeScanUpload(b);
+    const mode: OcrScanMode = b.mode ?? 'invoice';
 
     // Retry of the same scan (app timeout / network drop): same key within 10 min → the stored result, no new charge.
+    // The mode is part of the stored key: the same photo read as a list is a different scan.
     const rawKey = c.req.header('X-Idempotency-Key');
-    const idemKey = rawKey && IDEM_RE.test(rawKey) ? rawKey : null;
+    const idemKey = rawKey && IDEM_RE.test(rawKey) ? (mode === 'list' ? `list:${rawKey}` : rawKey) : null;
     if (idemKey) {
       const prev = await c.env.DB.prepare(
         `SELECT status, result_json, created_at FROM ocr_scans WHERE business_id = ?1 AND idem_key = ?2 AND created_at > ?3 ORDER BY created_at DESC LIMIT 1`,
@@ -358,7 +418,7 @@ export function addOcrRoutes(app: Hono<AppEnv>, deps: Deps) {
         .bind(business.id, idemKey, now - OCR_IDEMPOTENCY_MS)
         .first<{ status: string; result_json: string | null; created_at: number }>();
       if (prev?.status === 'ok' && prev.result_json) {
-        return c.json({ ...(JSON.parse(prev.result_json) as OcrExtract), used: await usageOf(c.env, business.id, now), limit: quota } satisfies OcrScanResponse);
+        return c.json({ ...(JSON.parse(prev.result_json) as AnyExtract), used: await usageOf(c.env, business.id, now), limit: quota } satisfies OcrScanResponse | OcrListResponse);
       }
       if (prev?.status === 'pending' && prev.created_at > now - PENDING_STALE_MS) throw new ApiError(429, 'rate_limited', 'this scan is still running', 10_000);
     }
@@ -376,7 +436,7 @@ export function addOcrRoutes(app: Hono<AppEnv>, deps: Deps) {
       throw new ApiError(503, 'ocr_unavailable', 'invoice scanning is paused for today, try again tomorrow');
     }
 
-    let r: Awaited<ReturnType<typeof extractInvoice>>;
+    let r: Awaited<ReturnType<typeof extractInvoice<AnyExtract>>>;
     try {
       // The expensive retry model only on paid plans (never the trial) and within its monthly budget.
       let allowFallback = business.status !== 'trial' && business.status !== 'suspended';
@@ -386,7 +446,7 @@ export function addOcrRoutes(app: Hono<AppEnv>, deps: Deps) {
           .first<{ n: number }>();
         allowFallback = (fb?.n ?? 0) < OCR_FALLBACK_PER_MONTH;
       }
-      r = await extractInvoice(c.env, client, img, { allowFallback });
+      r = await extractInvoice<AnyExtract>(c.env, client, img, { allowFallback, mode });
     } catch (e) {
       await c.env.DB.prepare(`UPDATE ocr_scans SET status = 'failed' WHERE id = ?1`).bind(scanId).run();
       throw e;
@@ -408,8 +468,8 @@ export function addOcrRoutes(app: Hono<AppEnv>, deps: Deps) {
       .run();
     if (!ok) {
       if ('unavailable' in r && r.unavailable) throw new ApiError(503, 'ocr_unavailable', 'the reading service is not reachable, try again');
-      throw new ApiError(422, 'ocr_failed', 'could not read this invoice');
+      throw new ApiError(422, 'ocr_failed', mode === 'list' ? 'could not read this list' : 'could not read this invoice');
     }
-    return c.json({ ...r.extract!, used: await usageOf(c.env, business.id, now), limit: quota } satisfies OcrScanResponse);
+    return c.json({ ...r.extract!, used: await usageOf(c.env, business.id, now), limit: quota } satisfies OcrScanResponse | OcrListResponse);
   });
 }

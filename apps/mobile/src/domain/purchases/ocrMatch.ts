@@ -2,7 +2,10 @@
  * Supplier-invoice scan (OCR) → purchase lines. Pure helpers: match the names read from the photo to the shop's own
  * products / suppliers, and convert the model's major-unit numbers into the app's minor units / milli-quantities.
  */
-import { normalizeArabicForSearch, type OcrLine } from '@daftarak/shared';
+import type { OcrLine } from '@daftarak/shared';
+import { fuzzyIndex, markupPrice, normName, splitNameUnit, unitFromWord, type QuickPricing } from '../inventory/quickPricing';
+
+export { normName };
 
 export interface NamedItem {
   id: string;
@@ -16,14 +19,6 @@ export type MatchKind = 'exact' | 'contains' | 'partial';
 export interface NameMatch<T extends NamedItem> {
   item: T;
   kind: MatchKind;
-}
-
-/** Arabic-normalised, punctuation-free, single-spaced (أ/إ/آ → ا, ة → ه, ى → ي, tashkeel removed, digits Latin). */
-export function normName(s: string): string {
-  return normalizeArabicForSearch(s)
-    .replace(/[^\u0621-\u064Aa-z0-9.]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
 }
 
 const MIN_CONTAINS = 3;
@@ -70,15 +65,30 @@ export function unitCostMinor(l: Pick<OcrLine, 'qty' | 'unitPrice' | 'total'>): 
   return t != null && l.qty > 0 ? Math.round(t / l.qty) : null;
 }
 
+/** A line that becomes a NEW product when the review is confirmed (default for a line nothing matches). */
+export interface NewItem {
+  /** Cleaned name (editable). */
+  name: string;
+  /** Standard unit (Arabic name) the line is in; null = قطعة. */
+  unit: string | null;
+  /** Sale price per that unit (minor); null = not set yet. */
+  saleMinor: number | null;
+  /** The user typed the sale price: a markup change no longer touches it. */
+  saleEdited: boolean;
+}
+
 export interface ReviewLine<P extends NamedItem = NamedItem> {
   /** Stable key for the list. */
   key: string;
   /** Name as read from the invoice. */
   read: string;
   product: P | null;
-  match: MatchKind | 'picked' | 'new' | 'confirmed' | null;
-  /** A raw-substring look-alike, offered but not selected. */
+  /** 'create' = becomes a new product (see newItem). */
+  match: MatchKind | 'picked' | 'new' | 'confirmed' | 'create' | null;
+  /** A look-alike (raw substring or a near spelling), offered but not selected: «تقصد X؟». */
   suggestion?: P | null;
+  /** Set when match = 'create'. */
+  newItem?: NewItem | null;
   /** Quantity in the chosen unit (milli); 0 = not read, the user must type it. */
   qtyMilli: number;
   /** Unit cost in minor units, per the chosen unit (as printed on the invoice). */
@@ -92,19 +102,40 @@ export interface ReviewLine<P extends NamedItem = NamedItem> {
   skip: boolean;
 }
 
-/** One review line per invoice line, auto-matched to the shop's products. Only exact and whole-word matches are selected. */
-export function buildReview<P extends NamedItem>(lines: readonly OcrLine[], products: readonly P[]): ReviewLine<P>[] {
+export interface BuildReviewOptions {
+  /** Unmatched lines default to «صنف جديد» (the user may add products). */
+  autoCreate?: boolean;
+  /** Markup / rounding for the default sale price of new lines. */
+  pricing?: QuickPricing;
+}
+
+/**
+ * One review line per invoice line, auto-matched to the shop's products. Only exact and whole-word matches are
+ * selected. A line with no match: a look-alike (substring or near spelling) is suggested and the user decides;
+ * otherwise, with `autoCreate`, it becomes a new product (cleaned name, unit from the invoice, marked-up price).
+ */
+export function buildReview<P extends NamedItem>(lines: readonly OcrLine[], products: readonly P[], opts: BuildReviewOptions = {}): ReviewLine<P>[] {
+  const fuzzy = fuzzyIndex(products);
   return lines.map((l, i) => {
     const m = matchByName(l.name, products);
     const sel = m && m.kind !== 'partial' ? m : null;
+    const suggestion = sel ? null : m?.kind === 'partial' ? m.item : fuzzy.find(l.name);
+    const costMinor = unitCostMinor(l);
+    let newItem: NewItem | null = null;
+    if (!sel && !suggestion && opts.autoCreate) {
+      const split = splitNameUnit(l.name);
+      const unit = unitFromWord(l.unit ?? null) ?? split.unit;
+      newItem = { name: split.name || l.name.trim(), unit: unit?.ar ?? null, saleMinor: opts.pricing ? markupPrice(costMinor, opts.pricing) : null, saleEdited: false };
+    }
     return {
       key: `ocr-${i}`,
       read: l.name,
       product: sel?.item ?? null,
-      match: sel?.kind ?? null,
-      suggestion: m?.kind === 'partial' ? m.item : null,
+      match: sel?.kind ?? (newItem ? 'create' : null),
+      suggestion: suggestion ?? null,
+      newItem,
       qtyMilli: toMilli(l.qty),
-      costMinor: unitCostMinor(l),
+      costMinor,
       totalMinor: toMinor(l.total),
       costFromTotal: toMinor(l.unitPrice) == null && toMinor(l.total) != null,
       unitId: null,
@@ -113,16 +144,24 @@ export function buildReview<P extends NamedItem>(lines: readonly OcrLine[], prod
   });
 }
 
-export type ReviewProblem = 'product' | 'confirm' | 'qty' | 'cost';
+/** Re-price every new line the user has not priced by hand (markup chip / settings). */
+export function repriceNew<L extends ReviewLine>(lines: readonly L[], pricing: QuickPricing): L[] {
+  return lines.map((l) => (l.match === 'create' && l.newItem && !l.newItem.saleEdited ? { ...l, newItem: { ...l.newItem, saleMinor: markupPrice(l.costMinor, pricing) } } : l));
+}
+
+export type ReviewProblem = 'product' | 'confirm' | 'qty' | 'cost' | 'name' | 'price';
 
 /** Why a (not skipped) line can't go into the purchase yet. Empty = ready. */
 export function reviewProblems(l: ReviewLine): ReviewProblem[] {
   if (l.skip) return [];
   const p: ReviewProblem[] = [];
-  if (!l.product) p.push('product');
+  if (l.match === 'create') {
+    if (!l.newItem?.name.trim()) p.push('name');
+  } else if (!l.product) p.push('product');
   else if (l.match === 'contains') p.push('confirm');
   if (!(l.qtyMilli > 0)) p.push('qty');
   if (l.costMinor == null) p.push('cost');
+  if (l.match === 'create' && !(l.newItem?.saleMinor != null && l.newItem.saleMinor > 0) && l.costMinor != null) p.push('price');
   return p;
 }
 
