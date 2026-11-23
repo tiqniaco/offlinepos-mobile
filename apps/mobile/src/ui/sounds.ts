@@ -95,7 +95,8 @@ export function playSound(name: SoundName) {
     const p = players?.[name];
     if (!p) return;
     const r = p.seekTo(0) as Promise<void> | undefined;
-    if (r && typeof r.then === 'function') void r.then(() => p.play(), () => p.play());
+    // play() throwing inside the callback (player released, audio focus lost) must not become an unhandled rejection.
+    if (r && typeof r.then === 'function') void r.then(() => p.play(), () => p.play()).catch(() => undefined);
     else p.play();
   } catch {
     /* never let a sound break an action */

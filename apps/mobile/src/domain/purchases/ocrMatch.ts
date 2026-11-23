@@ -99,6 +99,10 @@ export interface ReviewLine<P extends NamedItem = NamedItem> {
   costFromTotal: boolean;
   /** The product unit (product_units.id) the invoice line is in; null = base unit. */
   unitId: string | null;
+  /** Unit word printed on the line (standard Arabic name, e.g. كرتونة); null = none / not a unit word. */
+  unitWord?: string | null;
+  /** The printed unit word names a unit the default pick could not confirm: the user must pick the unit. */
+  unitUnsure?: boolean;
   skip: boolean;
 }
 
@@ -139,6 +143,8 @@ export function buildReview<P extends NamedItem>(lines: readonly OcrLine[], prod
       totalMinor: toMinor(l.total),
       costFromTotal: toMinor(l.unitPrice) == null && toMinor(l.total) != null,
       unitId: null,
+      unitWord: unitFromWord(l.unit ?? null)?.ar ?? null,
+      unitUnsure: false,
       skip: false,
     };
   });
@@ -149,7 +155,7 @@ export function repriceNew<L extends ReviewLine>(lines: readonly L[], pricing: Q
   return lines.map((l) => (l.match === 'create' && l.newItem && !l.newItem.saleEdited ? { ...l, newItem: { ...l.newItem, saleMinor: markupPrice(l.costMinor, pricing) } } : l));
 }
 
-export type ReviewProblem = 'product' | 'confirm' | 'qty' | 'cost' | 'name' | 'price';
+export type ReviewProblem = 'product' | 'confirm' | 'unit' | 'qty' | 'cost' | 'name' | 'price';
 
 /** Why a (not skipped) line can't go into the purchase yet. Empty = ready. */
 export function reviewProblems(l: ReviewLine): ReviewProblem[] {
@@ -159,6 +165,7 @@ export function reviewProblems(l: ReviewLine): ReviewProblem[] {
     if (!l.newItem?.name.trim()) p.push('name');
   } else if (!l.product) p.push('product');
   else if (l.match === 'contains') p.push('confirm');
+  if (l.match !== 'create' && l.product && l.unitUnsure) p.push('unit');
   if (!(l.qtyMilli > 0)) p.push('qty');
   if (l.costMinor == null) p.push('cost');
   if (l.match === 'create' && !(l.newItem?.saleMinor != null && l.newItem.saleMinor > 0) && l.costMinor != null) p.push('price');
@@ -191,6 +198,29 @@ export function pickUnit(units: readonly UnitOption[], baseCostMinor: number, sc
     }
   }
   return best.id;
+}
+
+const PIECE = 'قطعة';
+
+/**
+ * The unit of an existing product an invoice line is in: the product's unit NAMED by the printed unit word first
+ * («كرتونة» → the product's carton), else the price-based pick. When the word names a larger unit the product does
+ * not have / the price cannot confirm (no cost, no price, or the price is far above the base cost), the base unit is
+ * NOT taken silently: `unsure` asks the user to pick.
+ */
+export function pickLineUnit(units: readonly (UnitOption & { name: string })[], baseCostMinor: number, scannedUnitPriceMinor: number | null, unitWord: string | null | undefined): { unitId: string | null; unsure: boolean } {
+  const std = unitFromWord(unitWord);
+  if (std) {
+    const want = normName(std.ar);
+    const hit = units.find((u) => normName(u.name) === want);
+    if (hit) return { unitId: hit.id, unsure: false };
+  }
+  const unitId = pickUnit(units, baseCostMinor, scannedUnitPriceMinor);
+  const base = units.find((u) => u.isBase) ?? units[0];
+  if (!std || normName(std.ar) === normName(PIECE) || !base || unitId !== base.id) return { unitId, unsure: false };
+  // The word names a larger unit but we landed on the base unit: only trust that when the price says so.
+  const priceFitsBase = !!scannedUnitPriceMinor && scannedUnitPriceMinor > 0 && baseCostMinor > 0 && scannedUnitPriceMinor < baseCostMinor * 2;
+  return { unitId, unsure: !priceFitsBase };
 }
 
 /** Totals check: the scanned invoice total vs what the cart will compute. More than 1% apart = mismatch. */

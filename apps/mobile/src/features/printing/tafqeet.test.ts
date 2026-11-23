@@ -14,7 +14,11 @@ describe('تفقيط — amountInWordsAr (EGP)', () => {
     [10_500, 'مائة وخمسة جنيهات'],
     [25_000, 'مائتان وخمسون جنيهاً'],
     [100_000, 'ألف جنيه'],
-    [200_000, 'ألفان جنيه'],
+    [200_000, 'ألفا جنيه'],
+    [20_000, 'مائتا جنيه'],
+    [120_000, 'ألف ومائتا جنيه'],
+    [20_000_000, 'مائتا ألف جنيه'],
+    [20_000_000_000, 'مائتا مليون جنيه'],
     [125_050, 'ألف ومائتان وخمسون جنيهاً وخمسون قرشاً'],
     [50, 'خمسون قرشاً'],
     [1, 'قرش واحد'],
@@ -36,6 +40,19 @@ describe('تفقيط — amountInWordsAr (EGP)', () => {
     expect(numberToArabicWords(150_000)).toBe('مائة وخمسون ألفاً');
     expect(numberToArabicWords(1_000_001)).toBe('مليون وواحد');
     expect(numberToArabicWords(999)).toBe('تسعمائة وتسعة وتسعون');
+    expect(numberToArabicWords(200)).toBe('مائتان');
+    expect(numberToArabicWords(200_000)).toBe('مائتا ألف');
+    expect(numberToArabicWords(200_000_000)).toBe('مائتا مليون');
+    expect(numberToArabicWords(250_000)).toBe('مائتان وخمسون ألفاً');
+  });
+
+  it('NaN → صفر; 10^12 and above falls back to digits safely', () => {
+    expect(numberToArabicWords(NaN)).toBe('صفر');
+    expect(amountInWordsAr(NaN)).toBe('صفر جنيه');
+    expect(numberToArabicWords(1e12)).toBe('1000000000000');
+    expect(numberToArabicWords(999_999_999_999)).toMatch(/^تسعمائة وتسعة وتسعون ملياراً و/);
+    expect(amountInWordsAr(2e14)).toBe('2000000000000 جنيه');
+    expect(() => amountInWordsAr(Number.MAX_SAFE_INTEGER)).not.toThrow();
   });
 
   it('SAR keeps halalas as digits', () => {

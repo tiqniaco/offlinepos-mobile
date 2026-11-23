@@ -90,3 +90,13 @@ export const useOnboarding = create<OnboardingDraft>((set) => ({
 
 /** Call after any write that changes money/stock figures (home summary refreshes only when this moved). */
 export const bumpData = () => useApp.setState((s) => ({ dataVersion: s.dataVersion + 1 }));
+
+/**
+ * Runs `fn` when the signed-in session ends: the app locks (user → null) or another user takes over. Stores that hold
+ * a user's unsaved work (pending scan lists…) clear themselves with this, so nothing carries over to the next user.
+ */
+export function onSessionEnd(fn: () => void): () => void {
+  return useApp.subscribe((s, prev) => {
+    if (prev.user && s.user?.id !== prev.user.id) fn();
+  });
+}

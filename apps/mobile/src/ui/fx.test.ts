@@ -69,4 +69,22 @@ describe('fx', () => {
     expect(scan.seekTo).toHaveBeenCalledTimes(1);
     expect(scan.seekTo).toHaveBeenCalledWith(0);
   });
+
+  it('a player that throws on play() after seeking never leaves an unhandled rejection', async () => {
+    const unhandled = jest.fn();
+    process.on('unhandledRejection', unhandled);
+    try {
+      preloadSounds();
+      const tap = mockCreated[SOUND_NAMES.indexOf('tap')]!;
+      tap.play.mockImplementation(() => {
+        throw new Error('player released');
+      });
+      expect(() => playSound('tap')).not.toThrow();
+      await new Promise((r) => setTimeout(r, 20));
+      expect(tap.play).toHaveBeenCalled();
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', unhandled);
+    }
+  });
 });

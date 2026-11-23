@@ -1,15 +1,17 @@
 /**
  * Review of a photographed item list before it goes in: every line is matched to an existing product or becomes a
  * new one (cleaned name, unit, qty, cost, sale price — from the list, else cost + the shop's markup). Confirm creates
- * the new products and posts ONE opening-stock document for every quantity, in one transaction.
- * A new product needs a sale price, or «سيب السعر بعدين» (it then shows in «أصناف محتاجة مراجعة سعر»).
+ * the new products with opening stock and, for EXISTING products, either sets them to the listed quantity (default,
+ * «جرد»: one count document, delta = counted − current) or adds the quantity on top (a delivery list) — one
+ * transaction. Existing rows pick one of the product's own units (default: the unit the list names; a word the product
+ * has no unit for must be picked). A new product needs a sale price, or «سيب السعر بعدين».
  */
 import { useEffect, useRef, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { roleHas } from '@daftarak/shared';
-import { Screen, Text, TextField, Button, Card, Icon, Sheet, QtyField, MoneyField, Banner, colors, fonts } from '../../ui';
+import { Screen, Text, TextField, Button, Card, Icon, Sheet, QtyField, MoneyField, Banner, Choice, colors, fonts } from '../../ui';
 import { Pressable } from '../../ui/Press';
 import { getDb } from '../../db/client';
 import { useApp } from '../../state/app';
@@ -18,7 +20,9 @@ import { refreshPriceReview } from '../../state/priceReview';
 import { toast } from '../../state/toast';
 import { listProducts } from '../../domain/inventory/products';
 import { quickAddStock } from '../../domain/inventory/quickAdd';
-import { buildListReview, listProblems, listToStockItems, type ListRow } from '../../domain/inventory/listReview';
+import { buildListReview, listProblems, listToStockItems, pickRowUnit, resultingQty, rowBaseQty, type ListQtyMode, type ListRow, type ListUnit } from '../../domain/inventory/listReview';
+import { scanUnitOptions } from '../../domain/purchases/scan';
+import { qty as fmtQty } from '../../lib/format';
 import { markupPrice, normName, QUICK_UNITS, type QuickPricing } from '../../domain/inventory/quickPricing';
 import type { NamedItem } from '../../domain/purchases/ocrMatch';
 import { useInvCtx } from '../../features/inventory/useInvCtx';
@@ -26,7 +30,8 @@ import { usePricing, useProductSlots } from '../../features/inventory/usePricing
 import { invErrorMessage } from '../../features/inventory/errors';
 import { fx } from '../../ui/fx';
 
-type Row = ListRow<NamedItem & { unitName?: string }>;
+type Item = NamedItem & { unitName?: string; qtyMilli?: number; trackStock?: boolean };
+type Row = ListRow<Item>;
 const display = (p: { name: string; variantLabel?: string | null }) => (p.variantLabel ? `${p.name} - ${p.variantLabel}` : p.name);
 
 export default function ListReview() {
@@ -44,7 +49,10 @@ export default function ListReview() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [pickFor, setPickFor] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [hits, setHits] = useState<(NamedItem & { unitName: string })[]>([]);
+  const [hits, setHits] = useState<Item[]>([]);
+  const [mode, setMode] = useState<ListQtyMode>('count');
+  /** Units of every matched product (the row's unit picker). */
+  const [unitOpts, setUnitOpts] = useState<Record<string, ListUnit[]>>({});
   const [markupOpen, setMarkupOpen] = useState(false);
   const [markupPct, setMarkupPct] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -53,7 +61,7 @@ export default function ListReview() {
   useEffect(() => {
     if (!result) return;
     void listProducts(getDb(), { limit: 10_000 }).then(
-      (ps) => setRows(buildListReview(result.lines, ps.map((p) => ({ id: p.id, name: display(p), unitName: p.unitName })), { autoCreate: canCreate, pricing: pricingRef.current })),
+      (ps) => setRows(buildListReview(result.lines, ps.map((p) => ({ id: p.id, name: display(p), unitName: p.unitName, qtyMilli: p.qtyMilli, trackStock: p.trackStock })), { autoCreate: canCreate, pricing: pricingRef.current })),
       (e: unknown) => {
         toast(invErrorMessage(t, e), 'error');
         setRows(buildListReview(result.lines, [], { autoCreate: canCreate, pricing: pricingRef.current }));
@@ -64,13 +72,45 @@ export default function ListReview() {
   useEffect(() => {
     const q = search.trim();
     if (!q) return setHits([]);
-    const h = setTimeout(() => void listProducts(getDb(), { search: q, limit: 20 }).then((r) => setHits(r.map((p) => ({ id: p.id, name: display(p), unitName: p.unitName }))), () => setHits([])), 150);
+    const h = setTimeout(() => void listProducts(getDb(), { search: q, limit: 20 }).then((r) => setHits(r.map((p) => ({ id: p.id, name: display(p), unitName: p.unitName, qtyMilli: p.qtyMilli, trackStock: p.trackStock }))), () => setHits([])), 150);
     return () => clearTimeout(h);
   }, [search]);
 
+  // Units of every matched product.
+  useEffect(() => {
+    const ids = [...new Set((rows ?? []).map((r) => (r.match !== 'create' ? r.product?.id : null)).filter((x): x is string => !!x))].filter((id) => !unitOpts[id]);
+    if (!ids.length) return;
+    let alive = true;
+    void Promise.all(ids.map(async (id) => [id, await scanUnitOptions(getDb(), id)] as const)).then(
+      (pairs) => alive && setUnitOpts((m) => ({ ...m, ...Object.fromEntries(pairs) })),
+      () => undefined,
+    );
+    return () => {
+      alive = false;
+    };
+  }, [rows, unitOpts]);
+
+  // Default unit of an existing row once its product's units are known: the unit the list names, else ask.
+  useEffect(() => {
+    if (!rows) return;
+    let changed = false;
+    const next = rows.map((r) => {
+      const us = r.product && r.match !== 'create' ? unitOpts[r.product.id] : undefined;
+      if (!us || r.productUnitId) return r;
+      const pu = pickRowUnit(r.unit, us);
+      if (pu.productUnitId === r.productUnitId && pu.unitUnsure === r.unitUnsure) return r;
+      changed = true;
+      return { ...r, ...pu };
+    });
+    if (changed) setRows(next);
+  }, [rows, unitOpts]);
+
   const patch = (key: string, p: Partial<Row>) => setRows((rs) => (rs ? rs.map((r) => (r.key === key ? { ...r, ...p } : r)) : rs));
+  const rowUnitName = (r: Row) => (r.unitUnsure ? '?' : (r.productUnitId && r.product ? unitOpts[r.product.id]?.find((u) => u.id === r.productUnitId)?.name : null) ?? r.product?.unitName ?? '');
   const setCost = (r: Row, v: number | null) => patch(r.key, { costMinor: v, ...(r.match === 'create' && r.saleFrom !== 'typed' && r.saleFrom !== 'list' ? { saleMinor: markupPrice(v, pricing), saleFrom: 'markup' as const } : {}) });
-  const makeNew = (r: Row) => patch(r.key, { product: null, match: 'create', skip: false });
+  const makeNew = (r: Row) => patch(r.key, { product: null, match: 'create', skip: false, productUnitId: null, unitUnsure: false });
+  /** Another existing product on the row: its unit is picked again from its own units. */
+  const setProduct = (r: Row, product: Item, match: Row['match']) => patch(r.key, { product, match, skip: false, productUnitId: null, unitUnsure: !!r.unit });
   const applyMarkup = (pct: number) => {
     const p: QuickPricing = { ...pricing, markupBp: Math.round(pct * 100) };
     // «كل الأسعار الجديدة»: every new row priced from its cost (rows without a cost keep theirs).
@@ -91,7 +131,7 @@ export default function ListReview() {
     inFlight.current = true;
     setBusy(true);
     try {
-      const r = await quickAddStock(ctx, items, { source: 'list_scan', note: t('quickAdd.listNote') });
+      const r = await quickAddStock(ctx, items, { source: 'list_scan', note: t('quickAdd.listNote'), existing: mode });
       useListScan.getState().set(null);
       void refreshPriceReview();
       fx.success();
@@ -120,6 +160,17 @@ export default function ListReview() {
       footer={<Button testID="list-review-confirm" title={t('quickAdd.listConfirm', { n: items.length })} loading={busy} disabled={!rows || !items.length || busy || problems.length > 0 || overLimit} onPress={() => void confirm()} />}
     >
       <Text variant="caption">{t('quickAdd.listReviewHint')}</Text>
+      {(rows ?? []).some((r) => r.match !== 'create' && r.product) ? (
+        <View style={{ gap: 8 }} accessibilityRole="radiogroup">
+          {/* Row wrappers: Choice is flex: 1 (full width here, height from its content). */}
+          <View style={{ flexDirection: 'row' }}>
+            <Choice compact testID="list-mode-count" title={t('quickAdd.modeCount')} hint={t('quickAdd.modeCountHint')} selected={mode === 'count'} onPress={() => setMode('count')} />
+          </View>
+          <View style={{ flexDirection: 'row' }}>
+            <Choice compact testID="list-mode-add" title={t('quickAdd.modeAdd')} hint={t('quickAdd.modeAddHint')} selected={mode === 'add'} onPress={() => setMode('add')} />
+          </View>
+        </View>
+      ) : null}
       {newCount ? <Banner tone="info" text={t('quickAdd.newCount', { n: newCount })} /> : null}
       {overLimit ? <Banner tone="danger" text={slots ? t('quickAdd.limitSome', { fits: slots, n: newCount }) : t('quickAdd.limitNone', { n: newCount })} /> : null}
       {problems.length ? <Banner tone="warn" text={t('ocr.needsReview', { n: problems.length })} /> : null}
@@ -176,14 +227,32 @@ export default function ListReview() {
               </ScrollView>
             ) : null}
 
+            {!r.skip && !isNew && r.product && ((unitOpts[r.product.id]?.length ?? 0) > 1 || r.unitUnsure) ? (
+              <View style={{ gap: 6 }}>
+                {r.unitUnsure && r.unit ? <Text variant="caption">{t('quickAdd.unitNotOnProduct', { unit: r.unit })}</Text> : null}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {(unitOpts[r.product.id] ?? []).map((u) => {
+                    const sel = !r.unitUnsure && (r.productUnitId ?? unitOpts[r.product!.id]!.find((x) => x.isBase)?.id) === u.id;
+                    return (
+                      <Pressable key={u.id} testID={`list-unit-${i}-${u.factorMilli}`} onPress={() => patch(r.key, { productUnitId: u.id, unitUnsure: false })} style={({ pressed }) => [chip({ pressed }), sel ? { backgroundColor: colors.primary[500] } : null]}>
+                        <Text style={[chipText(), sel ? { color: '#fff' } : null]}>{u.name}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
+
             {!r.skip && (isNew || r.product) ? (
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <View style={{ flex: 1 }}>
-                  <QtyField testID={`list-qty-${i}`} label={isNew ? `${t('quickAdd.qtyOnHand')} (${r.unit ?? 'قطعة'})` : `${t('quickAdd.qtyOnHand')} (${r.unit ?? r.product?.unitName ?? ''})`} valueMilli={r.qtyMilli || null} onValue={(v) => patch(r.key, { qtyMilli: v ?? 0 })} />
+                  <QtyField testID={`list-qty-${i}`} label={isNew ? `${t('quickAdd.qtyOnHand')} (${r.unit ?? 'قطعة'})` : `${t(mode === 'count' ? 'quickAdd.qtyOnHand' : 'quickAdd.qtyToAdd')} (${rowUnitName(r)})`} valueMilli={r.qtyMilli || null} onValue={(v) => patch(r.key, { qtyMilli: v ?? 0 })} />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <MoneyField label={t('quickAdd.cost')} placeholder={t('quickAdd.optional')} valueMinor={r.costMinor} onValue={(v) => setCost(r, v)} />
-                </View>
+                {isNew || mode === 'add' ? (
+                  <View style={{ flex: 1 }}>
+                    <MoneyField label={t('quickAdd.cost')} placeholder={t('quickAdd.optional')} valueMinor={r.costMinor} onValue={(v) => setCost(r, v)} />
+                  </View>
+                ) : null}
                 {isNew ? (
                   <View style={{ flex: 1 }}>
                     <MoneyField testID={`list-sale-${i}`} label={t('quickAdd.salePrice')} valueMinor={r.priceLater ? null : r.saleMinor} onValue={(v) => patch(r.key, { saleMinor: v, saleFrom: 'typed', priceLater: false })} error={probs.includes('price') ? ' ' : undefined} />
@@ -191,6 +260,14 @@ export default function ListReview() {
                 ) : null}
               </View>
             ) : null}
+            {!r.skip && !isNew && r.product && r.product.trackStock !== false && r.qtyMilli > 0 ? (() => {
+              const listed = rowBaseQty(r, unitOpts[r.product.id]);
+              if (listed == null) return null;
+              const cur = r.product.qtyMilli ?? 0;
+              const after = resultingQty(mode, cur, listed);
+              const unit = r.product.unitName ?? '';
+              return <Text testID={`list-after-${i}`} variant="caption" style={{ color: after < cur ? colors.rose[700] : colors.ink.DEFAULT }}>{t('quickAdd.qtyNowAfter', { now: fmtQty(cur), after: fmtQty(after), unit })}</Text>;
+            })() : null}
             {!r.skip && isNew && r.priceLater ? <Text variant="caption">{t('quickAdd.priceLaterOn')}</Text> : null}
             {!r.skip && isNew && r.costMinor == null && !r.priceLater ? <Text variant="caption">{t('quickAdd.noCostHint')}</Text> : null}
             {!r.skip && probs.length ? <Text style={{ fontSize: 12.5, color: colors.rose[700], fontFamily: fonts.medium }}>{probs.map((p) => t(`quickAdd.problem.${p}`)).join(' · ')}</Text> : null}
@@ -203,7 +280,7 @@ export default function ListReview() {
                 </Pressable>
               ) : null}
               {!r.skip && !r.product && !isNew && r.suggestion ? (
-                <Pressable testID={`list-suggest-${i}`} onPress={() => patch(r.key, { product: r.suggestion, match: 'picked' })} style={chip}>
+                <Pressable testID={`list-suggest-${i}`} onPress={() => r.suggestion && setProduct(r, r.suggestion, 'picked')} style={chip}>
                   <Icon name="check" size={15} color={colors.primary[700]} />
                   <Text style={chipText()}>{t('ocr.didYouMean', { name: r.suggestion.name })}</Text>
                 </Pressable>
@@ -252,7 +329,7 @@ export default function ListReview() {
         {hits.map((h, i) => (
           <Pressable
             key={h.id}
-            onPress={() => { if (pickFor) patch(pickFor, { product: h, match: 'picked', skip: false }); setPickFor(null); setSearch(''); }}
+            onPress={() => { const r = rows?.find((x) => x.key === pickFor); if (r) setProduct(r, h, 'picked'); setPickFor(null); setSearch(''); }}
             style={({ pressed }) => ({ padding: 12, borderTopWidth: i ? 1 : 0, borderTopColor: colors.paper.line, backgroundColor: pressed ? colors.paper.sunk : 'transparent' })}
           >
             <Text variant="subtitle">{h.name}</Text>

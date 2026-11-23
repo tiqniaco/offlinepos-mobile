@@ -634,7 +634,9 @@
     "empty_count": "Nothing counted yet",
     "clock_behind": "The phone clock is behind. Fix date & time.",
     "gram_base_unit": "Price per gram is under 1. Use Kg as the base unit and sell fractions (e.g. 0.250 kg).",
-    "out_of_scope": "“{{name}}” is not in the category you're counting"
+    "out_of_scope": "“{{name}}” is not in the category you're counting",
+    "unit_mismatch": "“{{name}}” has no “{{unit}}” unit. Pick one of its units.",
+    "scope_has_lines": "{{n}} counted item(s) are outside this category (e.g. “{{name}}”). Remove them from the count first."
   },
   "importer": {
     "title": "Import from Excel",
@@ -1760,14 +1762,16 @@
       "qty": "Enter the quantity",
       "cost": "Enter the cost",
       "name": "Type the item name",
-      "price": "Type the sale price"
+      "price": "Type the sale price",
+      "unit": "Pick the unit"
     },
     "addedWithNew": "{{n}} items added ({{k}} new, created when you save the invoice) — check payment and save",
     "newHint": "{{n}} items you don't have will be created with sale price = cost + {{pct}}%. You can edit name, unit and price.",
     "bulkMarkup": "All new prices +%",
     "create": "New",
     "notThatNew": "No, new item",
-    "pickExisting": "Pick an existing item"
+    "pickExisting": "Pick an existing item",
+    "unitWordHint": "The invoice says “{{unit}}” — pick the right unit"
   },
   "portable": {
     "exportTitle": "Save a copy to Drive / file",
@@ -2014,7 +2018,8 @@
       "product": "Pick the item",
       "confirm": "Confirm it is the same item",
       "name": "Type the item name",
-      "price": "Type the sale price or «Set price later»"
+      "price": "Type the sale price or «Set price later»",
+      "unit": "Pick the unit"
     },
     "scanCodePh": "Scan with a reader or type the barcode",
     "scanKnown": "{{name}} already exists",
@@ -2030,7 +2035,14 @@
     "scanAdded": "{{n}} items created: {{names}}",
     "scanNewTitle": "New item",
     "scanSave": "Save and keep scanning",
-    "scanCode": "Barcode: {{code}}"
+    "scanCode": "Barcode: {{code}}",
+    "modeCount": "These quantities = what is on hand now (stock count)",
+    "modeCountHint": "Existing items are set to exactly this quantity",
+    "modeAdd": "Add them to the current stock",
+    "modeAddHint": "For a delivery list: the quantity is added on top of the current stock",
+    "qtyToAdd": "Quantity to add",
+    "qtyNowAfter": "On hand {{now}} → will be {{after}} {{unit}}",
+    "unitNotOnProduct": "The list says “{{unit}}” but this item has no such unit — pick one"
   },
   "priceReview": {
     "chip": "Needs price review",

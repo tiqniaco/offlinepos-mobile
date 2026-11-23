@@ -14,7 +14,7 @@ import { quickAddStock, resolveUnitId } from './quickAdd';
 import { InventoryError } from './context';
 import { buildReview } from '../purchases/ocrMatch';
 import { buildListReview, listToStockItems } from './listReview';
-import { scanPurchaseLines, scanTotals } from '../purchases/scan';
+import { scanPurchaseLines, scanTotals, scanUnitOptions } from '../purchases/scan';
 import { postPurchase, type PurchaseCtx } from '../purchases/purchases';
 import { trialBalance } from '../accounting/journal';
 import { verifyChain } from '../integrity/chain';
@@ -43,7 +43,7 @@ beforeEach(async () => {
   tea = await createProduct(ctx, { name: 'شاي العروسة', baseUnitId: piece, costMinor: 1800, retailPriceMinor: 2200, wholesalePriceMinor: 2000, trackStock: true, trackExpiry: false, barcodes: ['111'], largerUnit: { unitId: carton, factorMilli: 24_000, retailPriceMinor: 50_000, wholesalePriceMinor: null, barcode: null } });
 });
 
-const shopProducts = async () => (await listProducts(db, { limit: 10_000 })).map((p) => ({ id: p.id, name: p.name }));
+const shopProducts = async () => Promise.all((await listProducts(db, { limit: 10_000 })).map(async (p) => ({ id: p.id, name: p.name, units: await scanUnitOptions(db, p.id) })));
 const byName = async (name: string) => (await db.select().from(products).where(and(eq(products.name, name), isNull(products.deletedAt))))[0];
 const stock = async (id: string) => (await getProduct(db, id))!.level.qtyMilli;
 

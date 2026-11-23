@@ -37,8 +37,14 @@ function counted(n: number, noun: Noun): string {
   const w = below1000(n);
   if (r >= 3 && r <= 10) return `${w} ${noun[2]}`;
   if (r >= 11) return `${w} ${noun[3]}`;
-  return `${w} ${noun[4]}`;
+  return `${construct(w)} ${noun[4]}`;
 }
+
+/** Dual directly before its noun (إضافة) drops the nun: «مائتا ألف», «مائتا جنيه», «ألفا جنيه». */
+const construct = (w: string) => (w.endsWith('ان') ? w.slice(0, -1) : w);
+
+/** Above this the words are not written (no scale word beyond مليار): digits instead. */
+const MAX_WORDS = 1e12;
 
 const SCALES: { value: number; noun: Noun }[] = [
   { value: 1_000_000_000, noun: ['مليار', 'ملياران', 'مليارات', 'ملياراً', 'مليار'] },
@@ -46,10 +52,12 @@ const SCALES: { value: number; noun: Noun }[] = [
   { value: 1_000, noun: ['ألف', 'ألفان', 'آلاف', 'ألفاً', 'ألف'] },
 ];
 
-/** A whole number in Arabic words (masculine counting). 0 → «صفر». */
+/** A whole number in Arabic words (masculine counting). 0 / NaN → «صفر»; 10^12 and above → Latin digits. */
 export function numberToArabicWords(value: number): string {
+  if (!Number.isFinite(value)) return Number.isNaN(value) ? 'صفر' : String(value);
   let n = Math.floor(Math.abs(value));
   if (n === 0) return 'صفر';
+  if (n >= MAX_WORDS) return String(n);
   const parts: string[] = [];
   for (const s of SCALES) {
     const c = Math.floor(n / s.value);
@@ -72,7 +80,7 @@ function money(n: number, noun: Noun): string {
   const w = numberToArabicWords(n);
   if (r >= 3 && r <= 10) return `${w} ${noun[2]}`;
   if (r >= 11) return `${w} ${noun[3]}`;
-  return `${w} ${noun[4]}`;
+  return `${n >= MAX_WORDS ? w : construct(w)} ${noun[4]}`;
 }
 
 /**
@@ -80,7 +88,7 @@ function money(n: number, noun: Noun): string {
  * EGP: «ألف ومائتان وخمسون جنيهاً وخمسون قرشاً». SAR: riyals in words, halalas as «و50 هللة».
  */
 export function amountInWordsAr(minor: number, currency: 'EGP' | 'SAR' = 'EGP'): string {
-  const abs = Math.round(Math.abs(minor));
+  const abs = Number.isFinite(minor) ? Math.round(Math.abs(minor)) : 0;
   const whole = Math.floor(abs / 100);
   const frac = abs % 100;
   const main = currency === 'SAR' ? RIYAL : POUND;

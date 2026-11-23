@@ -23,8 +23,10 @@ export type InventoryErrorCode =
   | 'negative_blocked'
   | 'feature_unavailable'
   | 'unit_required'
+  | 'unit_mismatch'
   | 'empty_count'
   | 'out_of_scope'
+  | 'scope_has_lines'
   | 'clock_behind'
   | 'gram_base_unit';
 

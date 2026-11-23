@@ -365,8 +365,18 @@ export async function voidPurchase(ctx: PurchaseCtx, docId: string, reason: stri
     // The mirror takes out of INVENTORY what the invoice put in (incl. a negative-stock true-up); the stock value
     // actually changed by `back` (average drift, a reset negative average…): post the difference so INVENTORY = Σ stock values.
     const mirrored = await mirrorJournal(tx, ctx, 'purchase_doc', docId, 'purchase_void', day, t, `void ${doc.number}`);
-    const diff = back - mirrored.filter((x) => x.account === 'INVENTORY').reduce((s, x) => s + (x.debit ?? 0) - (x.credit ?? 0), 0);
-    if (diff !== 0) await postJournal(tx, ctx, { sourceType: 'purchase_void', sourceId: docId, businessDay: day, memo: `void ${doc.number} avg`, at: t, lines: [signedLine('INVENTORY', diff), signedLine('STOCK_ADJ', -diff)] });
+    const net = (k: AccountKey) => mirrored.filter((x) => x.account === k).reduce((s, x) => s + (x.debit ?? 0) - (x.credit ?? 0), 0);
+    const diff = back - net('INVENTORY');
+    if (diff !== 0) {
+      // Units oversold before this invoice stay at the cost it reset them to, so the true-up the mirror reversed
+      // goes back to COGS; any remaining drift is a stock adjustment.
+      const reversedTrueUp = -net('COGS'); // the invoice's COGS true-up, debit-positive
+      const cogs = Math.sign(reversedTrueUp) === Math.sign(-diff) ? Math.sign(-diff) * Math.min(Math.abs(diff), Math.abs(reversedTrueUp)) : 0;
+      const jl: JournalLineInput[] = [signedLine('INVENTORY', diff)];
+      if (cogs !== 0) jl.push(signedLine('COGS', cogs));
+      if (-diff - cogs !== 0) jl.push(signedLine('STOCK_ADJ', -diff - cogs));
+      await postJournal(tx, ctx, { sourceType: 'purchase_void', sourceId: docId, businessDay: day, memo: `void ${doc.number} avg`, at: t, lines: jl });
+    }
     if (doc.creditMinor > 0 && doc.supplierId) await postPartyLedger(tx, ctx, { partyType: 'S', partyId: doc.supplierId, sourceType: 'purchase_void', sourceId: docId, debitMinor: doc.creditMinor, creditMinor: 0, businessDay: day, at: t });
     await tx.update(payments).set({ voided: true }).where(eq(payments.docId, docId));
     await tx.update(purchaseDocs).set({ status: 'VOIDED', voidReason: reason.trim(), voidedBy: ctx.user.id, voidedAt: t }).where(eq(purchaseDocs.id, docId));

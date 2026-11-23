@@ -1,5 +1,5 @@
 /** Stock adjustments (with reason) and scan-driven stock counts (SPEC §5). */
-import { and, asc, desc, eq, isNull, ne, notInArray } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, ne, notInArray, or } from 'drizzle-orm';
 import { uuidv7 } from '@daftarak/shared';
 import { inventoryDocs, inventoryLines, products, stockLevels, units } from '../../db/schema';
 import type { Db } from '../../db/types';
@@ -96,7 +96,11 @@ export async function openCount(ctx: InvCtx, opts: CountOptions = {}): Promise<s
   return id;
 }
 
-/** Rename / re-scope the open count. */
+/**
+ * Rename / re-scope the open count. Narrowing the scope to a category is refused while products outside it were
+ * already counted (they would be posted although the count no longer covers them): InventoryError('scope_has_lines')
+ * names them; the user removes them first.
+ */
 export async function updateCountInfo(ctx: InvCtx, docId: string, opts: CountOptions): Promise<void> {
   requirePermission(ctx.user, 'stock.adjust');
   const now = nowOf(ctx);
@@ -105,7 +109,17 @@ export async function updateCountInfo(ctx: InvCtx, docId: string, opts: CountOpt
     if (!doc || doc.status !== 'DRAFT') throw new InventoryError('not_found');
     const set: Partial<typeof inventoryDocs.$inferInsert> = { updatedAt: now };
     if (opts.note !== undefined) set.note = opts.note?.trim() || null;
-    if (opts.categoryId !== undefined) set.reason = scopeReason(opts.categoryId);
+    if (opts.categoryId !== undefined) {
+      if (opts.categoryId) {
+        const outside = await tx
+          .select({ name: products.name })
+          .from(inventoryLines)
+          .innerJoin(products, eq(products.id, inventoryLines.productId))
+          .where(and(eq(inventoryLines.docId, docId), or(isNull(products.categoryId), ne(products.categoryId, opts.categoryId))));
+        if (outside.length) throw new InventoryError('scope_has_lines', { n: outside.length, name: outside[0]!.name });
+      }
+      set.reason = scopeReason(opts.categoryId);
+    }
     await tx.update(inventoryDocs).set(set).where(eq(inventoryDocs.id, docId));
   });
 }
@@ -226,6 +240,32 @@ export async function postCount(ctx: InvCtx, docId: string, opts: { missing?: 'k
     await appendAudit(tx, { action: 'stock.count', entity: 'inventory_docs', entityId: docId, after: { number, lines: lines.length, changed, zeroed, note: doc.note, scope: doc.reason }, userId: ctx.user.id, deviceId: ctx.device.id, at: now });
     return { number, changed, zeroed };
   });
+}
+
+/**
+ * A stock-take posted in one go (photographed paper count): ONE posted COUNT document setting each product to its
+ * counted quantity (delta = counted − current, at the moving average, journal vs STOCK_ADJ like any count).
+ * Unchanged products get a line with delta 0. Inside the caller's transaction. Returns null when there are no lines.
+ */
+export async function postCountedLevels(tx: Db, ctx: InvCtx, lines: readonly { productId: string; countedMilli: number }[], now: number, note?: string | null): Promise<string | null> {
+  if (!lines.length) return null;
+  const warehouseId = await defaultWarehouseId(tx);
+  const docId = uuidv7(now);
+  const base = { createdAt: now, updatedAt: now, createdBy: ctx.user.id, deviceId: ctx.device.id };
+  await tx.insert(inventoryDocs).values({ id: docId, ...base, type: 'COUNT', status: 'DRAFT', warehouseId, note: note ?? null });
+  let value = 0;
+  for (const l of lines) {
+    const level = await getLevel(tx, l.productId, warehouseId);
+    const delta = l.countedMilli - level.qtyMilli;
+    const lineId = uuidv7(now);
+    await tx.insert(inventoryLines).values({ id: lineId, ...base, docId, productId: l.productId, expectedMilli: level.qtyMilli, countedMilli: l.countedMilli, deltaMilli: delta, unitCostMinor: level.avgCostMinor });
+    if (delta === 0) continue;
+    const [mv] = await postMovements(tx, { ...ctx, negativeStock: 'warn' }, warehouseId, [{ productId: l.productId, qtyMilli: delta, type: 'COUNT', sourceType: 'inventory_doc', sourceId: docId, sourceLineId: lineId, reason: 'count' }]);
+    value += mv!.valueMinor;
+    await tx.update(inventoryLines).set({ unitCostMinor: mv!.unitCostMinor }).where(eq(inventoryLines.id, lineId));
+  }
+  await finalizeInventoryDoc(tx, ctx, docId, now, value);
+  return docId;
 }
 
 /** Stock-tracked live products of the scope that were not counted and whose system quantity is not 0. */

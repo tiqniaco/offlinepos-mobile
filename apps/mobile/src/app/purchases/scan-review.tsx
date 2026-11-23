@@ -27,7 +27,7 @@ import { listParties } from '../../domain/parties/parties';
 import { buildReview, matchByName, repriceNew, reviewProblems, toMinor, type NamedItem, type ReviewLine } from '../../domain/purchases/ocrMatch';
 import { markupPrice, normName, QUICK_UNITS, splitNameUnit, type QuickPricing } from '../../domain/inventory/quickPricing';
 import { usePricing, useProductSlots } from '../../features/inventory/usePricing';
-import { defaultScanUnit, scanPurchaseLines, scanTotals, scanUnitOptions } from '../../domain/purchases/scan';
+import { scanLineUnit, scanPurchaseLines, scanTotals, scanUnitOptions } from '../../domain/purchases/scan';
 import { PartyPicker } from '../../features/parties/PartyPicker';
 import { partyColor } from '../../features/parties/format';
 import { useBizCtx } from '../../features/sales/useSalesCtx';
@@ -73,7 +73,12 @@ export default function ScanReview() {
       try {
         const [products, suppliers] = await Promise.all([listProducts(db, { limit: 10_000 }), listParties(db, 'S', { limit: 5000 })]);
         const built = buildReview(result.lines, products.map((p) => ({ id: p.id, name: display(p) })), { autoCreate: canAddProduct, pricing: pricingRef.current });
-        for (const l of built) if (l.product) l.unitId = await defaultScanUnit(db, l.product.id, l.costMinor);
+        for (const l of built) {
+          if (!l.product) continue;
+          const u = await scanLineUnit(db, l.product.id, l.costMinor, l.unitWord);
+          l.unitId = u.unitId;
+          l.unitUnsure = u.unsure;
+        }
         setLines(built);
         const m = result.supplierName ? matchByName(result.supplierName, suppliers) : null;
         if (m) setSupplier({ id: m.item.id, name: m.item.name });
@@ -107,8 +112,8 @@ export default function ScanReview() {
   /** New product on a line: re-pick its default unit from the printed price. */
   const setProduct = (key: string, product: NamedItem, match: ReviewLine['match']) => {
     const l = lines?.find((x) => x.key === key);
-    patch(key, { product, match, skip: false, unitId: null });
-    void defaultScanUnit(getDb(), product.id, l?.costMinor ?? null).then((unitId) => patch(key, { unitId }), () => undefined);
+    patch(key, { product, match, skip: false, unitId: null, unitUnsure: false });
+    void scanLineUnit(getDb(), product.id, l?.costMinor ?? null, l?.unitWord).then((u) => patch(key, { unitId: u.unitId, unitUnsure: u.unsure }), () => undefined);
   };
 
   // Units of every matched product.
@@ -258,12 +263,13 @@ export default function ScanReview() {
               </View>
             ) : null}
           </View>
-          {!l.skip && l.product && (unitOpts[l.product.id]?.length ?? 0) > 1 ? (
+          {!l.skip && l.product && ((unitOpts[l.product.id]?.length ?? 0) > 1 || (l.unitUnsure && unitOpts[l.product.id]?.length)) ? (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {l.unitUnsure && l.unitWord ? <Text variant="caption" style={{ width: '100%' }}>{t('ocr.unitWordHint', { unit: l.unitWord })}</Text> : null}
               {unitOpts[l.product.id]!.map((u) => {
-                const sel = (l.unitId ?? unitOpts[l.product!.id]!.find((x) => x.isBase)?.id) === u.id;
+                const sel = !l.unitUnsure && (l.unitId ?? unitOpts[l.product!.id]!.find((x) => x.isBase)?.id) === u.id;
                 return (
-                  <Pressable key={u.id} testID={`ocr-line-unit-${i}-${u.factorMilli}`} onPress={() => patch(l.key, { unitId: u.id })} style={({ pressed }) => [chip({ pressed }), sel ? { backgroundColor: colors.primary[500] } : null]}>
+                  <Pressable key={u.id} testID={`ocr-line-unit-${i}-${u.factorMilli}`} onPress={() => patch(l.key, { unitId: u.id, unitUnsure: false })} style={({ pressed }) => [chip({ pressed }), sel ? { backgroundColor: colors.primary[500] } : null]}>
                     <Text style={[chipText(), sel ? { color: '#fff' } : null]}>{u.name}</Text>
                   </Pressable>
                 );

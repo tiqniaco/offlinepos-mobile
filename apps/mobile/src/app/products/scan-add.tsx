@@ -4,13 +4,13 @@
  *   save = product + its opening stock in one go → back to scanning;
  * - known barcode → +1 on a pending list (in the unit the barcode belongs to);
  * - «خلّصت» posts the pending list as ONE opening-stock document.
- * The pending list lives in a store, so leaving the screen does not lose it.
+ * The pending list lives in a store (state/scanAdd), so leaving the screen does not lose it; locking the app or
+ * switching user clears it.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Platform, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { create } from 'zustand';
 import { normalizeDigits } from '@daftarak/shared';
 import { Screen, Text, TextField, Button, Card, Icon, Sheet, QtyField, MoneyField, Banner, Chip, colors, fonts } from '../../ui';
 import { Pressable } from '../../ui/Press';
@@ -24,27 +24,11 @@ import { usePricing } from '../../features/inventory/usePricing';
 import { invErrorMessage } from '../../features/inventory/errors';
 import { refreshPriceReview } from '../../state/priceReview';
 import { toast } from '../../state/toast';
+import { useScanAdd } from '../../state/scanAdd';
 import { qty as fmtQty } from '../../lib/format';
 import { fx } from '../../ui/fx';
 import { NativeScanner } from '../scan';
 
-interface Pending {
-  key: string;
-  productId: string;
-  productUnitId: string;
-  name: string;
-  unitName: string;
-  qtyMilli: number;
-}
-
-interface ScanAddState {
-  pending: Pending[];
-  /** Products created in this run (names, newest first) — shown so the user sees progress. */
-  added: string[];
-  lastUnit: string;
-  lastCategoryId: string | null;
-}
-const useScanAdd = create<ScanAddState>(() => ({ pending: [], added: [], lastUnit: 'قطعة', lastCategoryId: null }));
 const S = useScanAdd;
 
 export default function ScanAdd() {

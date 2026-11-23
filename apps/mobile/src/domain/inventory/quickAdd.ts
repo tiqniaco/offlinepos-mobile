@@ -16,6 +16,7 @@ import { assertCanWrite } from '../licence/guard';
 import { InventoryError, nowOf, type InvCtx } from './context';
 import { defaultUnitId } from './catalog';
 import { assertProductSlots, insertProductRows, postOpeningStock } from './products';
+import { postCountedLevels } from './adjust';
 import { normName, unitFromWord } from './quickPricing';
 
 let hlc: HybridLogicalClock | null = null;
@@ -150,9 +151,12 @@ export async function assertCanCreate(ctx: InvCtx, specs: readonly NewProductSpe
 export interface QuickStockItem {
   /** Existing product: its id. */
   productId?: string | null;
-  /** Unit row (product_units.id) the qty is in, for an existing product; null = base unit. */
+  /** Unit row (product_units.id) the qty is in, for an existing product; null = base unit (or `unit`). */
   productUnitId?: string | null;
-  /** Or the unit as written (كرتونة…): used when it is one of the existing product's units; else the base unit. */
+  /**
+   * Or the unit as written (كرتونة…), when no productUnitId: it must be one of the existing product's units, else
+   * InventoryError('unit_mismatch') — never a silent fallback to the base unit (2 كرتونة ≠ 2 pieces).
+   */
   unit?: string | null;
   /** New product. */
   create?: NewProductSpec | null;
@@ -166,13 +170,28 @@ export interface QuickStockResult {
   created: number;
   productIds: string[];
   openingDocId: string | null;
+  /** existing: 'count' — the COUNT document that set the existing products to the listed quantities. */
+  countDocId: string | null;
+}
+
+export interface QuickStockOptions {
+  note?: string;
+  source?: string;
+  /**
+   * What a quantity on an EXISTING product means: 'add' (default; scan-and-add, a delivery list) = on top of the
+   * current stock (opening stock in); 'count' (a paper stock-take) = the counted on-hand quantity: ONE posted COUNT
+   * document adjusts each product by counted − current (journal and ledger as a stock count). New products always
+   * get opening stock.
+   */
+  existing?: 'add' | 'count';
 }
 
 /**
- * Creates the new products and posts ONE opening-stock document for every line with a quantity (new and existing
- * products), in one transaction. Existing products need stock.adjust; new ones products.manage + plan room.
+ * Creates the new products and posts ONE opening-stock document for every line with a quantity (new products, and
+ * existing ones in 'add' mode) and, in 'count' mode, ONE count document for the existing products — all in one
+ * transaction. Existing products need stock.adjust; new ones products.manage + plan room.
  */
-export async function quickAddStock(ctx: InvCtx, items: readonly QuickStockItem[], opts: { note?: string; source?: string } = {}): Promise<QuickStockResult> {
+export async function quickAddStock(ctx: InvCtx, items: readonly QuickStockItem[], opts: QuickStockOptions = {}): Promise<QuickStockResult> {
   assertCanWrite();
   const specs = items.map((i) => i.create).filter((x): x is NewProductSpec => !!x);
   for (const i of items) {
@@ -188,6 +207,7 @@ export async function quickAddStock(ctx: InvCtx, items: readonly QuickStockItem[
     const created = await createNewProducts(tx, ctx, specs, now, source);
     let k = 0;
     const opening: { productId: string; qtyMilli: number; unitCostMinor: number }[] = [];
+    const counted = new Map<string, number>();
     const ids: string[] = [];
     for (const i of items) {
       if (i.create) {
@@ -202,14 +222,22 @@ export async function quickAddStock(ctx: InvCtx, items: readonly QuickStockItem[
       if (!(i.qtyMilli > 0) || !p.trackStock) continue;
       let factor = 1000;
       if (i.productUnitId) {
-        const u = (await tx.select({ f: productUnits.factorMilli }).from(productUnits).where(and(eq(productUnits.id, i.productUnitId), eq(productUnits.productId, p.id))).limit(1))[0];
-        factor = u?.f ?? 1000;
+        const u = (await tx.select({ f: productUnits.factorMilli }).from(productUnits).where(and(eq(productUnits.id, i.productUnitId), eq(productUnits.productId, p.id), isNull(productUnits.deletedAt))).limit(1))[0];
+        if (!u) throw new InventoryError('unit_mismatch', { name: p.name, unit: i.unit ?? '' });
+        factor = u.f;
       } else if (i.unit) {
         const want = normName(unitFromWord(i.unit)?.ar ?? i.unit);
         const pus = await tx.select({ f: productUnits.factorMilli, ar: units.nameAr }).from(productUnits).innerJoin(units, eq(units.id, productUnits.unitId)).where(and(eq(productUnits.productId, p.id), isNull(productUnits.deletedAt)));
-        factor = pus.find((u) => normName(u.ar) === want)?.f ?? 1000;
+        const hit = pus.find((u) => normName(u.ar) === want);
+        // «2 كرتونة» of a product without a carton unit: refuse (the caller picks one of the product's units).
+        if (!hit) throw new InventoryError('unit_mismatch', { name: p.name, unit: unitFromWord(i.unit)?.ar ?? i.unit });
+        factor = hit.f;
       }
       const baseQty = Math.round((i.qtyMilli * factor) / 1000);
+      if (opts.existing === 'count') {
+        counted.set(p.id, (counted.get(p.id) ?? 0) + baseQty);
+        continue;
+      }
       const baseCost = i.costMinor != null ? Math.round((i.costMinor * 1000) / factor) : p.costMinor;
       opening.push({ productId: p.id, qtyMilli: baseQty, unitCostMinor: baseCost });
     }
@@ -221,14 +249,15 @@ export async function quickAddStock(ctx: InvCtx, items: readonly QuickStockItem[
       else merged.set(o.productId, { ...o });
     }
     const openingDocId = await postOpeningStock(tx, ctx, [...merged.values()], now, opts.note ?? source);
+    const countDocId = await postCountedLevels(tx, ctx, [...counted].map(([productId, countedMilli]) => ({ productId, countedMilli })), now, opts.note ?? source);
     await appendAudit(tx, {
       action: 'product.quick_add',
       entity: 'products',
-      after: { source, created: new Set(created.map((c) => c.productId)).size, lines: items.length, opening: openingDocId },
+      after: { source, created: new Set(created.map((c) => c.productId)).size, lines: items.length, opening: openingDocId, count: countDocId },
       userId: ctx.user.id,
       deviceId: ctx.device.id,
       at: now,
     });
-    return { created: new Set(created.map((c) => c.productId)).size, productIds: ids, openingDocId };
+    return { created: new Set(created.map((c) => c.productId)).size, productIds: ids, openingDocId, countDocId };
   });
 }

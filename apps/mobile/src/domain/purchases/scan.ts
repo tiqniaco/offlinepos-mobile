@@ -11,7 +11,7 @@ import { lineAmount, type OcrScanResponse } from '@daftarak/shared';
 import { products, productUnits, units } from '../../db/schema';
 import type { Db } from '../../db/types';
 import { pricePurchaseDraft, purchaseLineFor, type PurchaseCtx, type PurchaseLine } from './purchases';
-import { pickUnit, toMinor, totalsMismatch, type ReviewLine, type UnitOption } from './ocrMatch';
+import { pickLineUnit, pickUnit, toMinor, totalsMismatch, type ReviewLine, type UnitOption } from './ocrMatch';
 
 /** Units of a product (for the review's unit picker) with each unit's current cost. */
 export async function scanUnitOptions(db: Db, productId: string): Promise<(UnitOption & { costMinor: number; name: string })[]> {
@@ -26,6 +26,12 @@ export async function scanUnitOptions(db: Db, productId: string): Promise<(UnitO
 export async function defaultScanUnit(db: Db, productId: string, scannedUnitPriceMinor: number | null): Promise<string | null> {
   const p = (await db.select({ cost: products.costMinor }).from(products).where(eq(products.id, productId)).limit(1))[0];
   return pickUnit(await scanUnitOptions(db, productId), p?.cost ?? 0, scannedUnitPriceMinor);
+}
+
+/** Default unit for a review line with the printed unit word: the product's unit of that name first (see pickLineUnit). */
+export async function scanLineUnit(db: Db, productId: string, scannedUnitPriceMinor: number | null, unitWord: string | null | undefined): Promise<{ unitId: string | null; unsure: boolean }> {
+  const p = (await db.select({ cost: products.costMinor }).from(products).where(eq(products.id, productId)).limit(1))[0];
+  return pickLineUnit(await scanUnitOptions(db, productId), p?.cost ?? 0, scannedUnitPriceMinor, unitWord);
 }
 
 /** A not-yet-existing product's purchase line («صنف جديد»): created when the purchase is posted. */
