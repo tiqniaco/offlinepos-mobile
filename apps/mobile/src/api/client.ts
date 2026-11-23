@@ -27,11 +27,11 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T extends z.ZodType>(path: string, schema: T, init: { method?: string; body?: unknown; token?: string } = {}): Promise<z.infer<T>> {
+async function request<T extends z.ZodType>(path: string, schema: T, init: { method?: string; body?: unknown; token?: string; timeoutMs?: number } = {}): Promise<z.infer<T>> {
   let res: Response;
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 20_000);
+    const timer = setTimeout(() => ctrl.abort(), init.timeoutMs ?? 20_000);
     res = await fetch(`${API_URL}${path}`, {
       method: init.method ?? (init.body ? 'POST' : 'GET'),
       headers: { 'Content-Type': 'application/json', ...(init.token ? { Authorization: `Bearer ${init.token}` } : {}) },
@@ -86,7 +86,7 @@ export const api = {
   /** Manual payment (InstaPay / Vodafone Cash): numbers, SLA and paid plan prices (EGP minor units). */
   billingInfo: (token: string, businessId: string) => request(`/v1/billing/manual/info?businessId=${encodeURIComponent(businessId)}`, manualBillingInfoSchema, { token }),
   /** Sends the receipt (base64 JPEG/PNG ≤ 2 MB). Errors: receipt_invalid, invalid_phone, too_many_pending (409), rate_limited (429). */
-  createPaymentRequest: (token: string, payload: CreatePaymentRequest) => request('/v1/billing/manual/requests', createPaymentRequestResponseSchema, { body: payload, token }),
+  createPaymentRequest: (token: string, payload: CreatePaymentRequest) => request('/v1/billing/manual/requests', createPaymentRequestResponseSchema, { body: payload, token, timeoutMs: 90_000 }),
   listPaymentRequests: (token: string, businessId: string) => request(`/v1/billing/manual/requests?businessId=${encodeURIComponent(businessId)}`, paymentRequestListSchema, { token }),
   sessions: (token: string) =>
     request('/v1/sessions', z.object({ sessions: z.array(z.object({ id: z.string(), created_at: z.number(), last_used_at: z.number().nullable(), platform: z.string().nullable(), model: z.string().nullable(), app_version: z.string().nullable(), current: z.boolean() })) }), { token }),
