@@ -130,7 +130,7 @@ export default function Pay() {
       const r = await postSale(ctx, draft, rows, { approvedBy });
       posted = true;
       cart.clear();
-      fx.sale();
+      fx.saleDone();
       // Sale is committed. Printing runs afterwards and can never undo it.
       void printReceiptInBackground(r.docId);
       router.replace({ pathname: '/sales/done', params: { id: r.docId, change: String(r.changeMinor) } });

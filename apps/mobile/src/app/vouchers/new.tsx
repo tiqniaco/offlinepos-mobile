@@ -69,7 +69,7 @@ export default function NewVoucher() {
     setBusy(true);
     try {
       const r = await postVoucher(ctx, { type, amountMinor: amount, method: cashOnly ? 'cash' : method, label, partyId: party?.id ?? null, categoryId: cat, note });
-      if (type === 'RECEIPT' || type === 'SUPPLIER_REFUND' || type === 'CASH_IN') fx.cash();
+      if (type === 'RECEIPT' || type === 'SUPPLIER_REFUND' || type === 'CASH_IN') fx.paid();
       else fx.success();
       router.replace({ pathname: '/vouchers/[id]', params: { id: r.id, fresh: '1' } });
     } catch (e) {

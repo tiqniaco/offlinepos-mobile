@@ -4,7 +4,8 @@
  */
 import { Appearance, Platform } from 'react-native';
 import { applyFont, applyTheme, setTextSize } from '../ui/themeStore';
-import { preloadSounds, setSoundsEnabled } from '../ui/sounds';
+import { preloadSoundsSoon, setSoundsEnabled, setSoundVolume } from '../ui/sounds';
+import { setHapticsEnabled } from '../ui/haptics';
 import { getDb, openDatabase, DbNotEncryptedError } from '../db/client';
 import { business } from '../db/schema';
 import { getCurrentDevice } from '../domain/device';
@@ -104,7 +105,9 @@ async function bootInner(): Promise<void> {
   const settings = await loadSettings(db);
   setTextSize(settings.textSize ?? 'md');
   setSoundsEnabled(settings.sounds ?? true);
-  preloadSounds();
+  setSoundVolume(settings.soundVolume ?? 'medium');
+  setHapticsEnabled(settings.haptics ?? true);
+  preloadSoundsSoon(); // after the first screen is up: never delays startup
   await applyFont(settings.font ?? 'readex').catch(() => applyFont('readex'));
   applyTheme(settings.palette ?? 'tiqnia', settings.appearance ?? 'light', Appearance.getColorScheme() === 'dark');
   const lang = settings.language ?? 'ar';

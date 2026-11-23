@@ -8,13 +8,17 @@ import { appendAudit } from '../audit/audit';
 import { assertCanWrite } from '../licence/guard';
 import { PermissionError } from '../auth/users';
 
-export type SettingKey = keyof BusinessSettings | 'language' | 'palette' | 'appearance' | 'font' | 'textSize' | 'sounds' | 'notifications' | 'tipsSeen' | 'blockScreenshots' | 'printer' | 'receipt' | 'cashRoundingMinor' | 'requireShift' | 'reminderDays' | 'reminderTemplate';
+export type SettingKey = keyof BusinessSettings | 'language' | 'palette' | 'appearance' | 'font' | 'textSize' | 'sounds' | 'soundVolume' | 'haptics' | 'notifications' | 'tipsSeen' | 'blockScreenshots' | 'printer' | 'receipt' | 'cashRoundingMinor' | 'requireShift' | 'reminderDays' | 'reminderTemplate';
 /** palette/appearance are personal display settings (src/ui/theme.ts). */
 export type AppSettings = BusinessSettings & { language: 'ar' | 'en'; palette: 'tiqnia' | 'teal' | 'emerald' | 'sunset' | 'graphite'; appearance: 'light' | 'dark' | 'comfort' | 'system';
   font: 'readex' | 'alexandria' | 'almarai' | 'plex';
   textSize: 'sm' | 'md' | 'lg';
   /** UI sounds (scan beep, sale chime…). Default on. */
   sounds: boolean;
+  /** UI sound level. Default medium. */
+  soundVolume: 'low' | 'medium' | 'high';
+  /** Vibration feedback on taps/scans/sales. Default on. */
+  haptics: boolean;
   /** Local reminders (morning summary, trial ending, backup). Default on. */
   notifications: boolean;
   /** First-use tips already dismissed. */
@@ -103,7 +107,7 @@ export async function changeSetting<K extends SettingKey>(
   ctx: { userId: string; deviceId: string; permissions?: readonly Permission[] },
 ): Promise<void> {
   if (MANAGED_KEYS.has(key) && !(ctx.permissions && roleHas(ctx.permissions, 'settings.manage'))) throw new PermissionError('settings.manage');
-  const personal = key === 'language' || key === 'autoLockMinutes' || key === 'palette' || key === 'appearance' || key === 'font' || key === 'textSize' || key === 'sounds' || key === 'notifications' || key === 'tipsSeen' || key === 'printer';
+  const personal = key === 'language' || key === 'autoLockMinutes' || key === 'palette' || key === 'appearance' || key === 'font' || key === 'textSize' || key === 'sounds' || key === 'soundVolume' || key === 'haptics' || key === 'notifications' || key === 'tipsSeen' || key === 'printer';
   if (!personal) assertCanWrite();
   const now = Date.now();
   await withTx(db, async (tx) => {

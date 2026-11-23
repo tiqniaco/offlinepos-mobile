@@ -4,7 +4,7 @@ import { Pressable } from '../../ui/Press';
 import { fonts } from '../../ui/fonts';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
-import { playSound } from '../../ui/sounds';
+import { playSound, type SoundVolume } from '../../ui/sounds';
 import { Screen, Text, SectionTitle, Icon, Chip, PALETTES, FONT_FAMILIES, preloadAllFonts, buildTheme, colors, shadow, type PaletteId, type Appearance, type FontId, type TextSize } from '../../ui';
 
 const MODES: { id: Appearance; icon: 'globe' | 'shield' | 'book' | 'refresh' }[] = [
@@ -41,6 +41,10 @@ export function AppearanceView({
   onTextSize,
   sounds = true,
   onSounds,
+  soundVolume = 'medium',
+  onSoundVolume,
+  haptics = true,
+  onHaptics,
   notifications = true,
   onNotifications,
   onPalette,
@@ -55,6 +59,10 @@ export function AppearanceView({
   onTextSize?: (z: TextSize) => void;
   sounds?: boolean;
   onSounds?: (on: boolean) => void;
+  soundVolume?: SoundVolume;
+  onSoundVolume?: (v: SoundVolume) => void;
+  haptics?: boolean;
+  onHaptics?: (on: boolean) => void;
   notifications?: boolean;
   onNotifications?: (on: boolean) => void;
   onPalette: (p: PaletteId) => void;
@@ -141,8 +149,26 @@ export function AppearanceView({
           <Text variant="subtitle">{t('appearance.soundsOn')}</Text>
           <Text variant="caption">{t('appearance.soundsHint')}</Text>
         </View>
-        <Chip label={t('appearance.soundTry')} onPress={() => { playSound('scan'); setTimeout(() => playSound('sale'), 350); }} />
+        <Chip label={t('appearance.soundTry')} onPress={() => { playSound('scan'); setTimeout(() => playSound('add'), 260); setTimeout(() => playSound('sale'), 600); }} />
         <Switch testID="sounds-switch" value={sounds} onValueChange={(v) => onSounds?.(v)} trackColor={{ true: colors.primary[500], false: colors.paper.line }} />
+      </View>
+      {sounds ? (
+        <View style={[{ gap: 8, padding: 14, borderRadius: 16, backgroundColor: colors.paper.card }, shadow.soft]}>
+          <Text variant="subtitle">{t('appearance.soundVolume')}</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {(['low', 'medium', 'high'] as const).map((v) => (
+              <Chip key={v} testID={`volume-${v}`} label={t(`appearance.volume.${v}`)} selected={soundVolume === v} onPress={() => onSoundVolume?.(v)} />
+            ))}
+          </View>
+        </View>
+      ) : null}
+
+      <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 16, backgroundColor: colors.paper.card }, shadow.soft]}>
+        <View style={{ flex: 1 }}>
+          <Text variant="subtitle">{t('appearance.hapticsOn')}</Text>
+          <Text variant="caption">{t('appearance.hapticsHint')}</Text>
+        </View>
+        <Switch testID="haptics-switch" value={haptics} onValueChange={(v) => onHaptics?.(v)} trackColor={{ true: colors.primary[500], false: colors.paper.line }} />
       </View>
 
       <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 16, backgroundColor: colors.paper.card }, shadow.soft]}>

@@ -2,6 +2,7 @@
  * Print / share actions used by the screens. Printing never blocks or undoes a sale: it runs after the
  * sale is committed, and any failure shows a toast with a one-tap "reprint" (SPEC §3).
  */
+import { Alert } from 'react-native';
 import { router } from 'expo-router';
 import i18n from 'i18next';
 import { eq, sql } from 'drizzle-orm';
@@ -63,6 +64,37 @@ export async function sharePdf(docId: string): Promise<void> {
   } catch {
     toast(t('errors.unknown'), 'error');
   }
+}
+
+/** A4 PDF → the system print dialog (print on a Wi-Fi printer or «Save as PDF»). */
+export async function printA4(docId: string): Promise<void> {
+  try {
+    const data = await buildReceiptData(docId);
+    await Print.printAsync({ html: await receiptHtml(data) });
+  } catch (e) {
+    // Closing the print dialog is not an error.
+    if (!/cancel/i.test(String((e as Error)?.message ?? ''))) toast(t('errors.unknown'), 'error');
+  }
+}
+
+/** Preview any A4 HTML (settings «شكل الفواتير») in the system print preview. */
+export async function previewHtml(html: string): Promise<void> {
+  try {
+    await Print.printAsync({ html });
+  } catch (e) {
+    if (!/cancel/i.test(String((e as Error)?.message ?? ''))) toast(t('errors.unknown'), 'error');
+  }
+}
+
+/** «PDF A4» button: share (WhatsApp, email…) or print. Resolves when the chosen action finished. */
+export function a4Menu(docId: string): Promise<void> {
+  return new Promise((resolve) => {
+    Alert.alert(t('templates.a4Title'), t('templates.a4Body'), [
+      { text: t('templates.a4Share'), onPress: () => void sharePdf(docId).finally(resolve) },
+      { text: t('templates.a4Print'), onPress: () => void printA4(docId).finally(resolve) },
+      { text: t('common.cancel'), style: 'cancel', onPress: () => resolve() },
+    ], { cancelable: true, onDismiss: () => resolve() });
+  });
 }
 
 /** WhatsApp text of an invoice/return to the customer's number (or any chat if none). */

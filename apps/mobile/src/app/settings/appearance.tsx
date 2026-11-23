@@ -6,7 +6,8 @@ import { useApp } from '../../state/app';
 import { reloadAppData } from '../../state/boot';
 import { applyFont, applyTheme, setTextSize, useTheme, type Appearance, type FontId, type PaletteId, type TextSize } from '../../ui';
 import { AppearanceView } from '../../features/settings/AppearanceView';
-import { playSound, setSoundsEnabled } from '../../ui/sounds';
+import { playSound, setSoundsEnabled, setSoundVolume } from '../../ui/sounds';
+import { haptic, setHapticsEnabled } from '../../ui/haptics';
 import { planNotifications } from '../../features/notify/notify';
 
 /** Palette + light/dark/comfort/system. Applies instantly to the whole app and is saved per device. */
@@ -19,6 +20,8 @@ export default function AppearanceScreen() {
   const font = useTheme((s) => s.font);
   const textSize = useTheme((s) => s.textSize);
   const soundsOn = useApp((s) => s.settings.sounds ?? true);
+  const volume = useApp((s) => s.settings.soundVolume ?? 'medium');
+  const hapticsOn = useApp((s) => s.settings.haptics ?? true);
   const notifOn = useApp((s) => s.settings.notifications ?? true);
   const setSize = async (z: TextSize) => {
     useTheme.setState({ returnTo: '/settings/appearance' });
@@ -53,6 +56,18 @@ export default function AppearanceScreen() {
         setSoundsEnabled(v);
         if (v) playSound('success');
         void changeSetting(getDb(), 'sounds', v, { userId: user.id, deviceId: device.id }).then(reloadAppData);
+      }}
+      soundVolume={volume}
+      onSoundVolume={(v) => {
+        setSoundVolume(v);
+        playSound('success');
+        void changeSetting(getDb(), 'soundVolume', v, { userId: user.id, deviceId: device.id }).then(reloadAppData);
+      }}
+      haptics={hapticsOn}
+      onHaptics={(v) => {
+        setHapticsEnabled(v);
+        if (v) haptic.success();
+        void changeSetting(getDb(), 'haptics', v, { userId: user.id, deviceId: device.id }).then(reloadAppData);
       }}
       onTextSize={(z) => void setSize(z)}
       lang={i18n.language}

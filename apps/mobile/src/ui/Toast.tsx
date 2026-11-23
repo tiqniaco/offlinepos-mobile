@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import { Pressable } from './Press';
-import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeOutDown, ZoomIn } from 'react-native-reanimated';
 import { haptic } from './haptics';
+import { useReduceMotion } from './reduceMotion';
 import { fx } from './fx';
 import { fonts } from './fonts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,7 +18,9 @@ export function ToastHost() {
   const t = useToast((s) => s.toast);
   const hide = useToast((s) => s.hide);
   const insets = useSafeAreaInsets();
+  const reduce = useReduceMotion();
   useEffect(() => {
+    // Error toast = error sound + haptic (deduplicated when the screen already played it).
     if (t?.tone === 'error') fx.error();
     else if (t?.tone === 'success') haptic.success();
   }, [t?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -27,7 +30,9 @@ export function ToastHost() {
   return (
     <Animated.View key={t.id} entering={FadeInDown.springify().damping(18)} exiting={FadeOutDown.duration(150)} pointerEvents="box-none" style={{ position: 'absolute', left: 16, right: 16, bottom: insets.bottom + 84 }}>
       <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: bg, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12 }, shadow.lifted]}>
-        <Icon name={t.tone === 'error' ? 'warning' : 'check'} color={t.tone === 'success' ? '#3FB561' : fg} tint="transparent" size={20} />
+        <Animated.View entering={reduce ? undefined : ZoomIn.springify().damping(9).stiffness(260).delay(60)}>
+          <Icon name={t.tone === 'error' ? 'warning' : 'check'} color={t.tone === 'success' ? '#3FB561' : fg} tint="transparent" size={20} />
+        </Animated.View>
         <Text style={{ flex: 1, color: fg, fontFamily: fonts.medium, fontSize: 14.5, lineHeight: 22 }}>{t.text}</Text>
         {t.action ? (
           <Pressable

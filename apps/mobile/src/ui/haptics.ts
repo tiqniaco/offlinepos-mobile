@@ -1,15 +1,35 @@
-/** Small, consistent haptic vocabulary (no-op on web). Feels native without being noisy. */
+/** Small, consistent haptic vocabulary (no-op on web). Feels native without being noisy. Off in المظهر → الاهتزاز. */
 import { Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
-const on = Platform.OS !== 'web';
+const native = Platform.OS !== 'web';
+let enabled = true;
+export function setHapticsEnabled(v: boolean) {
+  enabled = v;
+}
+export const hapticsEnabled = () => enabled;
+
+const run = (f: () => Promise<void>) => {
+  if (!native || !enabled) return false;
+  try {
+    void f().catch(() => undefined);
+  } catch {
+    /* module unavailable */
+  }
+  return true;
+};
+
 export const haptic = {
   /** Chips, segmented controls, toggles. */
-  select: () => on && void Haptics.selectionAsync().catch(() => undefined),
+  select: () => run(() => Haptics.selectionAsync()),
   /** Buttons that change something, item added to the cart. */
-  tap: () => on && void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined),
+  tap: () => run(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)),
+  /** A firmer bump: line removed, quantity −1. */
+  soft: () => run(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft ?? Haptics.ImpactFeedbackStyle.Light)),
+  /** Barcode read: crisp medium bump. */
+  medium: () => run(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)),
   /** Sale posted, saved, shift closed. */
-  success: () => on && void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined),
-  warn: () => on && void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => undefined),
-  error: () => on && void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => undefined),
+  success: () => run(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)),
+  warn: () => run(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)),
+  error: () => run(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)),
 };

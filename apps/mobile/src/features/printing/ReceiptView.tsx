@@ -6,7 +6,7 @@
 import { Image, Text as RNText, View } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import i18n from 'i18next';
-import { formatMinor, formatQty } from '@daftarak/shared';
+import { formatMinor, formatQty, lineAmount } from '@daftarak/shared';
 import { fonts } from '../../ui';
 import type { ReceiptData } from './receiptData';
 import { qrSvg } from './qr';
@@ -36,58 +36,97 @@ function Row({ label, value, s = 22, b = false }: { label: string; value: string
 export function ReceiptView({ d, dots }: { d: ReceiptData; dots: number }) {
   const t = i18n.t.bind(i18n);
   const wide = dots >= 512;
+  const tpl = d.template;
+  const quote = d.kind === 'QUOTATION';
   const m = (v: number) => formatMinor(v);
   const cur = d.currency === 'SAR' ? 'ر.س' : 'ج.م';
   // Digits only (no Arabic AM/PM) so the line never gets reordered by bidi rules.
   const dt = new Date(d.date);
   const p2 = (n: number) => String(n).padStart(2, '0');
   const date = `${dt.getFullYear()}-${p2(dt.getMonth() + 1)}-${p2(dt.getDate())}  ${p2(dt.getHours())}:${p2(dt.getMinutes())}`;
+  const day = (ms: number) => {
+    const x = new Date(ms);
+    return `${x.getFullYear()}-${p2(x.getMonth() + 1)}-${p2(x.getDate())}`;
+  };
+  const gross = d.lines.reduce((a, l) => a + lineAmount(l.priceMinor, l.qtyMilli), 0);
+  const vat = tpl.showTax && d.taxRatePct != null;
+  const sm = wide ? 22 : 20;
   return (
     <View collapsable={false} style={{ width: dots, backgroundColor: '#FFFFFF', paddingHorizontal: 6, paddingVertical: 14 }}>
-      {d.template.showLogo && d.logoPath ? <Image source={{ uri: d.logoPath }} style={{ width: dots * 0.4, height: dots * 0.4, alignSelf: 'center', marginBottom: 6 }} resizeMode="contain" /> : null}
-      <T s={wide ? 36 : 30} b center>
+      {tpl.showLogo && d.logoPath ? <Image source={{ uri: d.logoPath }} style={{ width: dots * 0.32, height: dots * 0.32, alignSelf: 'center', marginBottom: 6 }} resizeMode="contain" /> : null}
+      <T s={wide ? 38 : 32} b center>
         {d.businessName}
       </T>
       {d.address ? (
-        <T s={20} center>
+        <T s={sm} center>
           {d.address}
         </T>
       ) : null}
       {d.phones.length ? (
-        <T s={20} center style={{ writingDirection: 'ltr' }}>
+        <T s={sm} center style={{ writingDirection: 'ltr' }}>
           {d.phones.map((p) => (p.startsWith('20') ? `0${p.slice(2)}` : p.startsWith('966') ? `0${p.slice(3)}` : p)).join(' - ')}
         </T>
       ) : null}
       {d.vatNumber ? (
-        <T s={20} center>
+        <T s={sm} center>
           الرقم الضريبي: {d.vatNumber}
         </T>
       ) : null}
-      <Rule />
-      <T s={26} b center>
-        {d.voided ? `${d.title} — ملغاة` : d.title}
-      </T>
-      <Row s={20} label={d.number} value={date} />
-      {d.cashier ? <Row s={20} label="الكاشير" value={d.cashier} /> : null}
-      {d.customerName ? <Row s={20} label="العميل" value={d.customerName} /> : null}
+      {tpl.headerNote ? (
+        <T s={sm} b center style={{ marginTop: 4 }}>
+          {tpl.headerNote}
+        </T>
+      ) : null}
+      {/* Title on a solid black band: the first thing the eye finds on the paper. */}
+      <View style={{ backgroundColor: INK, borderRadius: 6, marginTop: 10, marginBottom: 6, paddingVertical: 2 }}>
+        <T s={wide ? 30 : 26} b center style={{ color: '#FFFFFF' }}>
+          {d.voided ? `${d.title} — ملغاة` : d.title}
+        </T>
+      </View>
+      <Row s={sm} label={quote ? 'رقم العرض' : 'رقم الفاتورة'} value={d.number || '—'} />
+      <Row s={sm} label="التاريخ" value={date} />
+      {quote && d.validUntil ? <Row s={sm} b label="صالح حتى" value={day(d.validUntil)} /> : null}
+      {tpl.showCashier && d.cashier ? <Row s={sm} label="الكاشير" value={d.cashier} /> : null}
+      {d.customerName ? <Row s={sm} label="العميل" value={d.customerName} /> : null}
+      {d.customerName && d.customerPhone ? <Row s={sm} label="الموبايل" value={d.customerPhone} /> : null}
+      <Rule dashed={false} />
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+        <T s={sm} b>
+          الصنف / الكمية × السعر
+        </T>
+        <T s={sm} b>
+          الإجمالي
+        </T>
+      </View>
       <Rule />
       {d.lines.map((l, i) => (
         <View key={i} style={{ marginBottom: 6 }}>
-          <T s={22} b>
+          <T s={wide ? 24 : 22} b>
             {l.name}
           </T>
+          {tpl.showItemCode && l.code ? (
+            <T s={16} style={{ writingDirection: 'ltr', textAlign: 'right' }}>
+              {l.code}
+            </T>
+          ) : null}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <T s={20}>{`${formatQty(l.qtyMilli)} ${l.unit} × ${m(l.priceMinor)}`}</T>
-            <T s={22} b style={{ writingDirection: 'ltr' }}>
+            <T s={sm}>{`${formatQty(l.qtyMilli)} ${l.unit} × ${m(l.priceMinor)}`}</T>
+            <T s={wide ? 24 : 22} b style={{ writingDirection: 'ltr' }}>
               {m(l.totalMinor)}
             </T>
           </View>
-          {d.template.showDiscount && l.discountMinor > 0 ? <T s={18}>{`خصم ${m(l.discountMinor)}`}</T> : null}
+          {tpl.showDiscount && l.discountMinor > 0 ? <T s={18}>{`خصم ${m(l.discountMinor)}`}</T> : null}
         </View>
       ))}
       <Rule />
-      {d.template.showDiscount && d.discountMinor > 0 ? <Row label="الخصم" value={`-${m(d.discountMinor)}`} /> : null}
-      {d.template.showTax && d.taxRatePct != null ? (
+      <T s={sm}>{`عدد الأصناف: ${d.lines.length}`}</T>
+      {tpl.showDiscount && d.discountMinor > 0 ? (
+        <>
+          <Row label="الإجمالي قبل الخصم" value={m(gross)} />
+          <Row label="الخصم" value={`-${m(d.discountMinor)}`} />
+        </>
+      ) : null}
+      {vat ? (
         <>
           <Row label="الإجمالي بدون الضريبة" value={m(d.netMinor)} />
           <Row label={`ضريبة القيمة المضافة ${d.taxRatePct}%`} value={m(d.taxMinor)} />
@@ -95,27 +134,34 @@ export function ReceiptView({ d, dots }: { d: ReceiptData; dots: number }) {
       ) : null}
       {d.roundingMinor ? <Row label="تقريب" value={m(d.roundingMinor)} /> : null}
       <View style={{ borderWidth: 3, borderColor: INK, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, marginVertical: 6 }}>
-        <Row s={wide ? 34 : 30} b label="الإجمالي" value={`${m(d.totalMinor)} ${cur}`} />
+        <Row s={wide ? 36 : 30} b label={quote ? 'إجمالي العرض' : 'الإجمالي'} value={`${m(d.totalMinor)} ${cur}`} />
       </View>
-      {d.payments.map((p, i) => (
-        <Row key={i} s={20} label={`${t(`pay.methods.${p.method}`)}${p.label ? ` (${p.label})` : ''}`} value={m(p.amountMinor)} />
-      ))}
-      {d.tenderedMinor > 0 && d.changeMinor > 0 ? (
+      {!quote
+        ? d.payments.map((p, i) => <Row key={i} s={sm} label={`${t(`pay.methods.${p.method}`)}${p.label ? ` (${p.label})` : ''}`} value={m(p.amountMinor)} />)
+        : null}
+      {!quote && d.tenderedMinor > 0 && d.changeMinor > 0 ? (
         <>
-          <Row s={20} label="المدفوع نقداً" value={m(d.tenderedMinor)} />
-          <Row s={22} b label="الباقي" value={m(d.changeMinor)} />
+          <Row s={sm} label="المدفوع نقداً" value={m(d.tenderedMinor)} />
+          <Row s={wide ? 26 : 24} b label="الباقي" value={m(d.changeMinor)} />
         </>
       ) : null}
-      {d.template.showBalance && d.customerBalanceMinor != null && d.customerBalanceMinor !== 0 ? <Row s={20} label="رصيد العميل" value={m(d.customerBalanceMinor)} /> : null}
-      {d.qr ? (
+      {!quote && d.creditMinor ? <Row s={sm} b label="المتبقي (آجل)" value={m(d.creditMinor)} /> : null}
+      {!quote && tpl.showBalance && d.customerBalanceMinor != null && d.customerBalanceMinor !== 0 ? <Row s={sm} label="رصيد العميل" value={m(d.customerBalanceMinor)} /> : null}
+      {quote && tpl.quoteTerms ? (
+        <>
+          <Rule />
+          <T s={18}>{tpl.quoteTerms}</T>
+        </>
+      ) : null}
+      {tpl.showQr && d.qr ? (
         <View style={{ alignItems: 'center', marginTop: 10 }}>
           <SvgXml xml={qrSvg(d.qr)} width={wide ? 240 : 200} height={wide ? 240 : 200} />
         </View>
       ) : null}
       <Rule />
-      {d.template.footer ? (
-        <T s={22} center>
-          {d.template.footer}
+      {tpl.footer ? (
+        <T s={wide ? 24 : 22} center>
+          {tpl.footer}
         </T>
       ) : null}
       <T s={16} center>
