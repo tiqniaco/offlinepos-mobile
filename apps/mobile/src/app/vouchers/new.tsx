@@ -28,6 +28,9 @@ const METHODS: { m: PaymentMethod; icon: 'cash' | 'card' | 'phone' | 'book' }[] 
 ];
 
 /** One form for every money movement: amount → method → (party / category) → save. 3 taps for the common case. */
+/** Stable fallback: a new [] in a store selector re-renders forever (zustand / useSyncExternalStore). */
+const EMPTY_WALLETS: never[] = [];
+
 export default function NewVoucher() {
   const { t, i18n } = useTranslation();
   const params = useLocalSearchParams<{ type?: VoucherType; partyId?: string; amount?: string }>();
@@ -35,7 +38,7 @@ export default function NewVoucher() {
   const partyType = PARTY_OF[type] ?? null;
   const ctx = useBizCtx();
   const currency = useCurrency();
-  const wallets = useApp((s) => s.settings.wallets ?? []);
+  const wallets = useApp((s) => s.settings.wallets ?? EMPTY_WALLETS);
   const [party, setParty] = useState<{ id: string; name: string; balanceMinor: number } | null>(null);
   const [pick, setPick] = useState(false);
   const [amount, setAmount] = useState<number | null>(params.amount ? Number(params.amount) : null);

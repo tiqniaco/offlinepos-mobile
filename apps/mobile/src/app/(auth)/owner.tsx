@@ -7,7 +7,7 @@ import { OnboardingScreen, Text, Button, TextField, SectionTitle, Card, Banner, 
 import { useApp, useOnboarding } from '../../state/app';
 import { getDb } from '../../db/client';
 import { attachExistingBusiness, createBusinessOnline } from '../../domain/onboarding';
-import { unlockWithPin, listActiveUsers, unlockWithBiometric } from '../../domain/auth/users';
+import { sessionAfterSetup, listActiveUsers, unlockWithBiometric } from '../../domain/auth/users';
 import { setBiometric } from '../../domain/auth/biometric';
 import { reloadAppData } from '../../state/boot';
 import { errorMessage } from '../../lib/errors';
@@ -49,7 +49,7 @@ export default function OwnerScreen() {
       else await createBusinessOnline(db, draft.auth, draft.businessForm, owner);
       await reloadAppData();
       const ownerUser = (await listActiveUsers(db))[0]!;
-      let session = await unlockWithPin(db, ownerUser.id, draft.password);
+      let session = await sessionAfterSetup(db, ownerUser.id);
       if (bio && bioAvailable) {
         const r = await LocalAuthentication.authenticateAsync({ promptMessage: t('lock.biometricEnable'), disableDeviceFallback: false, cancelLabel: t('common.cancel') });
         if (r.success) {

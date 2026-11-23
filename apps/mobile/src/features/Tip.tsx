@@ -8,9 +8,12 @@ import { useApp } from '../state/app';
 import { getDb } from '../db/client';
 import { changeSetting } from '../domain/settings/settings';
 
+/** Stable fallback: a new [] in a store selector re-renders forever (zustand / useSyncExternalStore). */
+const EMPTY: string[] = [];
+
 export function Tip({ id }: { id: string }) {
   const { t } = useTranslation();
-  const seen = useApp((s) => s.settings.tipsSeen ?? []);
+  const seen = useApp((s) => s.settings.tipsSeen ?? EMPTY);
   const user = useApp((s) => s.user);
   const device = useApp((s) => s.device);
   if (seen.includes(id) || !user || !device) return null;

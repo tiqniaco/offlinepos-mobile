@@ -10,7 +10,7 @@ import { roles, users } from '../../db/schema';
 import { appendAudit } from '../audit/audit';
 import { assertCanWrite, assertWithinLimit } from '../licence/guard';
 import { passwordProblem } from '@daftarak/shared';
-import { checkPin, hashPin, isValidPin, isWeakPin, lockoutAfterFailure } from './pin';
+import { checkPin, hashPin, isDefaultParams, isValidPin, isWeakPin, lockoutAfterFailure } from './pin';
 
 export type UserRow = typeof users.$inferSelect;
 export type RoleRow = typeof roles.$inferSelect;
@@ -161,7 +161,15 @@ export async function unlockWithPin(db: AppDb, userId: string, pin: string, now 
     if (lockedUntil) throw new PinError('locked', lockedUntil);
     throw new PinError('wrong');
   }
-  await db.update(users).set({ failedPinAttempts: 0, lockedUntil: null, lastLoginAt: now }).where(eq(users.id, userId));
+  // Re-hash old (slower) hashes with the current parameters so the next unlock is fast.
+  const upgrade = isDefaultParams(u.pinParams) ? {} : await hashPin(pin).then((h) => ({ pinHash: h.hash, pinSalt: h.salt, pinParams: h.params }));
+  await db.update(users).set({ failedPinAttempts: 0, lockedUntil: null, lastLoginAt: now, ...upgrade }).where(eq(users.id, userId));
+  return toSessionUser(db, userId);
+}
+
+/** Sign in right after setting the secret in this same flow (sign-up / restore) — no second hash. */
+export async function sessionAfterSetup(db: AppDb, userId: string, now = Date.now()): Promise<SessionUser> {
+  await db.update(users).set({ lastLoginAt: now }).where(eq(users.id, userId));
   return toSessionUser(db, userId);
 }
 

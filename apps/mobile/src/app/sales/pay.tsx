@@ -34,12 +34,15 @@ function cashSuggestions(total: number): number[] {
   return [...out].filter((v) => v >= total).sort((a, b) => a - b).slice(0, 4);
 }
 
+/** Stable fallback: a new [] in a store selector re-renders forever (zustand / useSyncExternalStore). */
+const EMPTY_WALLETS: never[] = [];
+
 export default function Pay() {
   const { t, i18n } = useTranslation();
   const ctx = useSalesCtx();
   const settings = useSalesSettings();
   const currency = useCurrency();
-  const wallets = useApp((s) => s.settings.wallets ?? []);
+  const wallets = useApp((s) => s.settings.wallets ?? EMPTY_WALLETS);
   const cart = useCart();
   const draft = cart.draft();
   const oc = useOfferCtx();

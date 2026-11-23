@@ -10,7 +10,21 @@ export interface PinParams {
   r: number;
   p: number;
 }
-export const DEFAULT_PIN_PARAMS: PinParams = { N: 2 ** 13, r: 8, p: 1 };
+/**
+ * Cost is kept low on purpose: scrypt runs in JavaScript (Hermes, no JIT) and 2^13 took many seconds per unlock on
+ * phones. The hash lives inside the SQLCipher-encrypted database (key in the secure enclave/keystore) and unlock is
+ * rate-limited, so offline guessing would first need the database key. Older hashes keep their stored params and are
+ * re-hashed with these on the next successful unlock.
+ */
+export const DEFAULT_PIN_PARAMS: PinParams = { N: 2 ** 10, r: 8, p: 1 };
+export const isDefaultParams = (json: string) => {
+  try {
+    const p = JSON.parse(json) as PinParams;
+    return p.N === DEFAULT_PIN_PARAMS.N && p.r === DEFAULT_PIN_PARAMS.r && p.p === DEFAULT_PIN_PARAMS.p;
+  } catch {
+    return false;
+  }
+};
 
 export const PIN_MIN = 4;
 export const PIN_MAX = 6;
