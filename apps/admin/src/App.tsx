@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { call, fmtDate, fmtMoney, session, AdminApiError } from './api';
+import { call, fmtDate, fmtMoney, session, AdminApiError, blobUrl, timeAgo } from './api';
 
-type View = { name: 'dashboard' } | { name: 'codes' } | { name: 'notify'; businessId?: string; businessName?: string } | { name: 'businesses' } | { name: 'business'; id: string } | { name: 'plans' } | { name: 'audit' } | { name: 'settings' };
+type View = { name: 'dashboard' } | { name: 'codes' } | { name: 'notify'; businessId?: string; businessName?: string } | { name: 'businesses' } | { name: 'business'; id: string } | { name: 'plans' } | { name: 'audit' } | { name: 'settings' } | { name: 'payments' };
 
 const STATUS_AR: Record<string, string> = { trial: 'تجربة', active: 'مشترك', past_due: 'منتهي', suspended: 'موقوف' };
 const DAY = 86_400_000;
@@ -311,7 +311,7 @@ function Audit() {
   );
 }
 
-function Dashboard() {
+function Dashboard({ openPayments }: { openPayments: () => void }) {
   const { data, error } = useLoad(() => call('/metrics'), []);
   const tile = (label: string, value: string | number) => (
     <div className="card" style={{ flex: 1, minWidth: 160 }}>
@@ -325,6 +325,15 @@ function Dashboard() {
       {error ? <div className="err">{error}</div> : null}
       {data ? (
         <>
+          {data.pendingPayments > 0 ? (
+            <div className="card alert row" style={{ marginBottom: 12 }}>
+              <div style={{ flex: 1 }}>
+                <strong>{data.pendingPayments} طلب دفع مستني المراجعة</strong>
+                <div className="muted">إيصالات InstaPay / فودافون كاش — لازم تتفعل في خلال مدة الالتزام.</div>
+              </div>
+              <button className="btn" onClick={openPayments}>راجع الطلبات</button>
+            </div>
+          ) : null}
           <div className="row" style={{ flexWrap: 'wrap', gap: 12 }}>
             {tile('كل الأنشطة', data.total)}
             {tile('نشطين آخر 30 يوم', data.active30)}
@@ -341,6 +350,154 @@ function Dashboard() {
           </div>
         </>
       ) : null}
+    </>
+  );
+}
+
+const METHOD_AR: Record<string, string> = { instapay: 'InstaPay', vodafone_cash: 'فودافون كاش' };
+const PERIOD_AR: Record<string, string> = { monthly: 'شهري', yearly: 'سنوي' };
+const PAY_STATUS_AR: Record<string, string> = { pending: 'قيد المراجعة', approved: 'اتفعل', rejected: 'اترفض' };
+const PAY_TABS: [string, string][] = [
+  ['pending', 'قيد المراجعة'],
+  ['approved', 'اتفعل'],
+  ['rejected', 'اترفض'],
+  ['all', 'الكل'],
+];
+
+/** Receipt thumbnail: fetched with the admin token (no public URL) → object URL. */
+function Receipt({ id, onOpen }: { id: string; onOpen: (url: string) => void }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    let made: string | null = null;
+    blobUrl(`/payment-requests/${id}/receipt`).then(
+      (u) => {
+        made = u;
+        if (alive) setUrl(u);
+        else URL.revokeObjectURL(u);
+      },
+      () => alive && setFailed(true),
+    );
+    return () => {
+      alive = false;
+      if (made) URL.revokeObjectURL(made);
+    };
+  }, [id]);
+  if (failed) return <span className="muted">تعذر التحميل</span>;
+  if (!url) return <div className="thumb" />;
+  return <img className="thumb" src={url} alt="إيصال" onClick={() => onOpen(url)} />;
+}
+
+function PaymentRow({ r, done }: { r: any; done: () => void }) {
+  const [days, setDays] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [big, setBig] = useState<string | null>(null);
+  const act = async (fn: () => Promise<unknown>) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await fn();
+      done();
+    } catch (e) {
+      setErr(e instanceof AdminApiError && e.code === 'not_pending' ? 'الطلب اتراجع قبل كده' : (e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const approve = () => {
+    const d = days.trim() ? Number(days) : undefined;
+    if (d !== undefined && (!Number.isInteger(d) || d < 1)) return setErr('عدد الأيام غير صحيح');
+    const label = d ?? (r.period === 'yearly' ? 366 : 31);
+    if (!confirm(`تفعيل باقة ${r.plan_name_ar ?? r.plan_code} لـ «${r.business_name}» لمدة ${label} يوم؟`)) return;
+    void act(() => call(`/payment-requests/${r.id}/approve`, { body: d ? { days: d } : {} }));
+  };
+  const reject = () => {
+    const reason = prompt('سبب الرفض (هيوصل لصاحب النشاط):')?.trim();
+    if (!reason) return;
+    if (reason.length > 200) return setErr('السبب أطول من 200 حرف');
+    void act(() => call(`/payment-requests/${r.id}/reject`, { body: { reason } }));
+  };
+  return (
+    <tr>
+      <td>
+        <strong>{r.business_name}</strong>
+        <div className="muted ltr">{r.owner_phone}</div>
+      </td>
+      <td>
+        {r.plan_name_ar ?? r.plan_code} · {PERIOD_AR[r.period] ?? r.period}
+        <div><strong>{fmtMoney(r.amount_minor)} ج.م</strong></div>
+      </td>
+      <td>
+        {METHOD_AR[r.method] ?? r.method}
+        <div className="muted ltr">{r.payer_phone}</div>
+        {r.note ? <div className="muted">«{r.note}»</div> : null}
+      </td>
+      <td title={fmtDate(r.created_at)}>{timeAgo(r.created_at)}</td>
+      <td>
+        <Receipt id={r.id} onOpen={setBig} />
+        {big ? (
+          <div className="lightbox" onClick={() => setBig(null)}>
+            <img src={big} alt="إيصال" />
+          </div>
+        ) : null}
+      </td>
+      <td>
+        {r.status === 'pending' ? (
+          <div className="grid" style={{ gap: 6 }}>
+            <div className="row" style={{ gap: 6 }}>
+              <input type="number" min={1} placeholder={r.period === 'yearly' ? '366' : '31'} title="عدد الأيام (اختياري)" value={days} onChange={(e) => setDays(e.target.value)} style={{ width: 80 }} />
+              <button className="btn" disabled={busy} onClick={approve}>تفعيل</button>
+            </div>
+            <button className="btn danger" disabled={busy} onClick={reject}>رفض</button>
+          </div>
+        ) : (
+          <div>
+            <span className={`pill ${r.status}`}>{PAY_STATUS_AR[r.status] ?? r.status}</span>
+            <div className="muted">{fmtDate(r.reviewed_at)} {r.reviewed_by_email ? `· ${r.reviewed_by_email}` : ''}</div>
+            {r.reject_reason ? <div className="muted">السبب: {r.reject_reason}</div> : null}
+          </div>
+        )}
+        {err ? <div className="err">{err}</div> : null}
+      </td>
+    </tr>
+  );
+}
+
+/** Manual payments (InstaPay / Vodafone Cash receipts) waiting for activation. */
+function Payments({ onCount }: { onCount: (n: number) => void }) {
+  const [tab, setTab] = useState('pending');
+  const { data, error, reload } = useLoad(() => call(`/payment-requests?status=${tab}`), [tab]);
+  useEffect(() => {
+    if (data) onCount(data.pendingCount);
+  }, [data, onCount]);
+  return (
+    <>
+      <h2>طلبات الدفع</h2>
+      <div className="tabs">
+        {PAY_TABS.map(([k, label]) => (
+          <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
+            {label}
+            {k === 'pending' && data?.pendingCount ? <span className="badge">{data.pendingCount}</span> : null}
+          </button>
+        ))}
+        <button onClick={reload}>تحديث</button>
+      </div>
+      {error ? <div className="err">{error}</div> : null}
+      <div className="card" style={{ overflowX: 'auto' }}>
+        {data && data.requests.length === 0 ? <div className="muted">مفيش طلبات هنا.</div> : null}
+        {data?.requests.length ? (
+          <table>
+            <thead><tr><th>النشاط</th><th>الباقة والمبلغ</th><th>طريقة الدفع</th><th>من</th><th>الإيصال</th><th /></tr></thead>
+            <tbody>
+              {data.requests.map((r: any) => (
+                <PaymentRow key={r.id} r={r} done={reload} />
+              ))}
+            </tbody>
+          </table>
+        ) : null}
+      </div>
     </>
   );
 }
@@ -531,6 +688,38 @@ function Notify({ businessId, businessName }: { businessId?: string; businessNam
   );
 }
 
+function PaymentSettings({ data, reload }: { data: Record<string, string>; reload: () => void }) {
+  const [instapay, setInstapay] = useState(data.pay_instapay ?? '01558858884');
+  const [vodafone, setVodafone] = useState(data.pay_vodafone_cash ?? '01017686542');
+  const [sla, setSla] = useState(data.pay_sla_hours ?? '12');
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const save = async () => {
+    setMsg(null);
+    try {
+      await call('/settings/payments', { method: 'PUT', body: { instapay: instapay.trim(), vodafoneCash: vodafone.trim(), slaHours: Number(sla) } });
+      setMsg({ ok: true, text: 'اتحفظ' });
+      reload();
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error).message });
+    }
+  };
+  return (
+    <div className="card grid" style={{ gap: 12 }}>
+      <div>
+        <strong>الدفع اليدوي (InstaPay / فودافون كاش)</strong>
+        <div className="muted">الأرقام دي بتظهر في التطبيق لصاحب النشاط، ومدة التفعيل بتتكتب له كوعد.</div>
+      </div>
+      <div className="row" style={{ gap: 12 }}>
+        <label>رقم / عنوان InstaPay <input className="ltr" value={instapay} onChange={(e) => setInstapay(e.target.value)} /></label>
+        <label>رقم فودافون كاش <input className="ltr" value={vodafone} onChange={(e) => setVodafone(e.target.value)} /></label>
+        <label>مدة التفعيل (ساعات) <input type="number" min={1} max={168} value={sla} onChange={(e) => setSla(e.target.value)} style={{ width: 90 }} /></label>
+        <button className="btn" onClick={() => void save()}>حفظ</button>
+      </div>
+      {msg ? <div className={msg.ok ? 'ok' : 'err'}>{msg.text}</div> : null}
+    </div>
+  );
+}
+
 function Settings() {
   const { data, reload } = useLoad(() => call('/settings'), []);
   const ads = data?.ads_enabled !== 'false';
@@ -546,6 +735,7 @@ function Settings() {
           {ads ? 'إيقاف الإعلانات' : 'تشغيل الإعلانات'}
         </button>
       </div>
+      {data ? <PaymentSettings key={`${data.pay_instapay}|${data.pay_vodafone_cash}|${data.pay_sla_hours}`} data={data} reload={reload} /> : null}
     </>
   );
 }
@@ -553,10 +743,20 @@ function Settings() {
 export function App() {
   const [authed, setAuthed] = useState(!!session.get());
   const [view, setView] = useState<View>({ name: 'dashboard' });
+  const [pending, setPending] = useState(0);
+  // Pending manual payments → nav badge (refreshed every minute).
+  useEffect(() => {
+    if (!authed) return;
+    const load = () => call('/payment-requests?status=pending').then((r) => setPending(r.pendingCount), () => {});
+    load();
+    const t = setInterval(load, 60_000);
+    return () => clearInterval(t);
+  }, [authed]);
   if (!authed) return <Login onDone={() => setAuthed(true)} />;
-  const nav = (v: View, label: string) => (
+  const nav = (v: View, label: string, badge?: number) => (
     <button className={view.name === v.name ? 'on' : ''} onClick={() => setView(v)}>
       {label}
+      {badge ? <span className="badge">{badge}</span> : null}
     </button>
   );
   return (
@@ -564,6 +764,7 @@ export function App() {
       <aside className="side">
         <h1>كاشيرو</h1>
         {nav({ name: 'dashboard' }, 'لوحة الأرقام')}
+        {nav({ name: 'payments' }, 'طلبات الدفع', pending)}
         {nav({ name: 'businesses' }, 'الأنشطة')}
         {nav({ name: 'codes' }, 'أكواد التفعيل')}
         {nav({ name: 'notify' }, 'الإشعارات')}
@@ -574,7 +775,8 @@ export function App() {
         <button onClick={() => call('/logout', { body: {} }).finally(() => { session.clear(); setAuthed(false); })}>خروج</button>
       </aside>
       <main>
-        {view.name === 'dashboard' && <Dashboard />}
+        {view.name === 'dashboard' && <Dashboard openPayments={() => setView({ name: 'payments' })} />}
+        {view.name === 'payments' && <Payments onCount={setPending} />}
         {view.name === 'codes' && <Codes />}
         {view.name === 'notify' && <Notify key={view.businessId ?? 'all'} businessId={view.businessId} businessName={view.businessName} />}
         {view.name === 'businesses' && <Businesses open={(id) => setView({ name: 'business', id })} />}

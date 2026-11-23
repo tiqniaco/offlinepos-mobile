@@ -31,3 +31,23 @@ export async function call<T = any>(path: string, init: { method?: string; body?
 
 export const fmtDate = (ms: number | null | undefined) => (ms ? new Date(ms).toLocaleString('ar-EG-u-nu-latn', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
 export const fmtMoney = (minor: number) => (minor / 100).toLocaleString('en-US', { minimumFractionDigits: 0 });
+
+/** Fetches an authenticated binary resource (e.g. a receipt image) and returns an object URL (revoke when done). */
+export async function blobUrl(path: string): Promise<string> {
+  const token = session.get();
+  const res = await fetch(`${API}/admin${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) {
+    if (res.status === 401) session.clear();
+    throw new AdminApiError(res.status, 'error', `HTTP ${res.status}`);
+  }
+  return URL.createObjectURL(await res.blob());
+}
+
+export function timeAgo(ms: number, now = Date.now()): string {
+  const m = Math.max(0, Math.round((now - ms) / 60_000));
+  if (m < 1) return 'دلوقتي';
+  if (m < 60) return `من ${m} دقيقة`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `من ${h} ساعة`;
+  return `من ${Math.round(h / 24)} يوم`;
+}
