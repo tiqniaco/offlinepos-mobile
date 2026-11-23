@@ -17,17 +17,21 @@ export default function Categories() {
   const ctx = useInvCtx();
   const [rows, setRows] = useState<Cat[]>([]);
   const [edit, setEdit] = useState<{ id?: string; name: string; color: string | null } | null>(null);
+  const [busy, setBusy] = useState(false);
   const load = useCallback(() => void listCategories(getDb()).then(setRows), []);
   useFocusEffect(load);
 
   const save = async () => {
-    if (!ctx || !edit) return;
+    if (!ctx || !edit || busy) return;
+    setBusy(true);
     try {
       await saveCategory(ctx, edit);
       setEdit(null);
       load();
     } catch (e) {
       toast(invErrorMessage(t, e), 'error');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -55,7 +59,7 @@ export default function Categories() {
         title={edit?.id ? edit.name : t('categories.add')}
         footer={
           <>
-            <Button title={t('common.save')} onPress={save} />
+            <Button title={t('common.save')} loading={busy} onPress={save} />
             {edit?.id ? (
               <Button
                 kind="danger"
@@ -64,7 +68,7 @@ export default function Categories() {
                 onPress={() =>
                   Alert.alert(t('categories.delete'), t('categories.deleteHint'), [
                     { text: t('common.cancel'), style: 'cancel' },
-                    { text: t('categories.delete'), style: 'destructive', onPress: () => ctx && edit.id && void deleteCategory(ctx, edit.id).then(() => { setEdit(null); load(); }) },
+                    { text: t('categories.delete'), style: 'destructive', onPress: () => ctx && edit.id && void deleteCategory(ctx, edit.id).then(() => { setEdit(null); load(); }, (e: unknown) => toast(invErrorMessage(t, e), 'error')) },
                   ])
                 }
               />

@@ -11,6 +11,7 @@ import { safeEqual, unwrapSecret } from '../lib/crypto';
 import { requireSession } from '../auth/tokens';
 import { getPlan, type BusinessRow } from '../licence/issue';
 import { presign } from '../backups/r2';
+import { activatePlan } from '../billing/activate';
 import type { Deps } from './v1';
 
 type CheckIntegrity = (env: Env, input: z.infer<typeof attachDeviceSchema>['integrity'], action: 'signup' | 'activate' | 'checkin', now: number) => Promise<unknown>;
@@ -21,7 +22,7 @@ export function setIntegrityChecker(f: CheckIntegrity) {
 
 type RegisterDevice = (env: Env, business: BusinessRow, sessionId: string, device: z.infer<typeof attachDeviceSchema>['device'], now: number) => Promise<unknown>;
 
-async function ownedBusiness(env: Env, businessId: string, accountId: string): Promise<BusinessRow> {
+export async function ownedBusiness(env: Env, businessId: string, accountId: string): Promise<BusinessRow> {
   const b = await env.DB.prepare(`SELECT * FROM businesses WHERE id = ?1 AND owner_account_id = ?2`).bind(businessId, accountId).first<BusinessRow>();
   if (!b) throw new ApiError(404, 'not_found');
   return b;
@@ -165,12 +166,10 @@ export function addPhase6Routes(app: Hono<AppEnv>, deps: Deps, registerDevice: R
     const row = await c.env.DB.prepare(`SELECT * FROM activation_codes WHERE code = ?1`).bind(code).first<{ plan_code: string; days: number; redeemed_at: number | null; revoked_at: number | null }>();
     if (!row || row.revoked_at) throw new ApiError(404, 'code_invalid');
     if (row.redeemed_at) throw new ApiError(409, 'code_used');
-    // Extend from the current expiry when renewing the same plan; otherwise start now.
-    const from = business.plan_code === row.plan_code && business.plan_expires_at > now ? business.plan_expires_at : now;
-    const until = from + row.days * DAY_MS;
     const upd = await c.env.DB.prepare(`UPDATE activation_codes SET redeemed_at = ?2, redeemed_business_id = ?3 WHERE code = ?1 AND redeemed_at IS NULL`).bind(code, now, business.id).run();
     if (upd.meta.changes !== 1) throw new ApiError(409, 'code_used');
-    await c.env.DB.prepare(`UPDATE businesses SET plan_code = ?2, status = 'active', plan_expires_at = ?3, plan_source = 'code' WHERE id = ?1`).bind(business.id, row.plan_code, until).run();
+    // Extends from the current expiry when renewing the same plan; otherwise starts now.
+    const until = await activatePlan(c.env, business, row.plan_code, row.days, 'code', now);
     await countRequest(c.env, business.id, now);
     return c.json({ plan: row.plan_code, expiresAt: until });
   });

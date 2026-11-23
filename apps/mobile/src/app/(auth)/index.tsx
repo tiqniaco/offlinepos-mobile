@@ -1,4 +1,4 @@
-import { View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { fonts } from '../../ui/fonts';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -16,14 +16,14 @@ export default function Welcome() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   return (
-    <View className="flex-1 bg-paper">
+    <ScrollView className="flex-1 bg-paper" contentContainerStyle={{ flexGrow: 1 }} bounces={false} showsVerticalScrollIndicator={false}>
       <Hero>
-        <View className="items-center gap-4 px-6 pb-10 pt-10">
-          <View style={{ backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 34, padding: 10 }}>
-            <Logo size={92} />
+        <View className="items-center gap-3 px-6 pb-8 pt-8">
+          <View style={{ backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 28, padding: 8 }}>
+            <Logo size={72} />
           </View>
           <View className="items-center gap-1">
-            <Text style={{ color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 38, lineHeight: 52 }}>{t('app.name')}</Text>
+            <Text style={{ color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 34, lineHeight: 46 }}>{t('app.name')}</Text>
             <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 16, lineHeight: 26, textAlign: 'center', fontFamily: fonts.medium }}>{t('app.tagline')}</Text>
           </View>
           <View style={{ backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 99, paddingHorizontal: 14, paddingVertical: 6 }}>
@@ -51,6 +51,6 @@ export default function Welcome() {
           </Text>
         </View>
       </View>
-    </View>
+    </ScrollView>
   );
 }

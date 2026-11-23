@@ -13,6 +13,7 @@ import { bulkSetCategory } from '../../domain/inventory/products';
 import { useInvCtx } from '../../features/inventory/useInvCtx';
 import { toast } from '../../state/toast';
 import { invErrorMessage } from '../../features/inventory/errors';
+import { fx } from '../../ui/fx';
 
 type Filter = { kind: 'all' } | { kind: 'low' } | { kind: 'category'; id: string };
 const PAGE = 40;
@@ -36,6 +37,7 @@ export default function ProductsTab() {
   const [catPicker, setCatPicker] = useState(false);
   const done = useRef(false);
   const reqId = useRef(0);
+  const loadingMore = useRef(false);
 
   const query = useCallback(
     (after: { name: string; id: string } | null) =>
@@ -52,38 +54,68 @@ export default function ProductsTab() {
   const reload = useCallback(async () => {
     const id = ++reqId.current;
     setLoading(true);
-    const [first, s, c] = await Promise.all([query(null), inventorySummary(getDb()), listCategories(getDb())]);
-    if (id !== reqId.current) return; // a newer search started
-    done.current = first.length < PAGE;
-    setRows(first);
-    setSummary(s);
-    setCats(c.map((x) => ({ ...x, products: Number(x.products) })));
-    setLoading(false);
-  }, [query]);
+    try {
+      const [first, s, c] = await Promise.all([query(null), inventorySummary(getDb()), listCategories(getDb())]);
+      if (id !== reqId.current) return; // a newer search started
+      done.current = first.length < PAGE;
+      setRows(first);
+      setSummary(s);
+      setCats(c.map((x) => ({ ...x, products: Number(x.products) })));
+    } catch (e) {
+      if (id === reqId.current) toast(invErrorMessage(t, e), 'error');
+    } finally {
+      if (id === reqId.current) setLoading(false);
+    }
+  }, [query, t]);
+  const reloadRef = useRef(reload);
+  useEffect(() => {
+    reloadRef.current = reload;
+  }, [reload]);
 
-  // Debounced search / filter changes.
+  // Debounced search / filter changes (this also does the first load on mount).
   useEffect(() => {
     const h = setTimeout(() => void reload(), search ? 200 : 0);
     return () => clearTimeout(h);
   }, [reload, search]);
+  // Coming back to the tab: refresh after the transition. Skips the first focus (the effect above loads).
+  const focusedOnce = useRef(false);
   useFocusEffect(
     useCallback(() => {
-      void reload();
-    }, [reload]),
+      if (!focusedOnce.current) {
+        focusedOnce.current = true;
+        return;
+      }
+      const h = setTimeout(() => void reloadRef.current(), 220);
+      return () => clearTimeout(h);
+    }, []),
   );
 
   const more = async () => {
-    if (done.current || loading || !rows.length) return;
-    const last = rows[rows.length - 1]!;
-    const next = await query({ name: last.name, id: last.id });
-    done.current = next.length < PAGE;
-    setRows((r) => [...r, ...next]);
+    if (loadingMore.current || done.current || loading || !rows.length) return;
+    loadingMore.current = true;
+    const id = reqId.current;
+    try {
+      const last = rows[rows.length - 1]!;
+      const next = await query({ name: last.name, id: last.id });
+      if (id !== reqId.current) return; // list was reloaded meanwhile: these rows belong to the old query
+      done.current = next.length < PAGE;
+      setRows((r) => [...r, ...next]);
+    } catch (e) {
+      if (id === reqId.current) toast(invErrorMessage(t, e), 'error');
+    } finally {
+      loadingMore.current = false;
+    }
   };
 
+  const notFound = (code: string) => {
+    fx.notFound();
+    toast(t('pos.notFound', { code }), 'error');
+  };
   const openByCode = async (code: string) => {
     const hit = await findByBarcode(getDb(), code);
     if (hit) router.push({ pathname: '/products/[id]', params: { id: hit.productId } });
     else if (canManage) router.push({ pathname: '/products/form', params: { barcode: code } });
+    else notFound(code);
     return null;
   };
 
@@ -104,7 +136,15 @@ export default function ProductsTab() {
         onSearch={setSearch}
         onSubmitSearch={() => {
           // Hardware scanners type the code and press Enter: exact barcode → open it.
-          if (/^\w{4,}$/.test(search.trim())) void findByBarcode(getDb(), search).then((h) => h && router.push({ pathname: '/products/[id]', params: { id: h.productId } }));
+          const q = search.trim();
+          if (/^\w{4,}$/.test(q))
+            void findByBarcode(getDb(), q).then(
+              (h) => {
+                if (h) router.push({ pathname: '/products/[id]', params: { id: h.productId } });
+                else if (!canManage && /^\d{6,}$/.test(q)) notFound(q);
+              },
+              (e: unknown) => toast(invErrorMessage(t, e), 'error'),
+            );
         }}
         onScan={() => {
           useScanner.getState().set({ continuous: false, onCode: openByCode });

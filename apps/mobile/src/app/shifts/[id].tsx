@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Screen, Text, Card, colors, fonts } from '../../ui';
+import { Screen, Text, Card, EmptyState, colors, fonts } from '../../ui';
 import { getDb } from '../../db/client';
 import { getShift, shiftSummary, type ShiftSummary } from '../../domain/shifts/shifts';
 import { ExportBar } from '../../features/common/ExportBar';
@@ -19,14 +19,24 @@ export default function ShiftReport() {
   const currency = useCurrency();
   const [s, setS] = useState<S | null>(null);
   const [sum, setSum] = useState<ShiftSummary | null>(null);
+  const [loaded, setLoaded] = useState(false);
   useEffect(() => {
-    void getShift(getDb(), id).then((x) => {
+    const load = async () => {
+      const x = await getShift(getDb(), id);
       setS(x);
-      if (x) setSum(x.summaryJson ? (JSON.parse(x.summaryJson) as ShiftSummary) : null);
-      if (x && !x.summaryJson) void shiftSummary(getDb(), id).then(setSum);
-    });
+      if (!x) return;
+      setSum(x.summaryJson ? (JSON.parse(x.summaryJson) as ShiftSummary) : await shiftSummary(getDb(), id));
+    };
+    void load()
+      .catch(() => setS(null))
+      .finally(() => setLoaded(true));
   }, [id]);
-  if (!s || !sum) return <Screen back>{null}</Screen>;
+  if (!s || !sum)
+    return (
+      <Screen back>
+        {loaded ? <EmptyState icon="clock" hue="sky" title={t('common.notFound')} /> : <ActivityIndicator color={colors.primary[600]} style={{ marginTop: 32 }} />}
+      </Screen>
+    );
   const fmt = (v: number) => money(v, currency, i18n.language);
   const d = s.differenceMinor ?? 0;
   return (

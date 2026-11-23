@@ -9,7 +9,7 @@ import type { ReportDoc } from './report';
 const INK = '#000000';
 
 function T({ s = 22, b = false, center = false, children, style }: { s?: number; b?: boolean; center?: boolean; children: React.ReactNode; style?: object }) {
-  return <RNText style={[{ color: INK, fontSize: s, lineHeight: Math.round(s * 1.45), fontFamily: b ? fonts.bold : fonts.medium, textAlign: center ? 'center' : 'auto' }, style]}>{children}</RNText>;
+  return <RNText style={[{ color: INK, fontSize: s, lineHeight: Math.round(s * 1.62), fontFamily: b ? fonts.bold : fonts.medium, textAlign: center ? 'center' : 'auto' }, style]}>{children}</RNText>;
 }
 const Rule = () => <View style={{ borderTopWidth: 2, borderStyle: 'dashed', borderColor: INK, marginVertical: 8 }} />;
 function KV({ label, value, b = false, s = 22 }: { label: string; value: string; b?: boolean; s?: number }) {

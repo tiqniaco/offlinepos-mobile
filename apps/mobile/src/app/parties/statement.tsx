@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { businessDay } from '@daftarak/shared';
-import { Screen, Text, Card, colors, fonts } from '../../ui';
+import { Screen, Text, Card, EmptyState, colors, fonts } from '../../ui';
 import { getDb } from '../../db/client';
 import { useApp } from '../../state/app';
 import { partyStatement, type Statement } from '../../domain/parties/statement';
@@ -28,9 +28,25 @@ export default function StatementScreen() {
   });
   const [detailed, setDetailed] = useState<'summary' | 'detailed'>('summary');
   const [st, setSt] = useState<Statement | null>(null);
+  const [state, setState] = useState<'loading' | 'ok' | 'missing'>('loading');
 
   useEffect(() => {
-    void partyStatement(getDb(), type, id, range.from, range.to, { detailed: detailed === 'detailed' }).then(setSt);
+    let live = true;
+    setState('loading');
+    partyStatement(getDb(), type, id, range.from, range.to, { detailed: detailed === 'detailed' })
+      .then((x) => {
+        if (!live) return;
+        setSt(x);
+        setState(x ? 'ok' : 'missing');
+      })
+      .catch(() => {
+        if (!live) return;
+        setSt(null);
+        setState('missing');
+      });
+    return () => {
+      live = false;
+    };
   }, [id, type, range.from, range.to, detailed]);
 
   const build = useMemo(() => async () => statementDoc(st!, await bizHeader(), detailed === 'detailed'), [st, detailed]);
@@ -54,7 +70,11 @@ export default function StatementScreen() {
           <ExportBar build={build} mobile={st.party.mobile} />
           <StatementTable st={st} />
         </>
-      ) : null}
+      ) : state === 'missing' ? (
+        <EmptyState icon="receipt" hue="sky" title={t('common.notFound')} />
+      ) : (
+        <ActivityIndicator color={colors.primary[600]} style={{ marginTop: 24 }} />
+      )}
     </Screen>
   );
 }

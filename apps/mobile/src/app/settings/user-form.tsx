@@ -21,6 +21,7 @@ export default function UserForm() {
   const [roleId, setRoleId] = useState<string | null>(null);
   const [pin, setPin] = useState('');
   const [active, setActive] = useState(true);
+  const [secretKind, setSecretKind] = useState<'pin' | 'password'>('pin');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -36,6 +37,7 @@ export default function UserForm() {
         setName(u.name);
         setRoleId(u.roleId);
         setActive(u.isActive);
+        setSecretKind(u.secretKind);
       });
     }
   }, [id]);
@@ -43,15 +45,17 @@ export default function UserForm() {
   const save = async () => {
     setErr(null);
     if (name.trim().length < 2 || !roleId) return setErr(t('errors.required'));
-    if ((!id || pin) && (!isValidPin(pin) || isWeakPin(pin))) return setErr(isValidPin(pin) ? t('owner.weak') : t('owner.pin'));
+    const usesPin = secretKind !== 'password';
+    if (usesPin && (!id || pin) && (!isValidPin(pin) || isWeakPin(pin))) return setErr(isValidPin(pin) ? t('owner.weak') : t('owner.pin'));
     setBusy(true);
     try {
       const db = getDb();
-      if (id) await updateUser(db, actor, id, { name, roleId, isActive: active, ...(pin ? { pin } : {}) }, device);
+      if (id) await updateUser(db, actor, id, { name, roleId, isActive: active, ...(pin && usesPin ? { pin } : {}) }, device);
       else await addUser(db, actor, { name, pin, roleId }, device);
       router.back();
     } catch (e) {
-      setErr((e as Error).message === 'last_owner' ? t('users.lastOwner') : errorMessage(t, e));
+      const m = (e as Error).message;
+      setErr(m === 'last_owner' ? t('users.lastOwner') : m === 'password_user' ? t('users.passwordUser') : errorMessage(t, e));
     } finally {
       setBusy(false);
     }
@@ -74,17 +78,27 @@ export default function UserForm() {
           />
         ))}
       </View>
-      <SectionTitle>{t('users.pin')}</SectionTitle>
-      <TextField
-        icon="lock"
-        testID="user-pin"
-        label={id ? t('users.changePin') : t('users.pin')}
-        value={pin}
-        onChangeText={(v) => setPin(normalizePinInput(v))}
-        keyboardType="number-pad"
-        secureTextEntry
-        ltr
-      />
+      {secretKind === 'password' ? (
+        <>
+          <SectionTitle>{t('login.password')}</SectionTitle>
+          <Banner tone="info" icon="lock" text={t('users.passwordUser')} />
+          {id === actor.id ? <Button kind="ghost" compact title={t('users.changePassword')} onPress={() => router.push('/settings/password')} /> : null}
+        </>
+      ) : (
+        <>
+          <SectionTitle>{t('users.pin')}</SectionTitle>
+          <TextField
+            icon="lock"
+            testID="user-pin"
+            label={id ? t('users.changePin') : t('users.pin')}
+            value={pin}
+            onChangeText={(v) => setPin(normalizePinInput(v))}
+            keyboardType="number-pad"
+            secureTextEntry
+            ltr
+          />
+        </>
+      )}
       {id && id !== actor.id ? (
         <Card>
           <View className="flex-row items-center justify-between">

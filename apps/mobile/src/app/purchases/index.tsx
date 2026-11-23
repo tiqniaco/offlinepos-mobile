@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import { View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { ActivityIndicator, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { router, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -10,17 +10,53 @@ import { DocRow } from '../../features/common/DocRow';
 import { useCurrency } from '../../features/inventory/useInvCtx';
 import { AdBanner } from '../../features/ads/AdBanner';
 import { money, dateTimeLabel } from '../../lib/format';
+import { errorMessage } from '../../lib/errors';
+import { toast } from '../../state/toast';
+
+const PAGE = 50;
 
 export default function Purchases() {
   const { t, i18n } = useTranslation();
   const currency = useCurrency();
   const [f, setF] = useState<'all' | 'PURCHASE' | 'PURCHASE_RETURN'>('all');
   const [rows, setRows] = useState<Awaited<ReturnType<typeof listPurchases>>>([]);
+  const [loading, setLoading] = useState(true);
+  const req = useRef(0);
+  const more = useRef({ busy: false, done: false });
   useFocusEffect(
     useCallback(() => {
-      void listPurchases(getDb(), { types: f === 'all' ? undefined : [f], limit: 200 }).then(setRows);
-    }, [f]),
+      const my = ++req.current;
+      more.current = { busy: false, done: false };
+      setLoading(true);
+      listPurchases(getDb(), { types: f === 'all' ? undefined : [f], limit: PAGE })
+        .then((r) => {
+          if (my !== req.current) return;
+          setRows(r);
+          more.current.done = r.length < PAGE;
+        })
+        .catch((e: unknown) => my === req.current && toast(errorMessage(t, e), 'error'))
+        .finally(() => my === req.current && setLoading(false));
+    }, [f, t]),
   );
+  const loadMore = () => {
+    const m = more.current;
+    if (m.busy || m.done || loading) return;
+    m.busy = true;
+    const my = req.current;
+    listPurchases(getDb(), { types: f === 'all' ? undefined : [f], limit: PAGE, offset: rows.length })
+      .then((r) => {
+        if (my !== req.current) return;
+        if (r.length < PAGE) m.done = true;
+        setRows((cur) => {
+          const seen = new Set(cur.map((x) => x.id));
+          return [...cur, ...r.filter((x) => !seen.has(x.id))];
+        });
+      })
+      .catch((e: unknown) => my === req.current && toast(errorMessage(t, e), 'error'))
+      .finally(() => {
+        m.busy = false;
+      });
+  };
   return (
     <View style={{ flex: 1 }}>
       <Screen back title={t('purchase.listTitle')} scroll={false}>
@@ -29,12 +65,16 @@ export default function Purchases() {
           <Chip label={t('purchase.invoices')} selected={f === 'PURCHASE'} onPress={() => setF('PURCHASE')} />
           <Chip label={t('purchase.returns')} selected={f === 'PURCHASE_RETURN'} onPress={() => setF('PURCHASE_RETURN')} />
         </View>
-        {rows.length === 0 ? (
+        {loading && rows.length === 0 ? (
+          <ActivityIndicator color={colors.primary[600]} style={{ marginTop: 32 }} />
+        ) : rows.length === 0 ? (
           <EmptyState icon="cart" title={t('purchase.emptyList')} body={t('purchase.emptyListBody')} />
         ) : (
           <FlashList
             data={rows}
             keyExtractor={(r) => r.id}
+            onEndReached={loadMore}
+            onEndReachedThreshold={0.5}
             contentContainerStyle={{ paddingBottom: 90 }}
             ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
             renderItem={({ item }) => (

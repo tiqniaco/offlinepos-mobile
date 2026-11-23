@@ -115,6 +115,16 @@ describe('products', () => {
     await expect(createProduct({ ...ctx, features: [] }, input({ largerUnit: { unitId: carton, factorMilli: 24_000, retailPriceMinor: null, wholesalePriceMinor: null, barcode: null } }))).rejects.toMatchObject({ code: 'feature_unavailable' });
   });
 
+  it('after losing multi_unit/expiry, editing keeps the existing larger unit, its barcode and expiry flag', async () => {
+    const id = await createProduct(ctx, input({ trackExpiry: true, largerUnit: { unitId: carton, factorMilli: 24_000, retailPriceMinor: 50_000, wholesalePriceMinor: null, barcode: '6220000000017' } }));
+    await updateProduct({ ...ctx, features: [] }, id, input({ name: 'renamed', trackExpiry: false, largerUnit: null }));
+    const d = (await getProduct(db, id))!;
+    expect(d.product.name).toBe('renamed');
+    expect(d.product.trackExpiry).toBe(true);
+    expect(d.units.find((u) => !u.isBase)).toMatchObject({ factorMilli: 24_000 });
+    expect(await findByBarcode(db, '6220000000017')).toMatchObject({ productId: id, factorMilli: 24_000 });
+  });
+
   it('variants share a group and have their own stock', async () => {
     const a = await createProduct(ctx, { ...input({ name: 'تيشيرت', barcodes: [] }), openingQtyMilli: 5000 });
     const b = await addVariant(ctx, a, 'XL', 'M');

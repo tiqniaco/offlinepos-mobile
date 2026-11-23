@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { Pressable } from '../../ui/Press';
 import { useTranslation } from 'react-i18next';
 import type { Discount } from '@daftarak/shared';
-import { Sheet, Text, Button, QtyField, MoneyField, TextField, Chip, ListGroup, ListRow, Icon, Avatar, colors, fonts } from '../../ui';
+import { Sheet, Text, Button, QtyField, MoneyField, TextField, Chip, ListGroup, ListRow, Icon, Avatar, Banner, colors, fonts } from '../../ui';
 import type { CartLine } from '../../domain/sales/sales';
 import { createCustomer, searchCustomers } from '../../domain/parties/customers';
 import { getDb } from '../../db/client';
@@ -11,6 +11,14 @@ import { money } from '../../lib/format';
 import type { PartyCtx } from '../../domain/parties/customers';
 import { toast } from '../../state/toast';
 import { errorMessage } from '../../lib/errors';
+
+/** Drop empty discounts and cap an amount discount at what it applies to. */
+function cleanDiscount(d: Discount | null, base: number): Discount | null {
+  if (!d) return null;
+  if (d.type === 'percent') return d.bp > 0 ? d : null;
+  const minor = Math.min(d.minor, Math.max(0, base));
+  return minor > 0 ? { type: 'amount', minor } : null;
+}
 
 function DiscountEditor({ value, onChange, base, currency, lang }: { value: Discount | null; onChange: (d: Discount | null) => void; base: number; currency: 'EGP' | 'SAR'; lang: string }) {
   const { t } = useTranslation();
@@ -33,7 +41,7 @@ function DiscountEditor({ value, onChange, base, currency, lang }: { value: Disc
   );
 }
 
-export function LineSheet({ line, canChangePrice, currency, lang, onClose, onSave, onRemove }: { line: CartLine | null; canChangePrice: boolean; currency: 'EGP' | 'SAR'; lang: string; onClose: () => void; onSave: (patch: Partial<CartLine>) => void; onRemove: () => void }) {
+export function LineSheet({ line, offerMinor = 0, canChangePrice, currency, lang, onClose, onSave, onRemove }: { line: CartLine | null; /** Automatic offer already taken off this line. */ offerMinor?: number; canChangePrice: boolean; currency: 'EGP' | 'SAR'; lang: string; onClose: () => void; onSave: (patch: Partial<CartLine>) => void; onRemove: () => void }) {
   const { t } = useTranslation();
   const [q, setQ] = useState<number | null>(null);
   const [price, setPrice] = useState<number | null>(null);
@@ -47,6 +55,8 @@ export function LineSheet({ line, canChangePrice, currency, lang, onClose, onSav
   }, [line]);
   if (!line) return null;
   const gross = Math.round(((price ?? 0) * (q ?? 0)) / 1000);
+  // The manual discount applies after the automatic offer, so it can't exceed what's left.
+  const base = Math.max(0, gross - offerMinor);
   return (
     <Sheet
       visible
@@ -54,7 +64,7 @@ export function LineSheet({ line, canChangePrice, currency, lang, onClose, onSav
       title={line.name}
       footer={
         <>
-          <Button title={t('line.done')} onPress={() => onSave({ qtyMilli: q ?? 0, unitPriceMinor: price ?? line.unitPriceMinor, discount: disc && ((disc.type === 'percent' && disc.bp > 0) || (disc.type === 'amount' && disc.minor > 0)) ? disc : null })} />
+          <Button title={t('line.done')} disabled={!q || q <= 0} onPress={() => onSave({ qtyMilli: q ?? 0, unitPriceMinor: price ?? line.unitPriceMinor, discount: cleanDiscount(disc, base) })} />
           <Button kind="danger" icon="trash" title={t('line.remove')} onPress={onRemove} />
         </>
       }
@@ -68,7 +78,7 @@ export function LineSheet({ line, canChangePrice, currency, lang, onClose, onSav
         </View>
       </View>
       <Text variant="label">{t('line.discount')}</Text>
-      <DiscountEditor value={disc} onChange={setDisc} base={gross} currency={currency} lang={lang} />
+      <DiscountEditor value={disc} onChange={setDisc} base={base} currency={currency} lang={lang} />
     </Sheet>
   );
 }
@@ -78,13 +88,13 @@ export function InvoiceDiscountSheet({ visible, value, base, currency, lang, onC
   const [d, setD] = useState<Discount | null>(value);
   useEffect(() => setD(value), [value, visible]);
   return (
-    <Sheet visible={visible} onClose={onClose} title={t('pos.invoiceDiscount')} footer={<Button title={t('line.done')} onPress={() => onSave(d && ((d.type === 'percent' && d.bp > 0) || (d.type === 'amount' && d.minor > 0)) ? d : null)} />}>
+    <Sheet visible={visible} onClose={onClose} title={t('pos.invoiceDiscount')} footer={<Button title={t('line.done')} onPress={() => onSave(cleanDiscount(d, base))} />}>
       <DiscountEditor value={d} onChange={setD} base={base} currency={currency} lang={lang} />
     </Sheet>
   );
 }
 
-export function CustomerSheet({ visible, ctx, currency, lang, onClose, onPick }: { visible: boolean; ctx: PartyCtx | null; currency: 'EGP' | 'SAR'; lang: string; onClose: () => void; onPick: (c: { id: string; name: string; priceTier: 'retail' | 'wholesale' } | null) => void }) {
+export function CustomerSheet({ visible, ctx, canAdd, currency, lang, onClose, onPick }: { visible: boolean; ctx: PartyCtx | null; /** parties.manage — creating a customer needs it. */ canAdd: boolean; currency: 'EGP' | 'SAR'; lang: string; onClose: () => void; onPick: (c: { id: string; name: string; priceTier: 'retail' | 'wholesale' } | null) => void }) {
   const { t } = useTranslation();
   const [q, setQ] = useState('');
   const [rows, setRows] = useState<Awaited<ReturnType<typeof searchCustomers>>>([]);
@@ -98,7 +108,8 @@ export function CustomerSheet({ visible, ctx, currency, lang, onClose, onPick }:
     return () => clearTimeout(h);
   }, [q, visible]);
   const save = async () => {
-    if (!ctx || !name.trim()) return;
+    if (!name.trim()) return;
+    if (!ctx) return toast(t('customer.unavailable'), 'error');
     try {
       const id = await createCustomer(ctx, { name, mobile, priceTier: wholesale ? 'wholesale' : 'retail' });
       onPick({ id, name: name.trim(), priceTier: wholesale ? 'wholesale' : 'retail' });
@@ -110,9 +121,10 @@ export function CustomerSheet({ visible, ctx, currency, lang, onClose, onPick }:
     }
   };
   return (
-    <Sheet visible={visible} onClose={onClose} title={t('customer.title')} footer={adding ? <Button title={t('common.save')} onPress={save} /> : <Button kind="secondary" icon="plus" title={t('customer.add')} onPress={() => { setAdding(true); setName(q); }} />}>
+    <Sheet visible={visible} onClose={onClose} title={t('customer.title')} footer={adding ? <Button title={t('common.save')} disabled={!ctx || !name.trim()} onPress={save} /> : canAdd ? <Button kind="secondary" icon="plus" title={t('customer.add')} onPress={() => { setAdding(true); setName(q); }} /> : undefined}>
       {adding ? (
         <>
+          {!ctx ? <Banner tone="danger" text={t('customer.unavailable')} /> : null}
           <TextField label={t('customer.name')} value={name} onChangeText={setName} latinDigits={false} autoFocus />
           <TextField label={t('customer.mobile')} value={mobile} onChangeText={setMobile} keyboardType="phone-pad" ltr />
           <Chip label={t('customer.wholesale')} selected={wholesale} onPress={() => setWholesale((v) => !v)} />
@@ -145,7 +157,11 @@ export function PosMenu({ visible, onClose, items }: { visible: boolean; onClose
     <Sheet visible={visible} onClose={onClose}>
       <ListGroup>
         {items.map((it, i) => (
-          <ListRow key={it.key} icon={it.icon} hue={it.hue} title={it.title} value={it.value} tone={it.danger ? 'danger' : undefined} onPress={() => { onClose(); it.onPress(); }} last={i === items.length - 1} />
+          <ListRow key={it.key} icon={it.icon} hue={it.hue} title={it.title} value={it.value} tone={it.danger ? 'danger' : undefined} onPress={() => {
+              onClose();
+              // Run after the sheet's close animation, so alerts/navigation don't fight the modal.
+              setTimeout(it.onPress, 260);
+            }} last={i === items.length - 1} />
         ))}
       </ListGroup>
     </Sheet>

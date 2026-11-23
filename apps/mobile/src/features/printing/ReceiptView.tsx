@@ -14,7 +14,8 @@ import { qrSvg } from './qr';
 const INK = '#000000';
 
 function T({ s = 22, b = false, center = false, children, style }: { s?: number; b?: boolean; center?: boolean; children: React.ReactNode; style?: object }) {
-  return <RNText style={[{ color: INK, fontSize: s, lineHeight: Math.round(s * 1.45), fontFamily: b ? fonts.bold : fonts.medium, textAlign: center ? 'center' : 'auto' }, style]}>{children}</RNText>;
+  // Arabic glyphs (diacritics, tall alef) clip below ~1.7; the receipt is drawn in dots, so never font-scale it.
+  return <RNText allowFontScaling={false} style={[{ color: INK, fontSize: s, lineHeight: Math.round(s * 1.7), fontFamily: b ? fonts.bold : fonts.medium, textAlign: center ? 'center' : 'auto' }, style]}>{children}</RNText>;
 }
 
 const Rule = ({ dashed = true }: { dashed?: boolean }) => <View style={{ borderTopWidth: 2, borderStyle: dashed ? 'dashed' : 'solid', borderColor: INK, marginVertical: 8 }} />;
@@ -22,10 +23,10 @@ const Rule = ({ dashed = true }: { dashed?: boolean }) => <View style={{ borderT
 function Row({ label, value, s = 22, b = false }: { label: string; value: string; s?: number; b?: boolean }) {
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
-      <T s={s} b={b}>
+      <T s={s} b={b} style={{ flex: 1 }}>
         {label}
       </T>
-      <T s={s} b={b} style={{ writingDirection: 'ltr' }}>
+      <T s={s} b={b} style={{ writingDirection: 'ltr', flexShrink: 0 }}>
         {value}
       </T>
     </View>

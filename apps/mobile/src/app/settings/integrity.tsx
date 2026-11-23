@@ -5,7 +5,8 @@ import { asc } from 'drizzle-orm';
 import { Screen, Text, Button, Card, Banner, IconBadge } from '../../ui';
 import { getDb } from '../../db/client';
 import { verifyChain, type ChainReport } from '../../domain/integrity/chain';
-import { verifyAuditRows } from '../../domain/audit/audit';
+import { verifyAuditRowsChunked, type ChainCheck } from '../../domain/audit/audit';
+import { errorMessage } from '../../lib/errors';
 import { auditLog } from '../../db/schema';
 import { useApp } from '../../state/app';
 import { verifyAnchors, type AnchorReport } from '../../domain/integrity/anchors';
@@ -17,16 +18,28 @@ export default function Integrity() {
   const [anchors, setAnchors] = useState<AnchorReport | null>(null);
   const device = useApp((s) => s.device);
   const [doc, setDoc] = useState<ChainReport | null>(null);
-  const [audit, setAudit] = useState<ReturnType<typeof verifyAuditRows> | null>(null);
+  const [audit, setAudit] = useState<ChainCheck | null>(null);
   const [busy, setBusy] = useState(false);
-  const run = async () => {
-    if (!device) return;
+  const [err, setErr] = useState<string | null>(null);
+  const run = () => {
+    if (!device || busy) return;
     setBusy(true);
-    const db = getDb();
-    setDoc(await verifyChain(db, device.id));
-    setAudit(verifyAuditRows(await db.select().from(auditLog).orderBy(asc(auditLog.seq))));
-    setAnchors(await verifyAnchors(db, device.id));
-    setBusy(false);
+    setErr(null);
+    // Let the button's loading state paint first; both chains are checked in chunks that yield to the UI.
+    setTimeout(() => {
+      void (async () => {
+        try {
+          const db = getDb();
+          setDoc(await verifyChain(db, device.id, { yieldEvery: 50 }));
+          setAudit(await verifyAuditRowsChunked(await db.select().from(auditLog).orderBy(asc(auditLog.seq))));
+          setAnchors(await verifyAnchors(db, device.id));
+        } catch (e) {
+          setErr(errorMessage(t, e));
+        } finally {
+          setBusy(false);
+        }
+      })();
+    }, 220);
   };
   return (
     <Screen back title={t('integrity.title')}>
@@ -39,6 +52,7 @@ export default function Integrity() {
         </View>
       </Card>
       <Button testID="integrity-run" title={t('integrity.run')} loading={busy} onPress={run} />
+      {err ? <Banner tone="danger" text={err} /> : null}
       {doc ? doc.ok ? <Banner tone="success" text={t('integrity.ok', { n: doc.count })} /> : <Banner tone="danger" text={t('integrity.broken', { number: doc.firstBreak?.number ?? doc.firstBreak?.docType, seq: doc.firstBreak?.seq })} /> : null}
       {anchors ? (
         anchors.mismatch ? (

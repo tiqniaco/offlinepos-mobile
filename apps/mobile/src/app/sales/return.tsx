@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -27,22 +27,47 @@ export default function Return() {
   const [total, setTotal] = useState(0);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const inFlight = useRef(false);
+  const previewId = useRef(0);
   useEffect(() => {
+    let alive = true;
     void (async () => {
-      const s = await getSale(getDb(), id);
-      setNumber(s?.doc.number ?? '');
-      setHasCustomer(!!s?.doc.customerId);
-      setLines(await returnableLines(getDb(), id));
+      try {
+        const s = await getSale(getDb(), id);
+        const ls = await returnableLines(getDb(), id);
+        if (!alive) return;
+        setNumber(s?.doc.number ?? '');
+        setHasCustomer(!!s?.doc.customerId);
+        setLines(ls);
+      } catch (e) {
+        if (alive) setErr(salesErrorMessage(t, e));
+      }
     })();
-  }, [id]);
+    return () => {
+      alive = false;
+    };
+  }, [id, t]);
   const items = useMemo(() => Object.entries(sel).filter(([, q]) => q > 0).map(([lineId, qtyMilli]) => ({ lineId, qtyMilli })), [sel]);
   useEffect(() => {
-    if (!items.length) return setTotal(0);
-    void previewReturn(getDb(), id, items).then(setTotal, () => setTotal(0));
+    // Only the newest preview may set the total (the refund must equal it exactly).
+    const my = ++previewId.current;
+    if (!items.length) {
+      setPreviewing(false);
+      return setTotal(0);
+    }
+    setPreviewing(true);
+    void previewReturn(getDb(), id, items)
+      .then(
+        (v) => my === previewId.current && setTotal(v),
+        () => my === previewId.current && setTotal(0),
+      )
+      .finally(() => my === previewId.current && setPreviewing(false));
   }, [items, id]);
   const fmt = (m: number) => money(m, currency, i18n.language);
   const submit = async () => {
-    if (!ctx) return;
+    if (!ctx || previewing || inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setErr(null);
     try {
@@ -51,12 +76,13 @@ export default function Return() {
       router.replace({ pathname: '/sales/[id]', params: { id: r.docId } });
     } catch (e) {
       setErr(salesErrorMessage(t, e));
+      inFlight.current = false;
     } finally {
       setBusy(false);
     }
   };
   return (
-    <Screen back title={t('ret.title', { number })} footer={<Button testID="return-confirm" title={t('ret.confirm', { amount: fmt(total) })} loading={busy} disabled={!items.length} onPress={submit} />}>
+    <Screen back title={t('ret.title', { number })} footer={<Button testID="return-confirm" title={t('ret.confirm', { amount: fmt(total) })} loading={busy} disabled={!items.length || previewing} onPress={submit} />}>
       {lines.map((l, i) => (
         <Card key={l.lineId}>
           <View style={{ gap: 8, opacity: l.remainingQtyMilli > 0 ? 1 : 0.5 }}>

@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { NoScreenshots } from '../../features/NoScreenshots';
-import { businessDay } from '@daftarak/shared';
-import { Screen, Chip, Text } from '../../ui';
+import { businessDay, roleHas } from '@daftarak/shared';
+import { Screen, Chip, Text, Banner, Button, EmptyState } from '../../ui';
+import { hasFeature } from '../../domain/licence/guard';
+import { errorMessage } from '../../lib/errors';
 import { getDb } from '../../db/client';
 import { useApp } from '../../state/app';
 import { REPORTS } from '../../features/reports/defs';
@@ -30,27 +32,53 @@ export default function ReportScreen() {
   const [opt, setOpt] = useState(def?.options?.default ?? 0);
   const [doc, setDoc] = useState<ReportDoc | null>(null);
   const [ms, setMs] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const noPerm = !!def && !roleHas(user.permissions, def.perm);
+  const noFeature = !!def?.feature && !hasFeature(def.feature);
+  const allowed = !!def && !noPerm && !noFeature;
 
   useEffect(() => {
-    if (!def) return;
+    if (!def || !allowed) return;
     let live = true;
+    setLoading(true);
+    setErr(null);
     void (async () => {
-      const s = Date.now();
-      const d = await def.build(getDb(), { range, today, opt, user, biz: await bizHeader() });
-      if (live) {
-        setDoc(d);
-        setMs(Date.now() - s);
+      try {
+        const s = Date.now();
+        const d = await def.build(getDb(), { range, today, opt, user, biz: await bizHeader() });
+        if (live) {
+          setDoc(d);
+          setMs(Date.now() - s);
+        }
+      } catch (e) {
+        if (live) setErr(errorMessage(t, e));
+      } finally {
+        if (live) setLoading(false);
       }
     })();
     return () => {
       live = false;
     };
-  }, [def, range.from, range.to, opt, today, user]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [def, allowed, range.from, range.to, opt, today, user]); // eslint-disable-line react-hooks/exhaustive-deps
   // Closing a report is an allowed moment for an interstitial (free plan, ≤ 1 per 15 min).
   useEffect(() => () => maybeShowInterstitial(), []);
   const build = useMemo(() => () => doc!, [doc]);
 
   if (!def) return <Screen back>{null}</Screen>;
+  if (!allowed) {
+    return (
+      <Screen back title={t(`reports.names.${def.id}`)}>
+        {noPerm ? (
+          <EmptyState icon="lock" hue="rose" title={t('users.noPermission')} />
+        ) : (
+          <EmptyState icon="lock" hue="amber" title={t('licence.feature')}>
+            <Button title={t('more.subscription')} onPress={() => router.push('/settings/subscription')} />
+          </EmptyState>
+        )}
+      </Screen>
+    );
+  }
   return (
     <Screen back title={t(`reports.names.${def.id}`)} subtitle={doc?.period ?? undefined}>
       <NoScreenshots id="report" />
@@ -62,6 +90,8 @@ export default function ReportScreen() {
           ))}
         </View>
       ) : null}
+      {err ? <Banner tone="danger" text={err} /> : null}
+      {loading && !doc ? <Text variant="caption" style={{ textAlign: 'center' }}>{t('common.loading')}</Text> : null}
       {doc ? (
         <>
           <ExportBar build={build} kinds={['pdf', 'excel', 'print', 'whatsapp']} />

@@ -1,12 +1,13 @@
-import { useCallback, useState } from 'react';
-import { View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { Alert, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Screen, Text, Card, EmptyState, Button, colors, fonts } from '../../ui';
 import { getDb } from '../../db/client';
-import { deleteDraft, listDrafts, loadDraft } from '../../domain/sales/sales';
+import { listDrafts, loadDraft } from '../../domain/sales/sales';
 import { useCart } from '../../state/cart';
-import { useSalesCtx } from '../../features/sales/useSalesCtx';
+import { toast } from '../../state/toast';
+import { salesErrorMessage } from '../../features/sales/errors';
 import { useCurrency } from '../../features/inventory/useInvCtx';
 import { money, dateTimeLabel } from '../../lib/format';
 
@@ -14,28 +15,53 @@ import { money, dateTimeLabel } from '../../lib/format';
 export default function Drafts() {
   const { t, i18n } = useTranslation();
   const { type } = useLocalSearchParams<{ type: 'INVOICE' | 'QUOTATION' }>();
-  const ctx = useSalesCtx();
   const currency = useCurrency();
   const [rows, setRows] = useState<Awaited<ReturnType<typeof listDrafts>>>([]);
-  const load = useCallback(() => void listDrafts(getDb(), type ?? 'INVOICE').then(setRows), [type]);
+  const [pdfBusy, setPdfBusy] = useState<string | null>(null);
+  const opening = useRef(false);
+  const load = useCallback(() => {
+    let alive = true;
+    void listDrafts(getDb(), type ?? 'INVOICE').then(
+      (r) => alive && setRows(r),
+      (e) => alive && toast(salesErrorMessage(t, e), 'error'),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [type, t]);
   useFocusEffect(load);
+
+  const open = async (id: string) => {
+    if (opening.current) return;
+    opening.current = true;
+    try {
+      const d = await loadDraft(getDb(), id);
+      // A held sale stays held until the resumed cart is posted (postSale removes it) or held again (replaced).
+      useCart.getState().load(d, type === 'QUOTATION' ? null : id);
+      if (router.canGoBack()) router.back();
+      else router.dismissTo('/(main)/sell');
+    } catch (e) {
+      toast(salesErrorMessage(t, e), 'error');
+    } finally {
+      opening.current = false;
+    }
+  };
+
+  const confirmOpen = (id: string) => {
+    const cart = useCart.getState();
+    // Never drop the cart on the counter silently.
+    if (!cart.lines.length || cart.sourceId === id) return void open(id);
+    Alert.alert(t('pos.replaceCart'), t('pos.replaceCartBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('common.yes'), style: 'destructive', onPress: () => void open(id) },
+    ]);
+  };
+
   return (
     <Screen back title={type === 'QUOTATION' ? t('pos.quotations') : t('pos.parked')}>
       {rows.length === 0 ? <EmptyState icon="clipboard" hue="amber" title={type === 'QUOTATION' ? t('pos.quotations') : t('pos.parked')} /> : null}
       {rows.map((r) => (
-        <Card
-          key={r.id}
-          onPress={
-            r.status === 'CONVERTED'
-              ? undefined
-              : async () => {
-                  const d = await loadDraft(getDb(), r.id);
-                  useCart.getState().load(d, null);
-                  if (type === 'INVOICE' && ctx) await deleteDraft(ctx, r.id);
-                  router.replace('/(main)/sell');
-                }
-          }
-        >
+        <Card key={r.id} onPress={r.status === 'CONVERTED' ? undefined : () => confirmOpen(r.id)}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <View style={{ flex: 1 }}>
               <Text variant="subtitle">{[r.number, r.customerName].filter(Boolean).join(' · ') || t('pos.items', { n: r.lines })}</Text>
@@ -48,7 +74,24 @@ export default function Drafts() {
           </View>
           {type === 'QUOTATION' && r.status !== 'CONVERTED' ? (
             <View style={{ marginTop: 10 }}>
-              <Button compact kind="ghost" icon="upload" title="PDF" onPress={() => void import('../../features/printing/actions').then((m) => m.sharePdf(r.id))} />
+              <Button
+                compact
+                kind="ghost"
+                icon="upload"
+                title="PDF"
+                loading={pdfBusy === r.id}
+                disabled={!!pdfBusy}
+                onPress={async () => {
+                  setPdfBusy(r.id);
+                  try {
+                    await (await import('../../features/printing/actions')).sharePdf(r.id);
+                  } catch {
+                    toast(t('errors.unknown'), 'error');
+                  } finally {
+                    setPdfBusy(null);
+                  }
+                }}
+              />
             </View>
           ) : null}
         </Card>

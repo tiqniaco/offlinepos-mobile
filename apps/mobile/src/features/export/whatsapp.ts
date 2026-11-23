@@ -5,11 +5,12 @@
 import { Linking } from 'react-native';
 import * as Sharing from 'expo-sharing';
 import i18n from 'i18next';
+import { normalizePhone } from '@daftarak/shared';
 import { toast } from '../../state/toast';
 
 /** Digits only, international format without "+", e.g. 201012345678. */
 export function waNumber(mobile: string | null | undefined): string {
-  return (mobile ?? '').replace(/\D/g, '');
+  return normalizePhone(mobile ?? '', 'EG') ?? (mobile ?? '').replace(/\D/g, '');
 }
 
 export async function openWhatsApp(mobile: string | null | undefined, text: string): Promise<void> {

@@ -1,9 +1,9 @@
-import { useCallback, useState } from 'react';
-import { View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { ActivityIndicator, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { roleHas, businessDay } from '@daftarak/shared';
-import { Screen, Text, Card, Button, Banner, Sheet, TextField, SectionTitle, colors, fonts } from '../../ui';
+import { Screen, Text, Card, Button, Banner, Sheet, TextField, SectionTitle, EmptyState, colors, fonts } from '../../ui';
 import { getDb } from '../../db/client';
 import { getSale, voidSale } from '../../domain/sales/sales';
 import { useCurrency } from '../../features/inventory/useInvCtx';
@@ -16,9 +16,9 @@ import { printReceipt, sharePdf, whatsappInvoice } from '../../features/printing
 
 function Row({ label, value, strong, color }: { label: string; value: string; strong?: boolean; color?: string }) {
   return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}>
-      <Text variant={strong ? 'subtitle' : 'body'}>{label}</Text>
-      <Text style={{ fontFamily: strong ? fonts.bold : fonts.semibold, fontSize: strong ? 18 : 15, lineHeight: strong ? 26 : 22, color: color ?? colors.ink.DEFAULT }}>{value}</Text>
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingVertical: 3 }}>
+      <Text variant={strong ? 'subtitle' : 'body'} style={{ flex: 1 }}>{label}</Text>
+      <Text style={{ flexShrink: 0, fontFamily: strong ? fonts.bold : fonts.semibold, fontSize: strong ? 18 : 15, lineHeight: strong ? 26 : 22, color: color ?? colors.ink.DEFAULT }}>{value}</Text>
     </View>
   );
 }
@@ -33,9 +33,41 @@ export default function SaleDetail() {
   const [s, setS] = useState<Awaited<ReturnType<typeof getSale>>>(null);
   const [voidOpen, setVoidOpen] = useState(false);
   const [reason, setReason] = useState('');
-  const load = useCallback(() => void getSale(getDb(), id).then(setS), [id]);
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState<null | 'print' | 'whatsapp' | 'pdf'>(null);
+  const [voiding, setVoiding] = useState(false);
+  const voidInFlight = useRef(false);
+  const load = useCallback(() => {
+    let alive = true;
+    void getSale(getDb(), id)
+      .then(
+        (r) => alive && setS(r),
+        () => alive && setS(null),
+      )
+      .finally(() => alive && setLoaded(true));
+    return () => {
+      alive = false;
+    };
+  }, [id]);
   useFocusEffect(load);
-  if (!s) return null;
+  const run = async (kind: 'print' | 'whatsapp' | 'pdf') => {
+    if (busy) return;
+    setBusy(kind);
+    try {
+      if (kind === 'print') await printReceipt(id);
+      else if (kind === 'whatsapp') await whatsappInvoice(id);
+      else await sharePdf(id);
+    } finally {
+      setBusy(null);
+    }
+  };
+  if (!s) {
+    return (
+      <Screen back title={t('more.invoices')}>
+        {loaded ? <EmptyState icon="card" hue="rose" title={t('invoice.notFound')} /> : <ActivityIndicator color={colors.primary[600]} style={{ marginTop: 32 }} />}
+      </Screen>
+    );
+  }
   const d = s.doc;
   const fmt = (m: number) => money(m, currency, i18n.language);
   const isInvoice = d.type === 'INVOICE';
@@ -86,15 +118,16 @@ export default function SaleDetail() {
           ))}
         </>
       ) : null}
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        <View style={{ flex: 1 }}>
-          <Button kind="secondary" compact icon="clipboard" title={t('invoice.reprint')} onPress={() => void printReceipt(id)} />
+      {/* Wraps instead of clipping the labels on 360dp phones. */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+        <View style={{ flexGrow: 1, flexBasis: '30%', minWidth: '30%' }}>
+          <Button kind="secondary" compact icon="clipboard" title={t('invoice.reprint')} loading={busy === 'print'} disabled={!!busy} onPress={() => void run('print')} />
         </View>
-        <View style={{ flex: 1 }}>
-          <Button kind="secondary" compact icon="whatsapp" title={t('share.whatsapp')} onPress={() => void whatsappInvoice(id)} />
+        <View style={{ flexGrow: 1, flexBasis: '30%', minWidth: '30%' }}>
+          <Button kind="secondary" compact icon="whatsapp" title={t('share.whatsapp')} loading={busy === 'whatsapp'} disabled={!!busy} onPress={() => void run('whatsapp')} />
         </View>
-        <View style={{ flex: 1 }}>
-          <Button kind="secondary" compact icon="file" title="PDF" onPress={() => void sharePdf(id)} />
+        <View style={{ flexGrow: 1, flexBasis: '30%', minWidth: '30%' }}>
+          <Button kind="secondary" compact icon="file" title="PDF" loading={busy === 'pdf'} disabled={!!busy} onPress={() => void run('pdf')} />
         </View>
       </View>
       {canReturn ? <Button icon="refresh" title={t('invoice.return')} onPress={() => router.push({ pathname: '/sales/return', params: { id } })} /> : null}
@@ -108,14 +141,20 @@ export default function SaleDetail() {
             kind="danger"
             title={t('invoice.void')}
             disabled={!reason.trim()}
+            loading={voiding}
             onPress={async () => {
-              if (!ctx) return;
+              if (!ctx || voidInFlight.current) return;
+              voidInFlight.current = true;
+              setVoiding(true);
               try {
                 await voidSale(ctx, id, reason);
                 setVoidOpen(false);
                 load();
               } catch (e) {
                 toast(salesErrorMessage(t, e), 'error');
+              } finally {
+                voidInFlight.current = false;
+                setVoiding(false);
               }
             }}
           />

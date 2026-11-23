@@ -28,9 +28,10 @@ export default function More() {
   const money: MoreItem[] = [
     ...(can('reports.view') ? [{ key: 'reports', icon: 'chart' as const, hue: 'sky' as const, title: t('more.reports'), onPress: () => router.push('/reports') }] : []),
     ...(can('purchases.manage') ? [{ key: 'purchases', icon: 'cart' as const, hue: 'primary' as const, title: t('more.purchases'), onPress: () => router.push('/purchases') }] : []),
-    { key: 'vouchers', icon: 'receipt', hue: 'leaf', title: t('more.vouchers'), onPress: () => router.push('/vouchers') },
+    ...(can('parties.manage') || can('purchases.manage') || can('expenses.manage') || can('shift.manage') ? [{ key: 'vouchers', icon: 'receipt' as const, hue: 'leaf' as const, title: t('more.vouchers'), onPress: () => router.push('/vouchers') }] : []),
     ...(can('expenses.manage') ? [{ key: 'expenses', icon: 'wallet' as const, hue: 'rose' as const, title: t('more.expenses'), onPress: () => router.push('/expenses') }] : []),
-    { key: 'shifts', icon: 'clock', hue: 'ink', title: t('more.shifts'), onPress: () => router.push('/shifts') },
+    // Cashiers open/close their own shift (sales.create); shift.manage covers everyone else's.
+    ...(can('sales.create') || can('shift.manage') ? [{ key: 'shifts', icon: 'clock' as const, hue: 'ink' as const, title: t('more.shifts'), onPress: () => router.push('/shifts') }] : []),
     ...(can('products.manage') ? [{ key: 'offers', icon: 'tag' as const, hue: 'leaf' as const, title: t('more.offers'), onPress: () => router.push('/offers') }] : []),
   ];
   if (can('backup.manage')) account.push({ key: 'backup', testID: 'more-backup', icon: 'upload', hue: 'leaf', title: t('more.backup'), onPress: () => router.push('/settings/backup') });

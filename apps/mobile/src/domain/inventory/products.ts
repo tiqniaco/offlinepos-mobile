@@ -182,7 +182,11 @@ export async function createProduct(ctx: InvCtx, input: ProductInput & { opening
 export async function updateProduct(ctx: InvCtx, productId: string, input: ProductInput): Promise<void> {
   requirePermission(ctx.user, 'products.manage');
   assertCanWrite();
-  validate(input, ctx);
+  // Plan lost a feature (e.g. downgrade): keep the product's existing larger unit / expiry flag as they are
+  // instead of rejecting the save or wiping the data.
+  const keepLarger = !ctx.features.includes('multi_unit');
+  const keepExpiry = !ctx.features.includes('expiry');
+  validate({ ...input, largerUnit: keepLarger ? null : input.largerUnit, trackExpiry: keepExpiry ? false : input.trackExpiry }, ctx);
   const now = nowOf(ctx);
   await withTx(ctx.db, async (tx) => {
     const before = (await tx.select().from(products).where(eq(products.id, productId)).limit(1))[0];
@@ -191,7 +195,7 @@ export async function updateProduct(ctx: InvCtx, productId: string, input: Produ
     if (priceChanged) requirePermission(ctx.user, 'price.change');
     if (before.costMinor !== input.costMinor) requirePermission(ctx.user, 'cost.view');
     const codes = cleanCodes(input.barcodes);
-    await assertCodesFree(tx, cleanCodes([...codes, input.largerUnit?.barcode]), productId);
+    await assertCodesFree(tx, cleanCodes([...codes, keepLarger ? null : input.largerUnit?.barcode]), productId);
     await assertSkuFree(tx, input.sku, productId);
     await tx
       .update(products)
@@ -207,7 +211,7 @@ export async function updateProduct(ctx: InvCtx, productId: string, input: Produ
         wholesalePriceMinor: input.wholesalePriceMinor,
         taxRateBp: input.taxRateBp ?? null,
         trackStock: input.trackStock,
-        trackExpiry: input.trackExpiry,
+        trackExpiry: keepExpiry ? before.trackExpiry : input.trackExpiry,
         lowStockMilli: input.lowStockMilli ?? null,
         imagePath: input.imagePath ?? null,
         notes: input.notes ?? null,
@@ -227,7 +231,9 @@ export async function updateProduct(ctx: InvCtx, productId: string, input: Produ
     const wanted = new Map<string, string>(); // code → product unit row id
     codes.forEach((c) => wanted.set(c, baseRow.id));
     let largerId = larger?.id ?? null;
-    if (input.largerUnit) {
+    if (keepLarger) {
+      // untouched (see above)
+    } else if (input.largerUnit) {
       const lu = input.largerUnit;
       if (larger) {
         await tx.update(productUnits).set({ unitId: lu.unitId, factorMilli: lu.factorMilli, retailPriceMinor: lu.retailPriceMinor, wholesalePriceMinor: lu.wholesalePriceMinor, updatedAt: now }).where(eq(productUnits.id, larger.id));
@@ -241,6 +247,10 @@ export async function updateProduct(ctx: InvCtx, productId: string, input: Produ
       await tx.update(productUnits).set({ deletedAt: now, updatedAt: now }).where(eq(productUnits.id, larger.id));
     }
     for (const b of liveCodes) {
+      if (keepLarger && larger && b.productUnitId === larger.id) {
+        wanted.delete(b.code);
+        continue;
+      }
       if (wanted.get(b.code) === b.productUnitId) wanted.delete(b.code);
       else await tx.update(barcodes).set({ deletedAt: now, updatedAt: now }).where(eq(barcodes.id, b.id));
     }

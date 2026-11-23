@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fonts } from '../../ui/fonts';
-import { Image, Switch, View } from 'react-native';
+import { Image, Linking, Switch, View } from 'react-native';
 import { Pressable } from '../../ui/Press';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -70,46 +70,52 @@ export default function ProductForm() {
   const [newCat, setNewCat] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [savingCat, setSavingCat] = useState(false);
 
   useEffect(() => {
     const db = getDb();
     void (async () => {
-      const [u, c] = await Promise.all([listUnits(db), listCategories(db)]);
-      setUnits(u);
-      setCats(c);
-      if (!editing) {
-        setBaseUnitId(u.find((x) => x.nameAr === 'قطعة')?.id ?? u[0]?.id ?? null);
-        setLargerUnitId(u.find((x) => x.nameAr === 'كرتونة')?.id ?? null);
-        return;
+      try {
+        const [u, c] = await Promise.all([listUnits(db), listCategories(db)]);
+        setUnits(u);
+        setCats(c);
+        if (!editing) {
+          setBaseUnitId(u.find((x) => x.nameAr === 'قطعة')?.id ?? u[0]?.id ?? null);
+          setLargerUnitId(u.find((x) => x.nameAr === 'كرتونة')?.id ?? null);
+          return;
+        }
+        const d = await getProduct(db, params.id!);
+        if (!d || d.product.deletedAt) return setErr(t('invErrors.not_found'));
+        const p = d.product;
+        setName(p.name);
+        setNameEn(p.nameEn ?? '');
+        setSku(p.sku ?? '');
+        setNotes(p.notes ?? '');
+        setCategoryId(p.categoryId);
+        setBaseUnitId(p.baseUnitId);
+        setCost(p.costMinor);
+        setRetail(p.retailPriceMinor);
+        setWholesale(p.wholesalePriceMinor);
+        setTrackStock(p.trackStock);
+        setTrackExpiry(p.trackExpiry);
+        setLowStock(p.lowStockMilli);
+        setImagePath(p.imagePath);
+        setVariantLabel(p.variantLabel);
+        const base = d.units.find((x) => x.isBase)!;
+        const larger = d.units.find((x) => !x.isBase);
+        setBarcode(d.barcodes.find((b) => b.productUnitId === base.id)?.code ?? '');
+        if (larger) {
+          setHasLarger(true);
+          setLargerUnitId(larger.unitId);
+          setFactor(larger.factorMilli);
+          setLargerPrice(larger.retailPriceMinor);
+          setLargerBarcode(d.barcodes.find((b) => b.productUnitId === larger.id)?.code ?? '');
+        } else setLargerUnitId(u.find((x) => x.nameAr === 'كرتونة')?.id ?? null);
+      } catch (e) {
+        setErr(invErrorMessage(t, e));
       }
-      const d = await getProduct(db, params.id!);
-      if (!d) return;
-      const p = d.product;
-      setName(p.name);
-      setNameEn(p.nameEn ?? '');
-      setSku(p.sku ?? '');
-      setNotes(p.notes ?? '');
-      setCategoryId(p.categoryId);
-      setBaseUnitId(p.baseUnitId);
-      setCost(p.costMinor);
-      setRetail(p.retailPriceMinor);
-      setWholesale(p.wholesalePriceMinor);
-      setTrackStock(p.trackStock);
-      setTrackExpiry(p.trackExpiry);
-      setLowStock(p.lowStockMilli);
-      setImagePath(p.imagePath);
-      setVariantLabel(p.variantLabel);
-      const base = d.units.find((x) => x.isBase)!;
-      const larger = d.units.find((x) => !x.isBase);
-      setBarcode(d.barcodes.find((b) => b.productUnitId === base.id)?.code ?? '');
-      if (larger) {
-        setHasLarger(true);
-        setLargerUnitId(larger.unitId);
-        setFactor(larger.factorMilli);
-        setLargerPrice(larger.retailPriceMinor);
-        setLargerBarcode(d.barcodes.find((b) => b.productUnitId === larger.id)?.code ?? '');
-      } else setLargerUnitId(u.find((x) => x.nameAr === 'كرتونة')?.id ?? null);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing, params.id]);
 
   const baseUnit = units.find((u) => u.id === baseUnitId);
@@ -135,15 +141,29 @@ export default function ProductForm() {
 
   const pickImage = async (camera: boolean) => {
     const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.8 };
-    const r = camera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
-    if (r.canceled || !r.assets[0]) return;
-    setImagePath(await saveProductImage(r.assets[0].uri, uuidv7()));
+    try {
+      if (camera) {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) {
+          toast(t('scan.permission'), 'error', perm.canAskAgain ? undefined : { label: t('scan.openSettings'), onPress: () => void Linking.openSettings() });
+          return;
+        }
+      }
+      const r = camera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
+      if (r.canceled || !r.assets[0]) return;
+      setImagePath(await saveProductImage(r.assets[0].uri, uuidv7()));
+    } catch (e) {
+      toast(invErrorMessage(t, e), 'error');
+    }
   };
 
   const save = async () => {
-    if (!ctx || !baseUnitId) return;
+    if (!ctx || busy) return;
     setErr(null);
     if (!name.trim()) return setErr(t('invErrors.name_required'));
+    if (!baseUnitId) return setErr(t('invErrors.unit_required'));
+    const withLarger = hasLarger && multiUnit;
+    if (withLarger && (!largerUnitId || !factor)) return setErr(t(largerUnitId ? 'invErrors.invalid_qty' : 'invErrors.unit_required'));
     const input: ProductInput = {
       name,
       nameEn,
@@ -155,13 +175,13 @@ export default function ProductForm() {
       retailPriceMinor: retail ?? 0,
       wholesalePriceMinor: wholesale ?? retail ?? 0,
       trackStock,
-      trackExpiry,
+      trackExpiry: expiryFeature && trackExpiry,
       lowStockMilli: trackStock ? lowStock : null,
       imagePath,
       variantLabel,
       barcodes: barcode ? [barcode] : [],
       largerUnit:
-        hasLarger && largerUnitId && factor
+        withLarger && largerUnitId && factor
           ? { unitId: largerUnitId, factorMilli: factor, retailPriceMinor: largerPrice, wholesalePriceMinor: null, barcode: largerBarcode || null }
           : null,
     };
@@ -324,8 +344,10 @@ export default function ProductForm() {
         footer={
           <Button
             title={t('common.save')}
+            loading={savingCat}
             onPress={async () => {
-              if (!ctx || !newCat?.trim()) return;
+              if (!ctx || !newCat?.trim() || savingCat) return;
+              setSavingCat(true);
               try {
                 const id = await saveCategory(ctx, { name: newCat });
                 setCats(await listCategories(getDb()));
@@ -333,6 +355,8 @@ export default function ProductForm() {
                 setNewCat(null);
               } catch (e) {
                 toast(invErrorMessage(t, e), 'error');
+              } finally {
+                setSavingCat(false);
               }
             }}
           />

@@ -18,7 +18,7 @@ import type { PartyCtx } from './customers';
 export type PartyType = 'C' | 'S';
 
 export class PartyError extends Error {
-  constructor(public readonly code: 'name_required' | 'not_found' | 'has_balance' | 'mobile_taken') {
+  constructor(public readonly code: 'name_required' | 'not_found' | 'has_balance' | 'mobile_taken' | 'mobile_invalid') {
     super(code);
     this.name = 'PartyError';
   }
@@ -54,15 +54,15 @@ export async function refreshPartySearch(tx: Db, type: PartyType, id: string) {
   else await tx.run(sql`INSERT INTO suppliers_fts (supplier_id, body) VALUES (${id}, ${body})`);
 }
 
-/** Create or update a customer/supplier. Returns the id. */
-export async function saveParty(ctx: PartyCtx, type: PartyType, input: PartyInput): Promise<string> {
+/** Checks that need no database: permission, licence, name, mobile. Returns the cleaned values. */
+export function checkParty(ctx: PartyCtx, type: PartyType, input: PartyInput) {
   requirePermission(ctx.user, type === 'C' ? 'parties.manage' : 'purchases.manage');
   assertCanWrite();
   const name = input.name.trim();
   if (!name) throw new PartyError('name_required');
-  const t = ctx.now?.() ?? Date.now();
-  const mobile = input.mobile?.trim() ? (normalizePhone(input.mobile) ?? input.mobile.trim()) : null;
-  const tbl = table(type);
+  const raw = input.mobile?.trim() ?? '';
+  const mobile = raw ? (normalizePhone(raw) ?? normalizePhone(raw, 'EG')) : null;
+  if (raw && !mobile) throw new PartyError('mobile_invalid');
   const values = {
     name,
     mobile,
@@ -72,28 +72,41 @@ export async function saveParty(ctx: PartyCtx, type: PartyType, input: PartyInpu
     notes: input.notes?.trim() || null,
     ...(type === 'C' ? { creditLimitMinor: input.creditLimitMinor ?? null, priceTier: input.priceTier ?? 'retail' } : {}),
   };
-  return withTx(ctx.db, async (tx) => {
-    hlc ??= new HybridLogicalClock(ctx.device.code);
-    if (mobile) {
-      const dup = (await tx.select({ id: tbl.id }).from(tbl).where(and(eq(tbl.mobile, mobile), isNull(tbl.deletedAt))).limit(1))[0];
-      if (dup && dup.id !== input.id) throw new PartyError('mobile_taken');
-    }
-    let id = input.id;
-    if (id) {
-      const before = (await tx.select().from(tbl).where(eq(tbl.id, id)).limit(1))[0];
-      if (!before || before.deletedAt) throw new PartyError('not_found');
-      await tx.update(tbl).set({ ...values, updatedAt: t, hlc: hlc.tick() } as never).where(eq(tbl.id, id));
-      await appendAudit(tx, { action: 'party.update', entity: type === 'C' ? 'customers' : 'suppliers', entityId: id, before: { name: before.name, mobile: before.mobile }, after: { name, mobile }, userId: ctx.user.id, deviceId: ctx.device.id, at: t });
-    } else {
-      const n = (await tx.select({ n: sql<number>`count(*)` }).from(tbl).where(isNull(tbl.deletedAt)))[0]?.n ?? 0;
-      assertWithinLimit('parties', Number(n));
-      id = uuidv7(t);
-      await tx.insert(tbl).values({ id, ...values, createdAt: t, updatedAt: t, createdBy: ctx.user.id, deviceId: ctx.device.id, hlc: hlc.tick() } as never);
-      await appendAudit(tx, { action: type === 'C' ? 'customer.create' : 'party.create', entity: type === 'C' ? 'customers' : 'suppliers', entityId: id, after: { name, mobile }, userId: ctx.user.id, deviceId: ctx.device.id, at: t });
-    }
-    await refreshPartySearch(tx, type, id);
-    return id;
-  });
+  return values;
+}
+
+/** Create or update a customer/supplier. Returns the id. */
+export async function saveParty(ctx: PartyCtx, type: PartyType, input: PartyInput): Promise<string> {
+  checkParty(ctx, type, input);
+  return withTx(ctx.db, (tx) => savePartyTx(tx, ctx, type, input));
+}
+
+/** saveParty inside the caller's transaction (never starts its own). */
+export async function savePartyTx(tx: Db, ctx: PartyCtx, type: PartyType, input: PartyInput): Promise<string> {
+  const values = checkParty(ctx, type, input);
+  const { name, mobile } = values;
+  const t = ctx.now?.() ?? Date.now();
+  const tbl = table(type);
+  hlc ??= new HybridLogicalClock(ctx.device.code);
+  if (mobile) {
+    const dup = (await tx.select({ id: tbl.id }).from(tbl).where(and(eq(tbl.mobile, mobile), isNull(tbl.deletedAt))).limit(1))[0];
+    if (dup && dup.id !== input.id) throw new PartyError('mobile_taken');
+  }
+  let id = input.id;
+  if (id) {
+    const before = (await tx.select().from(tbl).where(eq(tbl.id, id)).limit(1))[0];
+    if (!before || before.deletedAt) throw new PartyError('not_found');
+    await tx.update(tbl).set({ ...values, updatedAt: t, hlc: hlc.tick() } as never).where(eq(tbl.id, id));
+    await appendAudit(tx, { action: 'party.update', entity: type === 'C' ? 'customers' : 'suppliers', entityId: id, before: { name: before.name, mobile: before.mobile }, after: { name, mobile }, userId: ctx.user.id, deviceId: ctx.device.id, at: t });
+  } else {
+    const n = (await tx.select({ n: sql<number>`count(*)` }).from(tbl).where(isNull(tbl.deletedAt)))[0]?.n ?? 0;
+    assertWithinLimit('parties', Number(n));
+    id = uuidv7(t);
+    await tx.insert(tbl).values({ id, ...values, createdAt: t, updatedAt: t, createdBy: ctx.user.id, deviceId: ctx.device.id, hlc: hlc.tick() } as never);
+    await appendAudit(tx, { action: type === 'C' ? 'customer.create' : 'party.create', entity: type === 'C' ? 'customers' : 'suppliers', entityId: id, after: { name, mobile }, userId: ctx.user.id, deviceId: ctx.device.id, at: t });
+  }
+  await refreshPartySearch(tx, type, id);
+  return id;
 }
 
 /** Soft delete; refused while the balance is not zero (history stays intact). */
@@ -124,7 +137,9 @@ export interface PartyRow {
 }
 
 /** List with balances. filter: 'owing' = they owe us (C) / we owe them (S); 'credit' = the other way. */
-export async function listParties(db: Db, type: PartyType, q: { search?: string; filter?: 'all' | 'owing' | 'credit'; sort?: 'name' | 'balance' | 'recent'; limit?: number; offset?: number } = {}): Promise<PartyRow[]> {
+type PartyQuery = { search?: string; filter?: 'all' | 'owing' | 'credit' };
+
+function partyConds(type: PartyType, q: PartyQuery) {
   const tbl = table(type);
   const fts = ftsQuery(q.search ?? '');
   const ftsTable = type === 'C' ? sql`SELECT customer_id FROM customers_fts WHERE customers_fts MATCH ${fts}` : sql`SELECT supplier_id FROM suppliers_fts WHERE suppliers_fts MATCH ${fts}`;
@@ -134,6 +149,22 @@ export async function listParties(db: Db, type: PartyType, q: { search?: string;
   const owingSign = type === 'C' ? 1 : -1;
   if (q.filter === 'owing') conds.push(owingSign > 0 ? gt(bal, 0) : lt(bal, 0));
   if (q.filter === 'credit') conds.push(owingSign > 0 ? lt(bal, 0) : gt(bal, 0));
+  return { tbl, bal, conds, owingSign };
+}
+
+/** How many parties match (same search/filter as listParties) — one COUNT query. */
+export async function countParties(db: Db, type: PartyType, q: PartyQuery = {}): Promise<number> {
+  const { tbl, conds } = partyConds(type, q);
+  const r = (await db
+    .select({ n: sql<number>`count(*)` })
+    .from(tbl)
+    .leftJoin(partyBalances, and(eq(partyBalances.partyType, type), eq(partyBalances.partyId, tbl.id)))
+    .where(and(...conds)))[0];
+  return Number(r?.n ?? 0);
+}
+
+export async function listParties(db: Db, type: PartyType, q: PartyQuery & { sort?: 'name' | 'balance' | 'recent'; limit?: number; offset?: number } = {}): Promise<PartyRow[]> {
+  const { tbl, bal, conds, owingSign } = partyConds(type, q);
   const order = q.sort === 'balance' ? (owingSign > 0 ? desc(bal) : asc(bal)) : q.sort === 'recent' ? desc(sql`coalesce(${partyBalances.lastActivityAt}, ${tbl.createdAt})`) : asc(tbl.name);
   const rows = await db
     .select({

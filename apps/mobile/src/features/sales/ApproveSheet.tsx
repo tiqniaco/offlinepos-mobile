@@ -17,10 +17,21 @@ export function ApproveSheet({ visible, onClose, onApproved, needs }: { visible:
   const [sel, setSel] = useState<string | null>(null);
   const [pin, setPin] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
   useEffect(() => {
-    if (visible) void listActiveUsers(getDb()).then((u) => setUsers(u.filter((x) => x.roleKey !== 'cashier')));
+    let alive = true;
+    if (visible)
+      void listActiveUsers(getDb())
+        .then(
+          (u) => alive && setUsers(u.filter((x) => x.roleKey !== 'cashier')),
+          () => alive && setUsers([]),
+        )
+        .finally(() => alive && setLoaded(true));
     setPin('');
     setMsg(null);
+    return () => {
+      alive = false;
+    };
   }, [visible]);
   const submit = async () => {
     if (!sel) return;
@@ -30,12 +41,16 @@ export function ApproveSheet({ visible, onClose, onApproved, needs }: { visible:
       onApproved(u);
     } catch (e) {
       setPin('');
-      setMsg(e instanceof PinError && e.code === 'locked' ? t('lock.lockedFor', { time: '…' }) : t('lock.wrong'));
+      if (e instanceof PinError && e.code === 'locked') {
+        const secs = Math.max(1, Math.ceil(((e.lockedUntil ?? Date.now()) - Date.now()) / 1000));
+        setMsg(t('lock.lockedFor', { time: secs >= 60 ? t('approve.minutes', { n: Math.ceil(secs / 60) }) : t('approve.seconds', { n: secs }) }));
+      } else setMsg(t('lock.wrong'));
     }
   };
   return (
     <Sheet visible={visible} onClose={onClose} title={t('approve.title')} footer={<Button title={t('approve.ok')} disabled={!sel || pin.length < 4} onPress={submit} />}>
       <Text variant="body">{t('approve.body')}</Text>
+      {loaded && users.length === 0 ? <Text style={{ color: colors.rose[700], fontFamily: fonts.medium, lineHeight: 22 }}>{t('approve.noApprovers')}</Text> : null}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
         {users.map((u) => (
           <Pressable key={u.id} onPress={() => { setSel(u.id); setPin(''); setMsg(null); }} style={{ alignItems: 'center', gap: 6, padding: 10, borderRadius: 16, borderWidth: 2, borderColor: sel === u.id ? colors.primary[500] : 'transparent', backgroundColor: colors.paper.card }}>

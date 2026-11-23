@@ -222,6 +222,8 @@ export async function updateUser(
     if (patch.isActive !== undefined) set.isActive = patch.isActive;
     if (patch.biometricEnabled !== undefined) set.biometricEnabled = patch.biometricEnabled;
     if (patch.pin !== undefined) {
+      // The owner unlocks with the account password (changed in settings → password), never a PIN.
+      if (before.secretKind === 'password') throw new Error('password_user');
       if (!isValidPin(patch.pin)) throw new PinError('invalid');
       if (isWeakPin(patch.pin)) throw new PinError('weak');
       const h = await hashPin(patch.pin);

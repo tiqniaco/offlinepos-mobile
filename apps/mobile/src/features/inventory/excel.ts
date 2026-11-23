@@ -54,6 +54,8 @@ export async function pickSpreadsheet(): Promise<PickedSheet | null> {
   });
   if (r.canceled || !r.assets?.[0]) return null;
   const asset = r.assets[0];
+  // Let the caller's spinner render before SheetJS blocks the JS thread.
+  await new Promise((res) => setTimeout(res, 0));
   const b64 = await new File(asset.uri).base64();
   const wb = xlsx().read(b64, { type: 'base64', cellDates: false, codepage: 65001 });
   const first = wb.SheetNames[0]!;

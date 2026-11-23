@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Sheet, TextField, ListGroup, ListRow, Avatar, Button } from '../../ui';
 import { getDb } from '../../db/client';
 import { listParties, owed, type PartyRow } from '../../domain/parties/parties';
 import { balanceLabel, partyColor } from './format';
+import { useLastParty } from '../../state/lastParty';
 
 /** Pick a customer or supplier (search, balance shown); "add new" opens the full form. */
 export function PartyPicker({ visible, type, currency, lang, onClose, onPick }: { visible: boolean; type: 'C' | 'S'; currency: 'EGP' | 'SAR'; lang: string; onClose: () => void; onPick: (p: PartyRow) => void }) {
@@ -16,12 +17,25 @@ export function PartyPicker({ visible, type, currency, lang, onClose, onPick }: 
     const h = setTimeout(() => void listParties(getDb(), type, { search: q, sort: 'recent', limit: 40 }).then(setRows), 150);
     return () => clearTimeout(h);
   }, [q, visible, type]);
+  // Back from "new party": select the party that was just created from this picker.
+  const pending = useRef<string | null>(null);
+  const pickRef = useRef(onPick);
+  pickRef.current = onPick;
+  useFocusEffect(
+    useCallback(() => {
+      if (!pending.current) return;
+      const row = useLastParty.getState().take(pending.current, type);
+      if (!row) return;
+      pending.current = null;
+      pickRef.current(row);
+    }, [type]),
+  );
   return (
     <Sheet
       visible={visible}
       onClose={onClose}
       title={t(type === 'C' ? 'parties.pickC' : 'parties.pickS')}
-      footer={<Button kind="secondary" icon="plus" title={t(type === 'C' ? 'parties.newC' : 'parties.newS')} onPress={() => { onClose(); router.push({ pathname: '/parties/form', params: { type, name: q } }); }} />}
+      footer={<Button kind="secondary" icon="plus" title={t(type === 'C' ? 'parties.newC' : 'parties.newS')} onPress={() => { pending.current = useLastParty.getState().begin(); onClose(); router.push({ pathname: '/parties/form', params: { type, name: q, returnTo: 'pick' } }); }} />}
     >
       <TextField icon="search" placeholder={t('parties.search')} value={q} onChangeText={setQ} latinDigits={false} autoFocus />
       <ListGroup>

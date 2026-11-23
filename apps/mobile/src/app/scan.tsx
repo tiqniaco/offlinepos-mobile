@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { fonts } from '../ui/fonts';
-import { Platform, View } from 'react-native';
+import { Linking, Platform, View } from 'react-native';
 import { Pressable } from '../ui/Press';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -8,6 +8,8 @@ import { fx } from '../ui/fx';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, Button, Icon, colors } from '../ui';
 import { useScanner } from '../state/scanner';
+import { toast } from '../state/toast';
+import { errorMessage } from '../lib/errors';
 
 /**
  * Full-screen camera scanner (vision-camera + ML Kit barcode scanner).
@@ -37,6 +39,11 @@ export default function ScanScreen() {
         return;
       }
       setMsg((await req.onCode(code)) ?? code);
+    } catch (e) {
+      fx.notFound();
+      const m = errorMessage(t, e);
+      if (req?.continuous) setMsg(m);
+      else toast(m, 'error');
     } finally {
       busy.current = false;
     }
@@ -49,7 +56,7 @@ export default function ScanScreen() {
           <Text style={{ color: '#fff' }}>{t('scan.unavailable')}</Text>
         </View>
       ) : (
-        <NativeScanner onCode={(c) => void onCode(c)} />
+        <NativeScanner onCode={(c) => void onCode(c)} onError={(m) => setMsg(m)} />
       )}
       {/* Frame overlay */}
       <View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, alignItems: 'center', justifyContent: 'center' }}>
@@ -61,6 +68,13 @@ export default function ScanScreen() {
           <Icon name="back" color="#fff" tint="transparent" />
         </Pressable>
       </View>
+      {!req?.continuous && msg ? (
+        <View style={{ position: 'absolute', bottom: insets.bottom + 20, left: 20, right: 20 }}>
+          <View style={{ backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 16, padding: 14 }}>
+            <Text variant="subtitle" style={{ textAlign: 'center' }}>{msg}</Text>
+          </View>
+        </View>
+      ) : null}
       {req?.continuous ? (
         <View style={{ position: 'absolute', bottom: insets.bottom + 20, left: 20, right: 20, gap: 10 }}>
           {msg ? (
@@ -75,7 +89,7 @@ export default function ScanScreen() {
   );
 }
 
-function NativeScanner({ onCode }: { onCode: (code: string) => void }) {
+function NativeScanner({ onCode, onError }: { onCode: (code: string) => void; onError: (msg: string) => void }) {
   const { t } = useTranslation();
   // Loaded lazily so the web preview and Jest never touch the native camera modules.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -90,7 +104,11 @@ function NativeScanner({ onCode }: { onCode: (code: string) => void }) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 }}>
         <Text style={{ color: '#fff', textAlign: 'center' }}>{t('scan.permission')}</Text>
-        <Button title={t('scan.allow')} onPress={() => void perm.requestPermission()} />
+        {perm.canRequestPermission ? (
+          <Button title={t('scan.allow')} onPress={() => void perm.requestPermission()} />
+        ) : (
+          <Button title={t('scan.openSettings')} onPress={() => void Linking.openSettings()} />
+        )}
       </View>
     );
   }
@@ -103,7 +121,7 @@ function NativeScanner({ onCode }: { onCode: (code: string) => void }) {
         const v = codes.find((c) => c.rawValue)?.rawValue;
         if (v) onCode(v);
       }}
-      onError={() => undefined}
+      onError={() => onError(t('scan.cameraError'))}
     />
   );
 }

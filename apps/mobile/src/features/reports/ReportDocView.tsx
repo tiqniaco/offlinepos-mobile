@@ -4,6 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { Text, Card, EmptyState, colors, fonts } from '../../ui';
 import type { ReportDoc } from '../export/report';
 
+/** Rows drawn on screen (plain views, not virtualised); the rest is in the exported PDF / Excel file. */
+const MAX_ROWS = 100;
+
 export function ReportDocView({ d }: { d: ReportDoc }) {
   const { t } = useTranslation();
   const { width } = useWindowDimensions();
@@ -31,7 +34,7 @@ export function ReportDocView({ d }: { d: ReportDoc }) {
               </Text>
             ))}
           </View>
-          {d.rows.slice(0, 500).map((r, i) => (
+          {d.rows.slice(0, MAX_ROWS).map((r, i) => (
             <View key={i} style={{ paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: i ? 1 : 0, borderTopColor: colors.paper.line, backgroundColor: i % 2 ? colors.paper.DEFAULT : colors.paper.card, opacity: r.muted ? 0.55 : 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 {cols.map((c) => (
@@ -45,7 +48,7 @@ export function ReportDocView({ d }: { d: ReportDoc }) {
               ))}
             </View>
           ))}
-          {d.rows.length > 500 ? <Text variant="caption" style={{ padding: 10 }}>{t('reports.moreInFile', { n: d.rows.length - 500 })}</Text> : null}
+          {d.rows.length > MAX_ROWS ? <Text variant="caption" style={{ padding: 10 }}>{t('reports.moreInFile', { n: d.rows.length - MAX_ROWS })}</Text> : null}
         </Card>
       ) : null}
       {d.totals.length ? (

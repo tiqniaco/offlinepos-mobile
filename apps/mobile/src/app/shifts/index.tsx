@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Switch, View } from 'react-native';
+import { Alert, Switch, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { roleHas } from '@daftarak/shared';
@@ -17,6 +17,7 @@ import { useCurrency } from '../../features/inventory/useInvCtx';
 import { money, dateTimeLabel } from '../../lib/format';
 import { errorMessage } from '../../lib/errors';
 import { fx } from '../../ui/fx';
+import { toast } from '../../state/toast';
 
 type Shift = NonNullable<Awaited<ReturnType<typeof currentShift>>>;
 
@@ -89,14 +90,14 @@ export default function Shifts() {
       ) : sum ? (
         <>
           <Card>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}>
+              <View style={{ flex: 1 }}>
                 <Text variant="caption">{t('shift.openSince', { at: dateTimeLabel(i18n.language, cur.openedAt) })}</Text>
-                <Text variant="subtitle">{cur.number} · {cur.userName}</Text>
+                <Text variant="subtitle" numberOfLines={2}>{cur.number} · {cur.userName}</Text>
               </View>
-              <View style={{ alignItems: 'flex-end' }}>
+              <View style={{ alignItems: 'flex-end', flexShrink: 1 }}>
                 <Text variant="caption">{t('shift.sales')}</Text>
-                <Text style={{ fontFamily: fonts.bold, fontSize: 17, lineHeight: 24, color: colors.ink.DEFAULT }}>{fmt(sum.salesTotalMinor)}</Text>
+                <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontFamily: fonts.bold, fontSize: 17, lineHeight: 28, color: colors.ink.DEFAULT }}>{fmt(sum.salesTotalMinor)}</Text>
               </View>
             </View>
             <View style={{ height: 1, backgroundColor: colors.paper.line, marginVertical: 10 }} />
@@ -123,7 +124,7 @@ export default function Shifts() {
           <ActionTiles
             columns={3}
             tiles={[
-              { key: 'exp', icon: 'wallet', hue: 'rose', label: t('quick.expense'), onPress: () => router.push({ pathname: '/vouchers/new', params: { type: 'EXPENSE' } }) },
+              ...(roleHas(user.permissions, 'expenses.manage') ? [{ key: 'exp', icon: 'wallet' as const, hue: 'rose' as const, label: t('quick.expense'), onPress: () => router.push({ pathname: '/vouchers/new', params: { type: 'EXPENSE' } }) }] : []),
               ...(roleHas(user.permissions, 'shift.manage')
                 ? [
                     { key: 'in', icon: 'arrowIn' as const, hue: 'leaf' as const, label: t('voucher.title.CASH_IN'), onPress: () => router.push({ pathname: '/vouchers/new', params: { type: 'CASH_IN' } }) },
@@ -143,7 +144,13 @@ export default function Shifts() {
             <View style={{ height: 8 }} />
             <TextField label={t('voucher.note')} value={note} onChangeText={setNote} latinDigits={false} />
             <View style={{ height: 8 }} />
-            <Button testID="shift-close" kind="danger" icon="lock" title={t('shift.close')} loading={busy} disabled={counted == null} onPress={() => ctx && void run(() => closeShift(ctx, counted ?? 0, note), () => { setCounted(null); setNote(''); router.push({ pathname: '/shifts/[id]', params: { id: cur.id } }); })} />
+            <Button testID="shift-close" kind="danger" icon="lock" title={t('shift.close')} loading={busy} disabled={counted == null} onPress={() =>
+                ctx &&
+                Alert.alert(t('shift.closeConfirmTitle'), t('shift.closeConfirmBody', { amount: fmt(counted ?? 0) }), [
+                  { text: t('common.cancel'), style: 'cancel' },
+                  { text: t('shift.close'), style: 'destructive', onPress: () => void run(() => closeShift(ctx, counted ?? 0, note), () => { setCounted(null); setNote(''); router.push({ pathname: '/shifts/[id]', params: { id: cur.id } }); }) },
+                ])
+              } />
           </Card>
         </>
       ) : null}
@@ -158,7 +165,7 @@ export default function Shifts() {
             </View>
             <Switch
               value={requireShift}
-              onValueChange={(v) => void changeSetting(getDb(), 'requireShift', v, { userId: user.id, deviceId: device.id }).then(reloadAppData)}
+              onValueChange={(v) => void changeSetting(getDb(), 'requireShift', v, { userId: user.id, deviceId: device.id }).then(reloadAppData).catch((e) => toast(errorMessage(t, e), 'error'))}
               trackColor={{ true: colors.primary[500], false: colors.paper.line }}
             />
           </View>

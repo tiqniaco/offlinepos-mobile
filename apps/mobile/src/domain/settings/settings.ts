@@ -1,11 +1,12 @@
 /** Typed access to the settings table (values seeded from country/type profile at onboarding). */
 import { eq } from 'drizzle-orm';
-import type { BusinessSettings } from '@daftarak/shared';
+import { roleHas, type BusinessSettings, type Permission } from '@daftarak/shared';
 import type { Db as AppDb } from '../../db/types';
 import { withTx } from '../../db/tx';
 import { settings } from '../../db/schema';
 import { appendAudit } from '../audit/audit';
 import { assertCanWrite } from '../licence/guard';
+import { PermissionError } from '../auth/users';
 
 export type SettingKey = keyof BusinessSettings | 'language' | 'palette' | 'appearance' | 'font' | 'textSize' | 'sounds' | 'notifications' | 'tipsSeen' | 'blockScreenshots' | 'printer' | 'receipt' | 'cashRoundingMinor' | 'requireShift' | 'reminderDays' | 'reminderTemplate';
 /** palette/appearance are personal display settings (src/ui/theme.ts). */
@@ -54,13 +55,17 @@ export async function writeSettings(tx: Pick<AppDb, 'insert'>, values: Partial<A
   }
 }
 
+/** Security settings that protect the whole shop: only someone with settings.manage may change them. */
+const MANAGED_KEYS: ReadonlySet<SettingKey> = new Set<SettingKey>(['autoLockMinutes', 'blockScreenshots']);
+
 /** Change one setting with an audit entry. Language and lock time are personal → allowed even read-only. */
 export async function changeSetting<K extends SettingKey>(
   db: AppDb,
   key: K,
   value: AppSettings[K],
-  ctx: { userId: string; deviceId: string },
+  ctx: { userId: string; deviceId: string; permissions?: readonly Permission[] },
 ): Promise<void> {
+  if (MANAGED_KEYS.has(key) && !(ctx.permissions && roleHas(ctx.permissions, 'settings.manage'))) throw new PermissionError('settings.manage');
   const personal = key === 'language' || key === 'autoLockMinutes' || key === 'palette' || key === 'appearance' || key === 'font' || key === 'textSize' || key === 'sounds' || key === 'notifications' || key === 'tipsSeen' || key === 'printer';
   if (!personal) assertCanWrite();
   const now = Date.now();

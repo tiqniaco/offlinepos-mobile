@@ -25,12 +25,15 @@ export default function ImportProducts() {
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [report, setReport] = useState<ImportReport | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
 
   const headers = (sheet?.rows[0] ?? []).map((h, i) => (h == null || String(h).trim() === '' ? `#${i + 1}` : String(h)));
   const validation = useMemo(() => (sheet ? validateImportRows(sheet.rows.slice(1), mapping) : null), [sheet, mapping]);
 
   const pick = async () => {
+    if (picking) return;
     setErr(null);
+    setPicking(true);
     try {
       const s = await pickSpreadsheet();
       if (!s) return;
@@ -41,6 +44,8 @@ export default function ImportProducts() {
     } catch (e) {
       setErr(t('importer.readError'));
       console.warn(e);
+    } finally {
+      setPicking(false);
     }
   };
 
@@ -65,7 +70,7 @@ export default function ImportProducts() {
       title={t('importer.title')}
       footer={
         step === 'pick' ? (
-          <Button icon="upload" title={t('importer.pick')} onPress={pick} />
+          <Button icon="upload" title={picking ? t('common.loading') : t('importer.pick')} loading={picking} onPress={pick} />
         ) : step === 'map' ? (
           <Button title={t('common.next')} disabled={REQUIRED.some((f) => mapping[f] == null)} onPress={() => setStep('preview')} />
         ) : step === 'preview' ? (

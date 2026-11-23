@@ -76,7 +76,7 @@ export function statementDoc(s: Statement, b: BizHeader, detailed: boolean): Rep
       { label: `${t('report.total')} ${creditLabel}`, value: m(s.totalCreditMinor) },
       { label: t('report.closing'), value: closing, strong: true },
     ],
-    fileName: `statement-${s.party.name.replace(/\s+/g, '-')}-${stamp()}`,
+    fileName: `statement-${s.party.name.replace(/\s+/g, '-').replace(/[\/\\:*?"<>|]/g, '-')}-${stamp()}`,
     whatsappText: [
       `*${b.businessName}*`,
       `${title} — ${s.party.name}`,

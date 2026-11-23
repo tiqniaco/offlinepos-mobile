@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_PLANS } from '@daftarak/shared';
 import { createTestDb } from '../../test/testDb';
+import { setLicenceState } from '../licence/guard';
 import { withTx } from '../../db/tx';
-import { insertUser, listActiveUsers, seedSystemRoles, syncOwnerPassword, unlockWithPin, PinError } from './users';
+import { insertUser, listActiveUsers, seedSystemRoles, syncOwnerPassword, unlockWithPin, updateUser, PinError } from './users';
 
 async function setup() {
   const db = createTestDb();
@@ -47,5 +49,17 @@ describe('owner unlocks with the account password, staff with a PIN', () => {
     await syncOwnerPassword(db, 'Shop2026ok', 'd');
     expect((await listActiveUsers(db))[0]!.secretKind).toBe('password');
     expect((await unlockWithPin(db, owner, 'Shop2026ok')).id).toBe(owner);
+  });
+
+  it('a PIN cannot be set on a password user (owner); staff PINs still change', async () => {
+    const pro = DEFAULT_PLANS.find((p) => p.code === 'pro')!;
+    setLicenceState({ mode: 'full', reason: 'ok', plan: 'pro', limits: pro.limits, features: pro.features, canWrite: true, showAds: false, trialDaysLeft: null, graceDaysLeft: null });
+    const { db, owner, cashier } = await setup();
+    const actor = await unlockWithPin(db, owner, 'Shop2026ok');
+    const device = { id: 'd', code: 'A' };
+    await expect(updateUser(db, actor, owner, { pin: '2468' }, device)).rejects.toThrow('password_user');
+    expect((await unlockWithPin(db, owner, 'Shop2026ok')).id).toBe(owner);
+    await updateUser(db, actor, cashier, { pin: '1357' }, device);
+    expect((await unlockWithPin(db, cashier, '1357')).id).toBe(cashier);
   });
 });

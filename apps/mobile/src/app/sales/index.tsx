@@ -13,6 +13,7 @@ import { useApp } from '../../state/app';
 import { money, dateTimeLabel } from '../../lib/format';
 
 type Row = Awaited<ReturnType<typeof listSales>>[number];
+const PAGE = 40;
 
 export default function SalesList() {
   const { t, i18n } = useTranslation();
@@ -20,25 +21,47 @@ export default function SalesList() {
   const tz = useApp((s) => s.settings.timezone ?? 'Africa/Cairo');
   const [rows, setRows] = useState<Row[]>([]);
   const [q, setQ] = useState('');
+  /** Debounced search text: the only thing queries depend on. */
+  const [dq, setDq] = useState('');
   const [today, setToday] = useState<Awaited<ReturnType<typeof todaySummary>> | null>(null);
   const done = useRef(false);
-  const load = useCallback(async () => {
-    const r = await listSales(getDb(), { search: q, limit: 40 });
-    done.current = r.length < 40;
-    setRows(r);
-    setToday(await todaySummary(getDb(), businessDay(Date.now(), tz)));
-  }, [q, tz]);
+  const loadingMore = useRef(false);
+  /** Bumped on every fresh load, so answers to older queries (or pages of them) are dropped. */
+  const reqId = useRef(0);
   useEffect(() => {
-    const h = setTimeout(() => void load(), 200);
+    const h = setTimeout(() => setDq(q), 200);
     return () => clearTimeout(h);
-  }, [load]);
+  }, [q]);
+  const load = useCallback(async () => {
+    const my = ++reqId.current;
+    try {
+      const r = await listSales(getDb(), { search: dq, limit: PAGE });
+      if (my !== reqId.current) return;
+      done.current = r.length < PAGE;
+      setRows(r);
+      const s = await todaySummary(getDb(), businessDay(Date.now(), tz));
+      if (my === reqId.current) setToday(s);
+    } catch {
+      // keep what is on screen
+    }
+  }, [dq, tz]);
+  // One effect: runs on focus and again whenever the debounced query changes while focused.
   useFocusEffect(useCallback(() => void load(), [load]));
   const more = async () => {
-    if (done.current || !rows.length) return;
+    if (done.current || loadingMore.current || !rows.length) return;
     const last = rows[rows.length - 1]!;
-    const r = await listSales(getDb(), { search: q, before: { postedAt: last.postedAt!, id: last.id } });
-    done.current = r.length < 40;
-    setRows((x) => [...x, ...r]);
+    const my = reqId.current;
+    loadingMore.current = true;
+    try {
+      const r = await listSales(getDb(), { search: dq, before: { postedAt: last.postedAt!, id: last.id }, limit: PAGE });
+      if (my !== reqId.current) return;
+      done.current = r.length < PAGE;
+      setRows((x) => [...x, ...r]);
+    } catch {
+      // try again on the next scroll
+    } finally {
+      loadingMore.current = false;
+    }
   };
   return (
     <Screen back title={t('more.invoices')} scroll={false}>

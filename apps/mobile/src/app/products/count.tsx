@@ -26,8 +26,18 @@ export default function StockCount() {
   const [edit, setEdit] = useState<CountLine | null>(null);
   const [editQty, setEditQty] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const reload = useCallback(async (id: string) => setLines(await countLines(getDb(), id)), []);
+  const reload = useCallback(
+    async (id: string) => {
+      try {
+        setLines(await countLines(getDb(), id));
+      } catch (e) {
+        toast(invErrorMessage(t, e), 'error');
+      }
+    },
+    [t],
+  );
   useEffect(() => {
     if (!ctx) return;
     void openCount(ctx).then((id) => {
@@ -38,7 +48,7 @@ export default function StockCount() {
 
   const handleCode = useCallback(
     async (raw: string): Promise<string | null> => {
-      if (!ctx || !docId) return null;
+      if (!ctx || !docId) return t('common.loading');
       const hit = await findByBarcode(getDb(), raw);
       if (!hit) {
         fx.notFound();
@@ -53,6 +63,42 @@ export default function StockCount() {
     },
     [ctx, docId, t],
   );
+
+  const discard = () =>
+    Alert.alert(t('count.discard'), t('count.confirmDiscard'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('count.discard'),
+        style: 'destructive',
+        onPress: async () => {
+          if (!ctx || !docId) return;
+          setBusy(true);
+          try {
+            await discardCount(ctx, docId);
+            router.back();
+          } catch (e) {
+            toast(invErrorMessage(t, e), 'error');
+          } finally {
+            setBusy(false);
+          }
+        },
+      },
+    ]);
+
+  const saveEdit = async (remove: boolean) => {
+    if (!ctx || !docId || !edit || saving) return;
+    setSaving(true);
+    try {
+      if (remove) await removeCountItem(ctx, docId, edit.productId);
+      else await countItem(ctx, docId, edit.productId, editQty ?? 0, 'set');
+      setEdit(null);
+      void reload(docId);
+    } catch (e) {
+      toast(invErrorMessage(t, e), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const post = () =>
     Alert.alert(t('count.post'), t('count.confirmPost', { n: lines.length }), [
@@ -80,7 +126,7 @@ export default function StockCount() {
       back
       title={t('count.title')}
       subtitle={lines.length ? t('count.items', { n: lines.length }) : undefined}
-      right={docId && lines.length ? <Button compact kind="ghost" title={t('count.discard')} onPress={() => ctx && void discardCount(ctx, docId).then(() => router.back())} /> : undefined}
+      right={docId && lines.length ? <Button compact kind="ghost" title={t('count.discard')} disabled={busy} onPress={discard} /> : undefined}
       footer={<Button testID="count-post" title={t('count.post')} loading={busy} disabled={!lines.length} onPress={post} />}
     >
       <Card>
@@ -89,6 +135,7 @@ export default function StockCount() {
           <Button
             icon="scan"
             title={t('count.scan')}
+            disabled={!docId}
             onPress={() => {
               useScanner.getState().set({ continuous: true, onCode: handleCode });
               router.push('/scan');
@@ -101,13 +148,19 @@ export default function StockCount() {
           maxFontSizeMultiplier={1.15}
               testID="count-input"
               value={code}
+              editable={!!docId}
               onChangeText={(v) => setCode(normalizeDigits(v))}
               onSubmitEditing={async () => {
                 const c = normalizeBarcode(code);
                 setCode('');
                 if (!c) return;
-                const msg = await handleCode(c);
-                if (msg) toast(msg, msg === t('count.notFound') ? 'error' : 'success');
+                try {
+                  const msg = await handleCode(c);
+                  if (msg) toast(msg, msg === t('count.notFound') ? 'error' : 'success');
+                } catch (e) {
+                  fx.notFound();
+                  toast(invErrorMessage(t, e), 'error');
+                }
               }}
               blurOnSubmit={false}
               placeholder={t('productForm.barcodePh')}
@@ -144,16 +197,8 @@ export default function StockCount() {
         title={edit?.name}
         footer={
           <>
-            <Button
-              title={t('common.save')}
-              onPress={async () => {
-                if (!ctx || !docId || !edit) return;
-                await countItem(ctx, docId, edit.productId, editQty ?? 0, 'set');
-                setEdit(null);
-                void reload(docId);
-              }}
-            />
-            <Button kind="danger" icon="trash" title={t('common.cancel')} onPress={async () => { if (ctx && docId && edit) { await removeCountItem(ctx, docId, edit.productId); setEdit(null); void reload(docId); } }} />
+            <Button title={t('common.save')} loading={saving} onPress={() => void saveEdit(false)} />
+            <Button kind="danger" icon="trash" title={t('count.removeItem')} disabled={saving} onPress={() => void saveEdit(true)} />
           </>
         }
       >

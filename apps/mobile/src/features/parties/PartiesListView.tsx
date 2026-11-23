@@ -1,5 +1,5 @@
 /** Customers / suppliers list (pure view; container: app/(main)/parties.tsx). */
-import { View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { Pressable } from '../../ui/Press';
 import { FlashList } from '@shopify/flash-list';
 import { useTranslation } from 'react-i18next';
@@ -37,6 +37,7 @@ export function PartiesListView({
   onAdd,
   onRemind,
   tip,
+  loading = false,
 }: {
   topInset: number;
   type: 'C' | 'S';
@@ -55,6 +56,8 @@ export function PartiesListView({
   onAdd: () => void;
   onRemind?: (id: string) => void;
   tip?: React.ReactNode;
+  /** First load still running: no empty state yet. */
+  loading?: boolean;
 }) {
   const { t } = useTranslation();
   const filters: { key: PartyFilter; label: string }[] =
@@ -93,7 +96,11 @@ export function PartiesListView({
         </View>
       </View>
       <View style={{ flex: 1, marginTop: 10 }}>
-        {rows.length === 0 ? (
+        {rows.length === 0 && loading ? (
+          <ActivityIndicator color={colors.primary[600]} style={{ marginTop: 24 }} />
+        ) : rows.length === 0 && (search.trim() || filter !== 'all') ? (
+          <EmptyState icon="search" hue="sky" title={t('parties.noResults')} />
+        ) : rows.length === 0 ? (
           <EmptyState icon="users" title={t(type === 'C' ? 'parties.emptyC' : 'parties.emptyS')} body={t('parties.emptyBody')} />
         ) : (
           <FlashList

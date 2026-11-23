@@ -32,8 +32,9 @@ export function presetRange(k: RangeKey, today: number): [number, number] {
 }
 
 const toText = (d: number) => `${Math.floor(d / 10000)}-${String(Math.floor(d / 100) % 100).padStart(2, '0')}-${String(d % 100).padStart(2, '0')}`;
-const fromText = (s: string): number | null => {
-  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s.trim());
+/** "2026-12-01" or "2026/12/01" → 20261201; null when it isn't a valid date. */
+export const parseDayText = (s: string): number | null => {
+  const m = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/.exec(s.trim());
   if (!m) return null;
   const v = Number(m[1]) * 10000 + Number(m[2]) * 100 + Number(m[3]);
   return Number(m[2]) >= 1 && Number(m[2]) <= 12 && Number(m[3]) >= 1 && Number(m[3]) <= 31 ? v : null;
@@ -65,10 +66,10 @@ export function DateRangeBar({ value, today, onChange, presets = ['month', 'last
       {value.key === 'custom' ? (
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <View style={{ flex: 1 }}>
-            <TextField label={t('range.from')} value={from} ltr placeholder="2026-01-01" keyboardType="numbers-and-punctuation" onChangeText={(s) => { setFrom(s); const v = fromText(s); if (v) onChange({ key: 'custom', from: v, to: value.to }); }} />
+            <TextField label={t('range.from')} value={from} ltr placeholder="2026-01-01" keyboardType="numbers-and-punctuation" onChangeText={(s) => { setFrom(s); const v = parseDayText(s); if (v) onChange({ key: 'custom', from: v, to: value.to }); }} />
           </View>
           <View style={{ flex: 1 }}>
-            <TextField label={t('range.to')} value={to} ltr placeholder="2026-12-31" keyboardType="numbers-and-punctuation" onChangeText={(s) => { setTo(s); const v = fromText(s); if (v) onChange({ key: 'custom', from: value.from, to: v }); }} />
+            <TextField label={t('range.to')} value={to} ltr placeholder="2026-12-31" keyboardType="numbers-and-punctuation" onChangeText={(s) => { setTo(s); const v = parseDayText(s); if (v) onChange({ key: 'custom', from: value.from, to: v }); }} />
           </View>
         </View>
       ) : null}

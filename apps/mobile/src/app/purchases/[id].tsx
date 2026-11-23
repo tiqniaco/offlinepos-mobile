@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { businessDay, formatQty, roleHas } from '@daftarak/shared';
-import { Screen, Text, Card, Button, Sheet, TextField, Banner, colors, fonts } from '../../ui';
+import { Screen, Text, Card, Button, Sheet, TextField, Banner, EmptyState, colors, fonts } from '../../ui';
 import { getDb } from '../../db/client';
 import { useApp } from '../../state/app';
 import { getPurchase, voidPurchase, PurchaseError } from '../../domain/purchases/purchases';
@@ -32,19 +32,47 @@ export default function PurchaseDetail() {
   const [voidOpen, setVoidOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [err, setErr] = useState<string | null>(null);
+  const [voiding, setVoiding] = useState(false);
+  const [missing, setMissing] = useState(false);
   const fmt = (v: number) => money(v, currency, i18n.language);
 
   const load = useCallback(async () => {
-    const db = getDb();
-    const x = await getPurchase(db, id);
-    setP(x);
-    if (x?.doc.supplierId) setMobile((await getParty(db, 'S', x.doc.supplierId))?.mobile ?? null);
-    if (x && x.doc.type === 'PURCHASE' && x.doc.status === 'POSTED' && roleHas(user.permissions, 'doc.void') && !x.returns.some((r) => r.status === 'POSTED')) {
-      setCanVoid(x.doc.shiftId ? (await getShift(db, x.doc.shiftId))?.status === 'OPEN' : x.doc.businessDay === businessDay(Date.now(), tz));
-    } else setCanVoid(false);
-  }, [id, tz, user.permissions]);
+    try {
+      const db = getDb();
+      const x = await getPurchase(db, id);
+      setP(x);
+      setMissing(!x);
+      if (x?.doc.supplierId) setMobile((await getParty(db, 'S', x.doc.supplierId))?.mobile ?? null);
+      if (x && x.doc.type === 'PURCHASE' && x.doc.status === 'POSTED' && roleHas(user.permissions, 'doc.void') && !x.returns.some((r) => r.status === 'POSTED')) {
+        setCanVoid(x.doc.shiftId ? (await getShift(db, x.doc.shiftId))?.status === 'OPEN' : x.doc.businessDay === businessDay(Date.now(), tz));
+      } else setCanVoid(false);
+    } catch (e) {
+      toast(errorMessage(t, e), 'error');
+      setMissing(true); // only shown while nothing has loaded
+    }
+  }, [id, tz, user.permissions, t]);
   useFocusEffect(useCallback(() => void load(), [load]));
-  if (!p) return <Screen back>{null}</Screen>;
+  const doVoid = async () => {
+    if (!ctx || voiding) return;
+    setErr(null);
+    setVoiding(true);
+    try {
+      await voidPurchase(ctx, id, reason);
+      setVoidOpen(false);
+      toast(t('voucher.voided'));
+      void load();
+    } catch (e) {
+      setErr(e instanceof PurchaseError ? t(`purchase.errors.${e.code}`) : errorMessage(t, e));
+    } finally {
+      setVoiding(false);
+    }
+  };
+  if (!p)
+    return (
+      <Screen back>
+        {missing ? <EmptyState icon="cart" title={t('purchase.errors.not_found')} /> : null}
+      </Screen>
+    );
   const d = p.doc;
 
   return (
@@ -81,10 +109,10 @@ export default function PurchaseDetail() {
       </Card>
       <ExportBar build={async () => purchaseDoc(p, await bizHeader())} mobile={mobile} kinds={['whatsapp', 'pdf', 'print']} />
       {d.type === 'PURCHASE' && d.status === 'POSTED' && roleHas(user.permissions, 'purchases.manage') ? <Button kind="secondary" icon="refresh" title={t('purchase.return')} onPress={() => router.push({ pathname: '/purchases/return', params: { id } })} /> : null}
-      {d.supplierId && d.creditMinor > 0 ? <Button kind="secondary" icon="arrowOut" title={t('parties.pay')} onPress={() => router.push({ pathname: '/vouchers/new', params: { type: 'PAYMENT', partyId: d.supplierId! } })} /> : null}
-      {canVoid ? <Button kind="danger" icon="trash" title={t('invoice.void')} onPress={() => setVoidOpen(true)} /> : null}
+      {d.supplierId && d.creditMinor > 0 && roleHas(user.permissions, 'purchases.manage') ? <Button kind="secondary" icon="arrowOut" title={t('parties.pay')} onPress={() => router.push({ pathname: '/vouchers/new', params: { type: 'PAYMENT', partyId: d.supplierId! } })} /> : null}
+      {canVoid ? <Button kind="danger" icon="trash" title={t('invoice.void')} onPress={() => { setReason(''); setErr(null); setVoidOpen(true); }} /> : null}
       {p.returns.length ? <Text variant="caption">{t('purchase.hasReturns', { n: p.returns.length })}</Text> : null}
-      <Sheet visible={voidOpen} onClose={() => setVoidOpen(false)} title={t('invoice.void')} footer={<Button kind="danger" title={t('voucher.voidConfirm')} disabled={!reason.trim()} onPress={async () => { if (!ctx) return; try { await voidPurchase(ctx, id, reason); setVoidOpen(false); toast(t('voucher.voided')); void load(); } catch (e) { setErr(e instanceof PurchaseError ? t(`purchase.errors.${e.code}`) : errorMessage(t, e)); } }} />}>
+      <Sheet visible={voidOpen} onClose={() => setVoidOpen(false)} title={t('invoice.void')} footer={<Button kind="danger" title={t('voucher.voidConfirm')} disabled={!reason.trim()} loading={voiding} onPress={() => void doVoid()} />}>
         <TextField label={t('invoice.voidReason')} value={reason} onChangeText={setReason} latinDigits={false} autoFocus />
         {err ? <Banner tone="danger" text={err} /> : null}
       </Sheet>

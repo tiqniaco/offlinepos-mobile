@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Alert, View } from 'react-native';
+import { ActivityIndicator, Alert, View } from 'react-native';
 import { Pressable } from '../../ui/Press';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -9,7 +9,7 @@ import { Screen, Text, Icon, Card, SectionTitle, EmptyState, colors, fonts, shad
 import { getDb } from '../../db/client';
 import { useApp } from '../../state/app';
 import { deleteParty, getParty, owed, PartyError } from '../../domain/parties/parties';
-import { customersDue, partyStatement, type StatementRow } from '../../domain/parties/statement';
+import { partyDue, partyStatement, type StatementRow } from '../../domain/parties/statement';
 import { ActionTiles, type Tile } from '../../features/common/ActionTiles';
 import { balanceLabel, reminderText } from '../../features/parties/format';
 import { callPhone, openWhatsApp } from '../../features/export/whatsapp';
@@ -34,7 +34,9 @@ export default function PartyDetail() {
   const business = useApp((s) => s.business);
   const tz = useApp((s) => s.settings.timezone ?? 'Africa/Cairo');
   const template = useApp((s) => s.settings.reminderTemplate) || t('parties.reminderDefault');
+  const reminderDays = useApp((s) => s.settings.reminderDays ?? 30);
   const [p, setP] = useState<Party | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [recent, setRecent] = useState<StatementRow[]>([]);
   const [late, setLate] = useState<number | null>(null);
   const can = (perm: Parameters<typeof roleHas>[1]) => roleHas(user.permissions, perm);
@@ -43,13 +45,30 @@ export default function PartyDetail() {
     useCallback(() => {
       const db = getDb();
       const today = businessDay(Date.now(), tz);
-      void getParty(db, type, id).then(setP);
-      void partyStatement(db, type, id, addDays(today, -90), today).then((s) => setRecent(s.rows.slice(-12).reverse()));
-      if (type === 'C') void customersDue(db, today).then((d) => setLate(d.find((x) => x.id === id)?.days ?? null));
-    }, [id, type, tz]),
+      void getParty(db, type, id)
+        .then(setP)
+        .catch(() => setP(null))
+        .finally(() => setLoaded(true));
+      void partyStatement(db, type, id, addDays(today, -90), today)
+        .then((s) => setRecent(s.rows.slice(-12).reverse()))
+        .catch(() => undefined);
+      // Secondary info after the transition: one query for this customer only.
+      const h = setTimeout(() => {
+        if (type === 'C')
+          void partyDue(db, id, today)
+            .then((d) => setLate(d && d.days >= reminderDays ? d.days : null))
+            .catch(() => undefined);
+      }, 220);
+      return () => clearTimeout(h);
+    }, [id, type, tz, reminderDays]),
   );
 
-  if (!p) return <Screen back>{null}</Screen>;
+  if (!p)
+    return (
+      <Screen back>
+        {loaded ? <EmptyState icon="users" hue="sky" title={t('common.notFound')} /> : <ActivityIndicator color={colors.primary[600]} style={{ marginTop: 32 }} />}
+      </Screen>
+    );
   const o = owed(type, p.balanceMinor);
   const b = balanceLabel(type, o, currency, i18n.language);
   const cur = currency === 'SAR' ? 'ر.س' : 'ج.م';
@@ -61,6 +80,8 @@ export default function PartyDetail() {
     ...(type === 'C' && can('sales.create')
       ? [{ key: 'sell', icon: 'scan' as const, hue: 'primary' as const, label: t('parties.sell'), onPress: () => { useCart.getState().setCustomer(p.id, p.name, p.priceTier ?? 'retail'); router.push('/(main)/sell'); } }]
       : []),
+    ...(type === 'C' && can('parties.manage') ? [{ key: 'crefund', icon: 'arrowOut' as const, hue: 'amber' as const, label: t('voucher.title.CUSTOMER_REFUND'), onPress: () => router.push({ pathname: '/vouchers/new', params: { type: 'CUSTOMER_REFUND', partyId: id } }) }] : []),
+    ...(type === 'S' && can('purchases.manage') ? [{ key: 'srefund', icon: 'arrowIn' as const, hue: 'leaf' as const, label: t('voucher.title.SUPPLIER_REFUND'), onPress: () => router.push({ pathname: '/vouchers/new', params: { type: 'SUPPLIER_REFUND', partyId: id } }) }] : []),
     ...(type === 'S' && can('purchases.manage') ? [{ key: 'buy', icon: 'cart' as const, hue: 'primary' as const, label: t('parties.buy'), onPress: () => router.push({ pathname: '/purchases/new', params: { supplierId: id } }) }] : []),
     { key: 'statement', icon: 'receipt', hue: 'sky', label: t('parties.statement'), onPress: () => router.push({ pathname: '/parties/statement', params: { id, type } }) },
     ...(p.mobile ? [{ key: 'wa', icon: 'whatsapp' as const, hue: 'leaf' as const, label: t('share.whatsapp'), onPress: () => void openWhatsApp(p.mobile, '') }] : []),
@@ -110,12 +131,12 @@ export default function PartyDetail() {
           <Text style={{ color: 'rgba(255,255,255,0.8)', fontFamily: fonts.medium, fontSize: 13, lineHeight: 20 }}>
             {[p.mobile ? `+${p.mobile}` : null, p.address].filter(Boolean).join('  ·  ') || t(type === 'C' ? 'parties.customer' : 'parties.supplier')}
           </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 10 }}>
-            <View>
-              <Text style={{ color: 'rgba(255,255,255,0.8)', fontFamily: fonts.medium, fontSize: 13, lineHeight: 18 }}>{o ? b.tag : t('parties.settled')}</Text>
-              <Text style={{ color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 30, lineHeight: 40 }}>{money(Math.abs(o), currency, i18n.language)}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, marginTop: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: 'rgba(255,255,255,0.8)', fontFamily: fonts.medium, fontSize: 13, lineHeight: 22 }}>{o ? b.tag : t('parties.settled')}</Text>
+              <Text numberOfLines={1} adjustsFontSizeToFit style={{ color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 30, lineHeight: 49 }}>{money(Math.abs(o), currency, i18n.language)}</Text>
             </View>
-            {type === 'C' && p.creditLimitMinor ? <Text style={{ color: 'rgba(255,255,255,0.85)', fontFamily: fonts.medium, fontSize: 12.5, lineHeight: 18 }}>{t('parties.limitIs', { amount: money(p.creditLimitMinor, currency, i18n.language) })}</Text> : null}
+            {type === 'C' && p.creditLimitMinor ? <Text numberOfLines={2} style={{ flexShrink: 1, color: 'rgba(255,255,255,0.85)', fontFamily: fonts.medium, fontSize: 12.5, lineHeight: 21 }}>{t('parties.limitIs', { amount: money(p.creditLimitMinor, currency, i18n.language) })}</Text> : null}
           </View>
         </LinearGradient>
       </View>

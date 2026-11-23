@@ -1,9 +1,9 @@
 import { useCallback, useState } from 'react';
-import { View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { businessDay, roleHas } from '@daftarak/shared';
-import { Screen, Text, Card, Button, Sheet, TextField, Banner, IconBadge, colors, fonts } from '../../ui';
+import { Screen, Text, Card, Button, Sheet, TextField, Banner, IconBadge, EmptyState, colors, fonts } from '../../ui';
 import { getDb } from '../../db/client';
 import { useApp } from '../../state/app';
 import { getVoucher, voidVoucher, VoucherError } from '../../domain/vouchers/vouchers';
@@ -33,6 +33,8 @@ export default function VoucherDetail() {
   const [voidOpen, setVoidOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   const load = useCallback(async () => {
     const db = getDb();
@@ -48,18 +50,39 @@ export default function VoucherDetail() {
       else setCanVoid(x.businessDay === businessDay(Date.now(), tz));
     } else setCanVoid(false);
   }, [id, tz, user.permissions]);
-  useFocusEffect(useCallback(() => void load(), [load]));
-  if (!v) return <Screen back>{null}</Screen>;
+  useFocusEffect(
+    useCallback(() => {
+      void load()
+        .catch(() => setV(null))
+        .finally(() => setLoaded(true));
+    }, [load]),
+  );
+  if (!v)
+    return (
+      <Screen back>
+        {loaded ? <EmptyState icon="receipt" hue="sky" title={t('common.notFound')} /> : <ActivityIndicator color={colors.primary[600]} style={{ marginTop: 32 }} />}
+      </Screen>
+    );
 
+  const openVoid = () => {
+    setErr(null);
+    setReason('');
+    setVoidOpen(true);
+  };
   const doVoid = async () => {
-    if (!ctx) return;
+    if (!ctx || busy) return;
+    setErr(null);
+    setBusy(true);
     try {
       await voidVoucher(ctx, id, reason);
       setVoidOpen(false);
+      setReason('');
       toast(t('voucher.voided'));
-      void load();
+      void load().catch(() => undefined);
     } catch (e) {
       setErr(e instanceof VoucherError ? t(`voucher.errors.${e.code}`) : errorMessage(t, e));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -84,8 +107,8 @@ export default function VoucherDetail() {
         {v.status === 'VOIDED' ? <Text style={{ color: colors.rose[700], fontFamily: fonts.semibold, fontSize: 13, lineHeight: 19, marginTop: 6 }}>{t('voucher.voidedBecause', { reason: v.voidReason })}</Text> : null}
       </Card>
       <ExportBar build={async () => voucherDoc(v, await bizHeader(), balance)} mobile={mobile} kinds={['whatsapp', 'print', 'pdf']} />
-      {canVoid ? <Button kind="danger" icon="trash" title={t('voucher.void')} onPress={() => setVoidOpen(true)} /> : null}
-      <Sheet visible={voidOpen} onClose={() => setVoidOpen(false)} title={t('voucher.void')} footer={<Button kind="danger" title={t('voucher.voidConfirm')} disabled={!reason.trim()} onPress={() => void doVoid()} />}>
+      {canVoid ? <Button kind="danger" icon="trash" title={t('voucher.void')} onPress={openVoid} /> : null}
+      <Sheet visible={voidOpen} onClose={() => setVoidOpen(false)} title={t('voucher.void')} footer={<Button kind="danger" title={t('voucher.voidConfirm')} loading={busy} disabled={!reason.trim() || busy} onPress={() => void doVoid()} />}>
         <TextField label={t('invoice.voidReason')} value={reason} onChangeText={setReason} latinDigits={false} autoFocus />
         {err ? <Banner tone="danger" text={err} /> : null}
       </Sheet>

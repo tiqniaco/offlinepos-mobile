@@ -1,4 +1,5 @@
-import { View } from 'react-native';
+import { ScrollView, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Pressable } from '../../ui/Press';
 import { fonts } from '../../ui/fonts';
 import { useTranslation } from 'react-i18next';
@@ -77,7 +78,7 @@ export function LockView({
       </Hero>
 
       {!selected ? (
-        <View className="flex-row flex-wrap justify-center gap-4 px-5 pt-4">
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 16, paddingHorizontal: 20, paddingBottom: 24, paddingTop: 16 }}>
           {users.map((u) => (
             <Pressable
               key={u.id}
@@ -92,9 +93,15 @@ export function LockView({
               </View>
             </Pressable>
           ))}
-        </View>
+        </ScrollView>
       ) : (
-        <View className="flex-1 items-center justify-between px-6 pb-6 pt-4">
+        <KeyboardAwareScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingBottom: 24, paddingTop: 16 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bottomOffset={16}
+        >
           {isPassword ? (
             <View className="w-full max-w-[340px] gap-3">
               <PasswordField testID="lock-password" label={t('login.password')} value={pin} onChangeText={onPin} onSubmitEditing={onSubmit} autoFocus={!(selected.biometricEnabled && bioAvailable)} />
@@ -114,7 +121,7 @@ export function LockView({
               <Button testID="pin-ok" compact title={isPassword ? t('lock.open') : t('common.done')} loading={busy} disabled={pin.length < (isPassword ? 1 : 4)} onPress={onSubmit} />
             </View>
           </View>
-        </View>
+        </KeyboardAwareScrollView>
       )}
     </View>
   );

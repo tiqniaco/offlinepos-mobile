@@ -4,7 +4,7 @@
  * (licence payload `ads_enabled`), so turning ads off never needs an app update.
  */
 import { create } from 'zustand';
-import { bannerAllowed, interstitialAllowed, type AdState } from './policy';
+import { bannerAllowed, interstitialAllowed, isAdPlace, type AdState } from './policy';
 import { backend } from './backend';
 
 export const useAds = create<AdState & { ready: boolean }>(() => ({ showAds: false, online: false, startedAt: Date.now(), lastInterstitialAt: -Infinity, ready: false }));
@@ -29,4 +29,11 @@ export function maybeShowInterstitial() {
   if (!s.ready || !interstitialAllowed(s, now)) return;
   useAds.setState({ lastInterstitialAt: now });
   void backend.showInterstitial().catch(() => undefined);
+}
+
+/** The ad slot is shown (real ad or our own "upgrade" card) on plans with ads, in allowed places — even offline. */
+export function useAdSlot(place: string): { slot: boolean; live: boolean } {
+  const slot = useAds((s) => s.showAds && isAdPlace(place));
+  const live = useBannerAllowed(place);
+  return { slot, live };
 }

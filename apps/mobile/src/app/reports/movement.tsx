@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { businessDay, formatQty } from '@daftarak/shared';
-import { Screen } from '../../ui';
+import { Screen, Banner, Text } from '../../ui';
+import { errorMessage } from '../../lib/errors';
 import { getDb } from '../../db/client';
 import { useApp } from '../../state/app';
 import { stockMovementFor } from '../../domain/reports/reports';
@@ -24,40 +25,57 @@ export default function MovementReport() {
     return { key: 'month', from, to };
   });
   const [doc, setDoc] = useState<ReportDoc | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
+    let live = true;
+    setLoading(true);
+    setErr(null);
     void (async () => {
-      const db = getDb();
-      const p = await getProduct(db, id);
-      const mv = await stockMovementFor(db, id, range);
-      setDoc({
-        title: t('product.allMovements'),
-        date: Date.now(),
-        ...(await bizHeader()),
-        vatNumber: null,
-        partyLine: p?.product.name ?? '',
-        period: t('report.period', { from: dayText(range.from), to: dayText(range.to) }),
-        summary: [
-          { label: t('report.opening'), value: formatQty(mv.openingMilli) },
-          { label: t('report.closing'), value: formatQty(mv.closingMilli), strong: true },
-        ],
-        columns: [
-          { key: 'desc', label: t('report.desc') },
-          { key: 'qty', label: t('reports.col.qty'), num: true },
-          { key: 'bal', label: t('report.balance'), num: true },
-        ],
-        rows: mv.rows.map((r) => {
-          const desc = `${dayText(r.day)} · ${t(`movement.${r.type}`, { defaultValue: r.type })}${r.num ? ` ${r.num}` : ''}`;
-          return { cells: { desc, qty: `${r.qty > 0 ? '+' : ''}${formatQty(r.qty)}`, bal: formatQty(r.balanceMilli) }, values: { desc, qty: r.qty / 1000, bal: r.balanceMilli / 1000 } };
-        }),
-        totals: [],
-        fileName: `movement-${p?.product.name ?? id}`,
-      });
+      try {
+        const db = getDb();
+        const p = await getProduct(db, id);
+        const mv = await stockMovementFor(db, id, range);
+        if (!live) return;
+        setDoc({
+          title: t('product.allMovements'),
+          date: Date.now(),
+          ...(await bizHeader()),
+          vatNumber: null,
+          partyLine: p?.product.name ?? '',
+          period: t('report.period', { from: dayText(range.from), to: dayText(range.to) }),
+          summary: [
+            { label: t('report.opening'), value: formatQty(mv.openingMilli) },
+            { label: t('report.closing'), value: formatQty(mv.closingMilli), strong: true },
+          ],
+          columns: [
+            { key: 'desc', label: t('report.desc') },
+            { key: 'qty', label: t('reports.col.qty'), num: true },
+            { key: 'bal', label: t('report.balance'), num: true },
+          ],
+          rows: mv.rows.map((r) => {
+            const desc = `${dayText(r.day)} · ${t(`movement.${r.type}`, { defaultValue: r.type })}${r.num ? ` ${r.num}` : ''}`;
+            return { cells: { desc, qty: `${r.qty > 0 ? '+' : ''}${formatQty(r.qty)}`, bal: formatQty(r.balanceMilli) }, values: { desc, qty: r.qty / 1000, bal: r.balanceMilli / 1000 } };
+          }),
+          totals: [],
+          fileName: `movement-${p?.product.name ?? id}`,
+        });
+      } catch (e) {
+        if (live) setErr(errorMessage(t, e));
+      } finally {
+        if (live) setLoading(false);
+      }
     })();
+    return () => {
+      live = false;
+    };
   }, [id, range.from, range.to, t]);
   const build = useMemo(() => () => doc!, [doc]);
   return (
     <Screen back title={t('product.allMovements')} subtitle={doc?.partyLine ?? undefined}>
       <DateRangeBar value={range} today={today} onChange={setRange} />
+      {err ? <Banner tone="danger" text={err} /> : null}
+      {loading && !doc ? <Text variant="caption" style={{ textAlign: 'center' }}>{t('common.loading')}</Text> : null}
       {doc ? (
         <>
           <ExportBar build={build} kinds={['pdf', 'excel', 'print']} />

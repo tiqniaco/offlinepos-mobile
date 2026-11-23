@@ -5,7 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { Screen, TextField, MoneyField, Button, Chip, Banner, Text, Card, colors } from '../../ui';
 import { getDb } from '../../db/client';
 import { getParty, saveParty, PartyError } from '../../domain/parties/parties';
-import { postVoucher } from '../../domain/vouchers/vouchers';
+import { createPartyWithOpening, VoucherError } from '../../domain/vouchers/vouchers';
+import { useLastParty } from '../../state/lastParty';
 import { useBizCtx } from '../../features/sales/useSalesCtx';
 import { errorMessage } from '../../lib/errors';
 import { toast } from '../../state/toast';
@@ -13,7 +14,7 @@ import { toast } from '../../state/toast';
 /** Minimal form (name, mobile, address) + "more" (SPEC §5). New parties can start with an opening balance. */
 export default function PartyForm() {
   const { t } = useTranslation();
-  const { type: tp, id, name: preName } = useLocalSearchParams<{ type?: string; id?: string; name?: string }>();
+  const { type: tp, id, name: preName, returnTo } = useLocalSearchParams<{ type?: string; id?: string; name?: string; returnTo?: string }>();
   const type: 'C' | 'S' = tp === 'S' ? 'S' : 'C';
   const ctx = useBizCtx();
   const [name, setName] = useState(preName ?? '');
@@ -51,13 +52,18 @@ export default function PartyForm() {
     setErr(null);
     setBusy(true);
     try {
-      const pid = await saveParty(ctx, type, { id, name, mobile, address, email, taxNumber, notes, creditLimitMinor: limit, priceTier: wholesale ? 'wholesale' : 'retail' });
-      if (!id && opening) await postVoucher(ctx, { type: 'OPENING_BALANCE', partyType: type, partyId: pid, amountMinor: opening, method: 'credit', sign: openingSide });
+      const input = { id, name, mobile, address, email, taxNumber, notes, creditLimitMinor: limit, priceTier: wholesale ? ('wholesale' as const) : ('retail' as const) };
+      // New party + opening balance in one transaction: a failure leaves nothing behind, so retrying is safe.
+      const pid = id ? await saveParty(ctx, type, input) : await createPartyWithOpening(ctx, type, input, opening ? { amountMinor: opening, sign: openingSide } : null);
       toast(t('common.saved'));
       if (id) router.back();
-      else router.replace({ pathname: '/parties/[id]', params: { id: pid, type } });
+      else if (returnTo === 'pick') {
+        const p = await getParty(getDb(), type, pid);
+        if (p) useLastParty.getState().put(type, { id: p.id, name: p.name, mobile: p.mobile, address: p.address, priceTier: p.priceTier === 'wholesale' ? 'wholesale' : 'retail', creditLimitMinor: p.creditLimitMinor ?? null, balanceMinor: p.balanceMinor, lastActivityAt: p.lastActivityAt });
+        router.back();
+      } else router.replace({ pathname: '/parties/[id]', params: { id: pid, type } });
     } catch (e) {
-      setErr(e instanceof PartyError ? t(`parties.errors.${e.code}`) : errorMessage(t, e));
+      setErr(e instanceof PartyError ? t(`parties.errors.${e.code}`) : e instanceof VoucherError ? t(`voucher.errors.${e.code}`) : errorMessage(t, e));
     } finally {
       setBusy(false);
     }

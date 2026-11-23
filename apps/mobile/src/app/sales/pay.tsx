@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, View } from 'react-native';
 import { Pressable } from '../../ui/Press';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -46,10 +46,26 @@ export default function Pay() {
   const cart = useCart();
   const draft = cart.draft();
   const oc = useOfferCtx();
-  const priced = useMemo(() => priceDraft(draft, settings, oc), [draft, settings, oc]);
-  const total = priced.totalMinor;
+  // priceCart throws on impossible input (e.g. an amount discount larger than the item) — never crash here.
+  const pricing = useMemo(() => {
+    try {
+      return { priced: priceDraft(draft, settings, oc), err: null as unknown };
+    } catch (e) {
+      return { priced: null, err: e };
+    }
+  }, [draft, settings, oc]);
+  const priced = pricing.priced;
+  const total = priced?.totalMinor ?? 0;
   const [split, setSplit] = useState(false);
   const [rows, setRows] = useState<PaymentInput[]>([{ method: 'cash', amountMinor: total }]);
+  /** The cashier typed an amount / picked a chip — stop following the total. */
+  const touched = useRef(false);
+  const inFlight = useRef(false);
+  // The total can change after mount (offers load, re-focus): keep the single row equal to it.
+  useEffect(() => {
+    if (split || touched.current) return;
+    setRows((rs) => (rs.length === 1 && rs[0]!.amountMinor !== total ? [{ ...rs[0]!, amountMinor: total }] : rs));
+  }, [total, split]);
   const [active, setActive] = useState(0);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -66,13 +82,14 @@ export default function Pay() {
   const chooseMethod = (m: PaymentMethod) => {
     setErr(null);
     if (!split) {
+      touched.current = false;
       setRows([{ method: m, amountMinor: total, label: m === 'wallet' ? (wallets[0] ?? null) : null }]);
       setActive(0);
     } else setRow(active, { method: m, label: m === 'wallet' ? (wallets[0] ?? null) : null });
   };
 
   const finish = async (approvedBy?: SessionUser) => {
-    if (!ctx) return;
+    if (!ctx || !priced || inFlight.current) return;
     setErr(null);
     try {
       settle(total, rows, !!draft.customerId);
@@ -85,9 +102,12 @@ export default function Pay() {
       if (need.priceChanges.length) return setApproval('price');
       if (need.violations.length) return setApproval('discount');
     }
+    inFlight.current = true;
     setBusy(true);
+    let posted = false;
     try {
       const r = await postSale(ctx, draft, rows, { approvedBy });
+      posted = true;
       cart.clear();
       fx.sale();
       // Sale is committed. Printing runs afterwards and can never undo it.
@@ -97,9 +117,26 @@ export default function Pay() {
       fx.error();
       setErr(salesErrorMessage(t, e));
     } finally {
+      // After a successful post the screen is leaving: keep the guard on so a late tap can't post twice.
+      if (!posted) inFlight.current = false;
       setBusy(false);
     }
   };
+
+  if (pricing.err || !priced) {
+    return (
+      <Screen back title={t('pay.title')}>
+        <Banner tone="danger" text={salesErrorMessage(t, pricing.err)} />
+      </Screen>
+    );
+  }
+  if (!oc.loaded) {
+    return (
+      <Screen back title={t('pay.title')}>
+        <ActivityIndicator color={colors.primary[600]} style={{ marginTop: 32 }} />
+      </Screen>
+    );
+  }
 
   return (
     <Screen back title={t('pay.title')} footer={<Button testID="pay-confirm" title={t('pay.confirm')} loading={busy} disabled={sum < total} onPress={() => void finish()} />}>
@@ -125,11 +162,17 @@ export default function Pay() {
         </View>
       ) : null}
 
-      <MoneyField testID="pay-amount" label={t('pay.received')} valueMinor={row.amountMinor} onValue={(v) => setRow(active, { amountMinor: v ?? 0 })} />
+      <MoneyField testID="pay-amount" label={t('pay.received')} valueMinor={row.amountMinor} onValue={(v) => {
+          touched.current = true;
+          setRow(active, { amountMinor: v ?? 0 });
+        }} />
       {row.method === 'cash' ? (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {cashSuggestions(split ? remaining + row.amountMinor : total).map((v, i) => (
-            <Chip key={v} label={i === 0 ? t('pay.exact') : fmt(v)} selected={row.amountMinor === v} onPress={() => setRow(active, { amountMinor: v })} />
+            <Chip key={v} label={i === 0 ? t('pay.exact') : fmt(v)} selected={row.amountMinor === v} onPress={() => {
+              touched.current = true;
+              setRow(active, { amountMinor: v });
+            }} />
           ))}
         </View>
       ) : null}

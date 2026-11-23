@@ -67,23 +67,27 @@ export async function sharePdf(docId: string): Promise<void> {
 
 /** WhatsApp text of an invoice/return to the customer's number (or any chat if none). */
 export async function whatsappInvoice(docId: string): Promise<void> {
-  const db = getDb();
-  const data = await buildReceiptData(docId);
-  const s = await getSale(db, docId);
-  const mobile = s?.doc.customerId ? ((await getParty(db, 'C', s.doc.customerId))?.mobile ?? null) : null;
-  const cur = data.currency === 'SAR' ? 'ر.س' : 'ج.م';
-  const lines = [
-    `*${data.businessName}*`,
-    `${data.title} ${data.number}`,
-    data.customerName ? data.customerName : '',
-    '',
-    ...data.lines.map((l) => `• ${l.name} — ${formatQty(l.qtyMilli)} × ${formatMinor(l.priceMinor)} = ${formatMinor(l.totalMinor)}`),
-    '',
-    data.discountMinor ? `${t('pos.discount')}: -${formatMinor(data.discountMinor)}` : '',
-    `*${t('pos.total')}: ${formatMinor(data.totalMinor)} ${cur}*`,
-    data.creditMinor ? `${t('invoice.credit')}: ${formatMinor(data.creditMinor)}` : '',
-    data.customerBalanceMinor ? `${t('report.balanceNow')}: ${formatMinor(data.customerBalanceMinor)}` : '',
-    data.template.footer ?? '',
-  ].filter((x, i, a) => x !== '' || (i > 0 && a[i - 1] !== ''));
-  await openWhatsApp(mobile, lines.join('\n'));
+  try {
+    const db = getDb();
+    const data = await buildReceiptData(docId);
+    const s = await getSale(db, docId);
+    const mobile = s?.doc.customerId ? ((await getParty(db, 'C', s.doc.customerId))?.mobile ?? null) : null;
+    const cur = data.currency === 'SAR' ? 'ر.س' : 'ج.م';
+    const lines = [
+      `*${data.businessName}*`,
+      `${data.title} ${data.number}`,
+      data.customerName ? data.customerName : '',
+      '',
+      ...data.lines.map((l) => `• ${l.name} — ${formatQty(l.qtyMilli)} × ${formatMinor(l.priceMinor)} = ${formatMinor(l.totalMinor)}`),
+      '',
+      data.discountMinor ? `${t('pos.discount')}: -${formatMinor(data.discountMinor)}` : '',
+      `*${t('pos.total')}: ${formatMinor(data.totalMinor)} ${cur}*`,
+      data.creditMinor ? `${t('invoice.credit')}: ${formatMinor(data.creditMinor)}` : '',
+      data.customerBalanceMinor ? `${t('report.balanceNow')}: ${formatMinor(data.customerBalanceMinor)}` : '',
+      data.template.footer ?? '',
+    ].filter((x, i, a) => x !== '' || (i > 0 && a[i - 1] !== ''));
+    await openWhatsApp(mobile, lines.join('\n'));
+  } catch {
+    toast(t('errors.unknown'), 'error');
+  }
 }

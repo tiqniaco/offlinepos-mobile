@@ -5,7 +5,7 @@ import type { DetailData } from './ProductDetailView';
 export async function loadDetail(id: string): Promise<DetailData | null> {
   const db = getDb();
   const d = await getProduct(db, id);
-  if (!d) return null;
+  if (!d || d.product.deletedAt) return null; // deleted products only come back through "undo"
   const larger = d.units.find((u) => !u.isBase);
   const mv = await productMovements(db, id, 30);
   return {

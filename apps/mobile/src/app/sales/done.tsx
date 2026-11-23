@@ -16,12 +16,29 @@ export default function Done() {
   const currency = useCurrency();
   const [sale, setSale] = useState<Awaited<ReturnType<typeof getSale>>>(null);
   const [printing, setPrinting] = useState(false);
+  const [sharing, setSharing] = useState<null | 'whatsapp' | 'pdf'>(null);
   useEffect(() => {
-    void getSale(getDb(), id).then(setSale);
+    let alive = true;
+    void getSale(getDb(), id).then(
+      (s) => alive && setSale(s),
+      () => undefined,
+    );
+    return () => {
+      alive = false;
+    };
   }, [id]);
+  const share = async (kind: 'whatsapp' | 'pdf') => {
+    if (sharing) return;
+    setSharing(kind);
+    try {
+      await (kind === 'pdf' ? sharePdf(id) : whatsappInvoice(id));
+    } finally {
+      setSharing(null);
+    }
+  };
   const ch = Number(change ?? 0);
   return (
-    <Screen footer={<Button testID="done-new" icon="plus" title={t('done.newSale')} onPress={() => router.replace('/(main)/sell')} />}>
+    <Screen footer={<Button testID="done-new" icon="plus" title={t('done.newSale')} onPress={() => router.dismissTo('/(main)/sell')} />}>
       <View style={{ alignItems: 'center', gap: 10, paddingTop: 24 }}>
         <IconBadge name="check" hue="leaf" size={72} />
         <Text style={{ fontFamily: fonts.bold, fontSize: 26, lineHeight: 36, color: colors.ink.DEFAULT }}>{t('done.title')}</Text>
@@ -42,17 +59,21 @@ export default function Done() {
         title={printing ? t('done.printing') : t('done.print')}
         loading={printing}
         onPress={async () => {
+          if (printing) return;
           setPrinting(true);
-          await printReceipt(id);
-          setPrinting(false);
+          try {
+            await printReceipt(id);
+          } finally {
+            setPrinting(false);
+          }
         }}
       />
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <View style={{ flex: 1 }}>
-          <Button kind="secondary" compact icon="whatsapp" title={t('share.whatsapp')} onPress={() => void whatsappInvoice(id)} />
+          <Button kind="secondary" compact icon="whatsapp" title={t('share.whatsapp')} loading={sharing === 'whatsapp'} disabled={!!sharing} onPress={() => void share('whatsapp')} />
         </View>
         <View style={{ flex: 1 }}>
-          <Button kind="secondary" compact icon="file" title="PDF" onPress={() => void sharePdf(id)} />
+          <Button kind="secondary" compact icon="file" title="PDF" loading={sharing === 'pdf'} disabled={!!sharing} onPress={() => void share('pdf')} />
         </View>
       </View>
     </Screen>

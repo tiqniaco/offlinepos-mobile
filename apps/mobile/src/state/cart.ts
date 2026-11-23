@@ -3,8 +3,26 @@
  * to the top (SPEC §5). Persisted only when parked (sales_docs PARKED) — see domain/sales.
  */
 import { create } from 'zustand';
-import type { Discount } from '@daftarak/shared';
+import { lineAmount, type Discount } from '@daftarak/shared';
 import type { CartLine, SaleDraft } from '../domain/sales/sales';
+
+/** An amount discount can never exceed what it applies to (pricing throws otherwise). */
+function clampLine(l: CartLine): CartLine {
+  if (l.discount?.type !== 'amount') return l;
+  const gross = lineAmount(l.unitPriceMinor, l.qtyMilli);
+  if (l.discount.minor <= gross) return l;
+  return { ...l, discount: gross > 0 ? { type: 'amount', minor: gross } : null };
+}
+
+/** Same for the invoice discount against the lines left after their own discounts. */
+function clampInvoice(lines: CartLine[], d: Discount | null): Discount | null {
+  if (d?.type !== 'amount') return d;
+  const base = lines.reduce((s, l) => s + lineAmount(l.unitPriceMinor, l.qtyMilli) - (l.discount?.type === 'amount' ? l.discount.minor : 0), 0);
+  if (d.minor <= base) return d;
+  return base > 0 ? { type: 'amount', minor: base } : null;
+}
+
+const withLines = (s: { invoiceDiscount: Discount | null }, lines: CartLine[]) => ({ lines, invoiceDiscount: clampInvoice(lines, s.invoiceDiscount) });
 
 interface CartState {
   lines: CartLine[];
@@ -43,9 +61,9 @@ export const useCart = create<CartState>((set, get) => ({
       }
       return { lines: [...s.lines, line], lastAddedKey: line.key };
     }),
-  setQty: (key, qtyMilli) => set((s) => ({ lines: qtyMilli <= 0 ? s.lines.filter((l) => l.key !== key) : s.lines.map((l) => (l.key === key ? { ...l, qtyMilli } : l)) })),
-  update: (key, patch) => set((s) => ({ lines: s.lines.map((l) => (l.key === key ? { ...l, ...patch } : l)) })),
-  remove: (key) => set((s) => ({ lines: s.lines.filter((l) => l.key !== key) })),
+  setQty: (key, qtyMilli) => set((s) => withLines(s, qtyMilli <= 0 ? s.lines.filter((l) => l.key !== key) : s.lines.map((l) => (l.key === key ? clampLine({ ...l, qtyMilli }) : l)))),
+  update: (key, patch) => set((s) => withLines(s, s.lines.map((l) => (l.key === key ? clampLine({ ...l, ...patch }) : l)))),
+  remove: (key) => set((s) => withLines(s, s.lines.filter((l) => l.key !== key))),
   setCustomer: (customerId, customerName, tier) => set((s) => ({ customerId, customerName, priceTier: tier ?? s.priceTier })),
   setInvoiceDiscount: (invoiceDiscount) => set({ invoiceDiscount }),
   setCoupon: (couponCode) => set({ couponCode }),
@@ -53,6 +71,6 @@ export const useCart = create<CartState>((set, get) => ({
   clear: () => set({ ...empty }),
   draft: () => {
     const s = get();
-    return { lines: s.lines, customerId: s.customerId, customerName: s.customerName, priceTier: s.priceTier, invoiceDiscount: s.invoiceDiscount, couponCode: s.couponCode, note: s.note, quotationId: s.quotationId };
+    return { lines: s.lines, customerId: s.customerId, customerName: s.customerName, priceTier: s.priceTier, invoiceDiscount: s.invoiceDiscount, couponCode: s.couponCode, note: s.note, quotationId: s.quotationId, sourceId: s.sourceId };
   },
 }));

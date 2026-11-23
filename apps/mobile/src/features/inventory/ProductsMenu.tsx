@@ -29,6 +29,7 @@ export function ProductsMenu({ visible, onClose }: { visible: boolean; onClose: 
       hue: 'leaf' as const,
       title: busy ? t('common.loading') : t('products.export'),
       onPress: async () => {
+        if (busy) return;
         setBusy(true);
         try {
           await exportProductsToExcel(costView);

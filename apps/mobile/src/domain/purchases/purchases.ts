@@ -348,11 +348,11 @@ export async function getPurchase(db: Db, id: string) {
   return { doc, lines, pays, returns };
 }
 
-export async function listPurchases(db: Db, q: { types?: ('PURCHASE' | 'PURCHASE_RETURN')[]; supplierId?: string; from?: number; to?: number; limit?: number } = {}) {
+export async function listPurchases(db: Db, q: { types?: ('PURCHASE' | 'PURCHASE_RETURN')[]; supplierId?: string; from?: number; to?: number; limit?: number; offset?: number } = {}) {
   const c = [inArray(purchaseDocs.status, ['POSTED', 'VOIDED'] as const)];
   if (q.types?.length) c.push(inArray(purchaseDocs.type, q.types));
   if (q.supplierId) c.push(eq(purchaseDocs.supplierId, q.supplierId));
   if (q.from) c.push(gte(purchaseDocs.businessDay, q.from));
   if (q.to) c.push(lte(purchaseDocs.businessDay, q.to));
-  return db.select().from(purchaseDocs).where(and(...c)).orderBy(desc(purchaseDocs.postedAt)).limit(q.limit ?? 100);
+  return db.select().from(purchaseDocs).where(and(...c)).orderBy(desc(purchaseDocs.postedAt), desc(purchaseDocs.id)).limit(q.limit ?? 100).offset(q.offset ?? 0);
 }

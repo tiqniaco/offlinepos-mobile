@@ -79,6 +79,8 @@ export interface SaleDraft {
   quotationId?: string | null;
   /** Coupon typed at the POS (validated again at posting). */
   couponCode?: string | null;
+  /** Parked sale this cart was resumed from: removed in the same transaction that posts the sale. */
+  sourceId?: string | null;
 }
 
 export type SalesErrorCode =
@@ -324,6 +326,14 @@ export async function postSale(ctx: SalesCtx, draft: SaleDraft, pays: PaymentInp
     await sealSalesDoc(tx, ctx, docId, 'SALES_INVOICE', t);
     await rollupDoc(tx, docId, 1);
     if (draft.quotationId) await tx.update(salesDocs).set({ status: 'CONVERTED', updatedAt: t }).where(and(eq(salesDocs.id, draft.quotationId), eq(salesDocs.type, 'QUOTATION')));
+    if (draft.sourceId) {
+      // The held sale became this invoice: drop it atomically, so it is never lost nor sold twice.
+      const src = (await tx.select({ type: salesDocs.type, status: salesDocs.status }).from(salesDocs).where(eq(salesDocs.id, draft.sourceId)).limit(1))[0];
+      if (src?.type === 'INVOICE' && src.status === 'PARKED') {
+        await tx.delete(salesLines).where(eq(salesLines.docId, draft.sourceId));
+        await tx.delete(salesDocs).where(eq(salesDocs.id, draft.sourceId));
+      }
+    }
     await appendAudit(tx, { action: 'sale.post', entity: 'sales_docs', entityId: docId, after: { number, total: priced.totalMinor, lines: draft.lines.length }, userId: ctx.user.id, deviceId: ctx.device.id, at: t });
     if (approver && (need.priceChanges.length || need.violations.length)) {
       await appendAudit(tx, {
@@ -355,7 +365,8 @@ async function saveDraftDoc(ctx: SalesCtx, draft: SaleDraft, type: 'INVOICE' | '
   requirePermission(ctx.user, 'sales.create');
   assertCanWrite();
   if (!draft.lines.length) throw new SalesError('empty_cart');
-  const priced = priceDraft(draft, ctx.settings);
+  // Same pricing the POS shows (offers + coupon), so the held total matches what the customer saw.
+  const priced = priceDraft(draft, ctx.settings, { offers: await loadOffers(ctx.db), day: businessDay(now(ctx), ctx.timezone) });
   return withTx(ctx.db, async (tx) => {
     const t = now(ctx);
     const base = { createdAt: t, updatedAt: t, createdBy: ctx.user.id, deviceId: ctx.device.id };
@@ -363,10 +374,12 @@ async function saveDraftDoc(ctx: SalesCtx, draft: SaleDraft, type: 'INVOICE' | '
     let number: string | null = null;
     if (id) {
       const old = (await tx.select().from(salesDocs).where(eq(salesDocs.id, id)).limit(1))[0];
-      if (!old || (old.status !== 'DRAFT' && old.status !== 'PARKED')) throw new SalesError('not_found');
-      number = old.number;
-      await tx.delete(salesLines).where(eq(salesLines.docId, id));
-      await tx.delete(salesDocs).where(eq(salesDocs.id, id));
+      if (old && old.status !== 'DRAFT' && old.status !== 'PARKED') throw new SalesError('not_found');
+      if (old) {
+        number = old.number;
+        await tx.delete(salesLines).where(eq(salesLines.docId, id));
+        await tx.delete(salesDocs).where(eq(salesDocs.id, id));
+      } else id = uuidv7(t); // the held copy is gone (e.g. deleted from the list): save a fresh one
     } else id = uuidv7(t);
     if (type === 'QUOTATION' && !number) number = await nextDocNumber(tx, ctx.device, 'QUOTATION', 'QUO');
     await tx.insert(salesDocs).values({
@@ -390,6 +403,11 @@ async function saveDraftDoc(ctx: SalesCtx, draft: SaleDraft, type: 'INVOICE' | '
       taxMinor: priced.taxMinor,
       roundingMinor: priced.roundingMinor,
       totalMinor: priced.totalMinor,
+      offerDiscountMinor: priced.offerDiscountMinor,
+      // The typed code is kept even if not (yet) valid; posting validates it again.
+      couponCode: draft.couponCode ?? null,
+      couponOfferId: priced.offers?.coupon?.offerId ?? null,
+      couponDiscountMinor: priced.couponMinor,
       note: draft.note ?? null,
     });
     for (const [i, l] of draft.lines.entries()) {
@@ -416,6 +434,8 @@ async function saveDraftDoc(ctx: SalesCtx, draft: SaleDraft, type: 'INVOICE' | '
         netMinor: pl.netMinor,
         taxMinor: pl.taxMinor,
         totalMinor: pl.totalMinor,
+        offerId: pl.offerId,
+        offerDiscountMinor: pl.offerDiscountMinor,
       });
     }
     if (type === 'QUOTATION') await appendAudit(tx, { action: 'quotation.save', entity: 'sales_docs', entityId: id, after: { number, total: priced.totalMinor }, userId: ctx.user.id, deviceId: ctx.device.id, at: t });
@@ -440,9 +460,15 @@ export async function listDrafts(db: Db, type: 'INVOICE' | 'QUOTATION') {
 export async function loadDraft(db: Db, id: string): Promise<SaleDraft> {
   const doc = (await db.select().from(salesDocs).where(eq(salesDocs.id, id)).limit(1))[0];
   if (!doc) throw new SalesError('not_found');
-  const lines = await db.select().from(salesLines).where(eq(salesLines.docId, id)).orderBy(asc(salesLines.lineNo));
+  // Category is not stored on the line: take it from the product (category-scoped offers need it).
+  const rows = await db
+    .select({ l: salesLines, categoryId: products.categoryId })
+    .from(salesLines)
+    .leftJoin(products, eq(products.id, salesLines.productId))
+    .where(eq(salesLines.docId, id))
+    .orderBy(asc(salesLines.lineNo));
   return {
-    lines: lines.map((l) => ({
+    lines: rows.map(({ l, categoryId }) => ({
       key: `${l.productId}:${l.productUnitId}`,
       productId: l.productId,
       productUnitId: l.productUnitId,
@@ -454,13 +480,16 @@ export async function loadDraft(db: Db, id: string): Promise<SaleDraft> {
       catalogPriceMinor: l.catalogPriceMinor,
       taxRateBp: l.taxRateBp,
       discount: l.discountJson ? (JSON.parse(l.discountJson) as Discount) : null,
+      categoryId: categoryId ?? null,
     })),
     customerId: doc.customerId,
     customerName: doc.customerName,
     priceTier: doc.priceTier,
     invoiceDiscount: doc.invoiceDiscountJson ? (JSON.parse(doc.invoiceDiscountJson) as Discount) : null,
+    couponCode: doc.couponCode ?? null,
     note: doc.note,
     quotationId: doc.type === 'QUOTATION' ? doc.id : null,
+    sourceId: doc.type === 'INVOICE' && doc.status === 'PARKED' ? doc.id : null,
   };
 }
 

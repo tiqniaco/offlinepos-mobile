@@ -139,3 +139,19 @@ export function verifyAuditRows(rows: (Parameters<typeof auditPayload>[0] & { ha
   }
   return { ok: true, count: rows.length, head: prev, firstBreakSeq: null };
 }
+
+/** Same as verifyAuditRows, but yields to the UI every `chunk` rows so a long log does not freeze the screen. */
+export async function verifyAuditRowsChunked(rows: (Parameters<typeof auditPayload>[0] & { hash: string; prevHash: string })[], chunk = 200): Promise<ChainCheck> {
+  let prev = GENESIS_HASH;
+  let expectedSeq = 1;
+  for (let i = 0; i < rows.length; i++) {
+    if (i > 0 && i % chunk === 0) await new Promise<void>((r) => setTimeout(r, 0));
+    const r = rows[i]!;
+    if (r.seq !== expectedSeq || r.prevHash !== prev || chainHash(auditPayload(r), prev) !== r.hash) {
+      return { ok: false, count: rows.length, head: prev, firstBreakSeq: r.seq };
+    }
+    prev = r.hash;
+    expectedSeq++;
+  }
+  return { ok: true, count: rows.length, head: prev, firstBreakSeq: null };
+}

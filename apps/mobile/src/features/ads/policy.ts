@@ -24,3 +24,7 @@ export function bannerAllowed(s: AdState, place: string, now: number): boolean {
 export function interstitialAllowed(s: AdState, now: number): boolean {
   return s.showAds && s.online && now - s.startedAt >= START_QUIET_MS && now - s.lastInterstitialAt >= INTERSTITIAL_GAP_MS;
 }
+
+export function isAdPlace(place: string): boolean {
+  return (AD_PLACES as readonly string[]).includes(place);
+}

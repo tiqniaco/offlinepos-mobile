@@ -3,6 +3,7 @@ import { View, Switch } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { router } from 'expo-router';
+import { roleHas } from '@daftarak/shared';
 import { Screen, Text, Choice, SectionTitle, Card, IconBadge, Icon, Banner, colors } from '../../ui';
 import { getDb } from '../../db/client';
 import { changeSetting } from '../../domain/settings/settings';
@@ -10,6 +11,7 @@ import { updateUser } from '../../domain/auth/users';
 import { useApp } from '../../state/app';
 import { reloadAppData } from '../../state/boot';
 import { errorMessage } from '../../lib/errors';
+import { toast } from '../../state/toast';
 
 const OPTIONS = [1, 5, 15, 30, 0];
 
@@ -26,10 +28,17 @@ export default function Security() {
     void Promise.all([LocalAuthentication.hasHardwareAsync(), LocalAuthentication.isEnrolledAsync()]).then(([h, e]) => setBioAvailable(h && e));
   }, []);
 
-  const setLock = async (n: number) => {
-    await changeSetting(getDb(), 'autoLockMinutes', n, { userId: user.id, deviceId: device.id });
-    await reloadAppData();
+  const canManage = roleHas(user.permissions, 'settings.manage');
+  const change = async (key: 'autoLockMinutes' | 'blockScreenshots', value: number | boolean) => {
+    try {
+      if (key === 'autoLockMinutes') await changeSetting(getDb(), key, value as number, { userId: user.id, deviceId: device.id, permissions: user.permissions });
+      else await changeSetting(getDb(), key, value as boolean, { userId: user.id, deviceId: device.id, permissions: user.permissions });
+      await reloadAppData();
+    } catch (e) {
+      toast(errorMessage(t, e), 'error');
+    }
   };
+  const setLock = (n: number) => change('autoLockMinutes', n);
 
   const toggleBio = async (v: boolean) => {
     setErr(null);
@@ -80,13 +89,14 @@ export default function Security() {
             <Text variant="subtitle">{t('security.screenshots')}</Text>
             <Text variant="caption">{t('security.screenshotsHint')}</Text>
           </View>
-          <Switch value={shots} onValueChange={(v) => void changeSetting(getDb(), 'blockScreenshots', v, { userId: user.id, deviceId: device.id }).then(reloadAppData)} trackColor={{ true: colors.primary[500], false: colors.paper.line }} />
+          <Switch value={shots} disabled={!canManage} onValueChange={(v) => void change('blockScreenshots', v)} trackColor={{ true: colors.primary[500], false: colors.paper.line }} />
         </View>
       </Card>
       <SectionTitle>{t('security.autoLock')}</SectionTitle>
+      {!canManage ? <Banner tone="info" icon="lock" text={t('security.managedOnly')} /> : null}
       <View className="flex-row flex-wrap gap-2">
         {OPTIONS.map((n) => (
-          <View key={n} style={{ width: '48%' }}>
+          <View key={n} style={{ width: '48%', opacity: canManage ? 1 : 0.5 }} pointerEvents={canManage ? 'auto' : 'none'}>
             <Choice compact title={n === 0 ? t('security.never') : t('security.minutes', { n })} selected={minutes === n} onPress={() => void setLock(n)} />
           </View>
         ))}

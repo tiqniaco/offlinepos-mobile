@@ -18,7 +18,8 @@
     "change": "Change",
     "add": "Add",
     "delete": "Delete",
-    "saved": "Saved"
+    "saved": "Saved",
+    "notFound": "Not found"
   },
   "welcome": {
     "title": "Welcome to Kashiro",
@@ -450,7 +451,9 @@
     "setQty": "Counted quantity",
     "notFound": "This barcode isn't registered",
     "added": "+1 {{name}}",
-    "empty": "Start scanning products"
+    "empty": "Start scanning products",
+    "confirmDiscard": "Everything counted so far will be lost. Discard the count?",
+    "removeItem": "Remove from count"
   },
   "categories": {
     "title": "Categories",
@@ -489,7 +492,9 @@
     "permission": "We need camera permission to read barcodes",
     "allow": "Allow camera",
     "unavailable": "Camera not available here",
-    "done": "Done"
+    "done": "Done",
+    "openSettings": "Open settings",
+    "cameraError": "The camera couldn't start. Close the scanner and try again."
   },
   "invErrors": {
     "not_found": "Product not found",
@@ -621,7 +626,10 @@
     "lowStock": "Stock: {{qty}}",
     "customerBalance": "Owes {{amount}}",
     "overLimit": "Over credit limit ({{limit}})",
-    "payShort": "Pay"
+    "payShort": "Pay",
+    "noResults": "No products match “{{q}}”",
+    "replaceCart": "Replace the current sale?",
+    "replaceCartBody": "The items on the counter will be removed. Hold them first if you need them."
   },
   "line": {
     "qty": "Quantity",
@@ -641,7 +649,8 @@
     "mobile": "Mobile (optional)",
     "wholesale": "Wholesale price",
     "none": "No customer (cash)",
-    "retail": "Retail"
+    "retail": "Retail",
+    "unavailable": "Can't add a customer right now. Reopen the app and try again."
   },
   "pay": {
     "title": "Payment",
@@ -667,7 +676,10 @@
     "body": "This discount or price is above your limit. Ask a manager to enter their PIN.",
     "pick": "Choose manager",
     "ok": "Approve",
-    "noRight": "This user can't approve this"
+    "noRight": "This user can't approve this",
+    "noApprovers": "No manager or owner account is set up to approve. Add one from Users.",
+    "minutes": "{{n}} min",
+    "seconds": "{{n}} s"
   },
   "done": {
     "title": "Sale complete",
@@ -699,7 +711,8 @@
     "reprint": "Reprint",
     "empty": "No invoices yet",
     "search": "Invoice number or customer",
-    "today": "Today's sales"
+    "today": "Today's sales",
+    "notFound": "This invoice was not found"
   },
   "ret": {
     "title": "Return from {{number}}",
@@ -727,7 +740,8 @@
     "overpaid_non_cash": "Card/wallet can't exceed the total",
     "credit_requires_customer": "On-credit needs a customer",
     "negative": "Invalid amount",
-    "coupon_invalid": "The coupon isn't valid"
+    "coupon_invalid": "The coupon isn't valid",
+    "discount_too_large": "A discount is larger than the amount it applies to. Lower it."
   },
   "integrity": {
     "title": "Integrity check",
@@ -786,7 +800,13 @@
     }
   },
   "ads": {
-    "remove": "Remove ads"
+    "remove": "Remove ads",
+    "tag": "Ad",
+    "why": "Ads show on the free plan only",
+    "removeCta": "Remove ads — upgrade",
+    "houseTitle": "Work faster without ads",
+    "houseBody": "Upgrade for more users, unlimited products and invoices, offers and advanced reports.",
+    "houseCta": "See plans"
   },
   "quick": {
     "title": "Quick actions",
@@ -922,8 +942,10 @@
       "name_required": "Enter the name",
       "not_found": "Not found",
       "has_balance": "Can't delete with an open balance. Settle it first.",
-      "mobile_taken": "This mobile belongs to someone else"
-    }
+      "mobile_taken": "This mobile belongs to someone else",
+      "mobile_invalid": "Invalid mobile number — e.g. 01012345678"
+    },
+    "noResults": "No results"
   },
   "voucher": {
     "title": {
@@ -966,7 +988,8 @@
       "not_voidable": "Can't void: the shift is closed or the day has ended",
       "clock_behind": "The phone clock is behind. Fix date & time.",
       "reason_required": "Enter a reason"
-    }
+    },
+    "newTitle": "New voucher"
   },
   "expenses": {
     "title": "Expenses",
@@ -1030,7 +1053,14 @@
       "refund_mismatch": "Amount doesn't match the return",
       "clock_behind": "The phone clock is behind",
       "payment": "Paid more than the invoice"
-    }
+    },
+    "draftTitle": "Unfinished purchase",
+    "draftBody": "You have an unsaved purchase with {{n}} items. Continue it or start a new one?",
+    "draftContinue": "Continue it",
+    "draftNew": "Start new",
+    "clearDraft": "Clear invoice",
+    "clearDraftBody": "Remove all items and the supplier from this invoice?",
+    "nothingToReturn": "Everything on this invoice was already returned"
   },
   "shift": {
     "title": "Shift & cash drawer",
@@ -1076,7 +1106,9 @@
       "shift_required": "Open a shift first (Shift & cash drawer)",
       "invalid_amount": "Enter a valid amount",
       "not_yours": "This shift isn't yours"
-    }
+    },
+    "closeConfirmTitle": "Close the shift?",
+    "closeConfirmBody": "Counted cash {{amount}}. You can’t edit it after closing."
   },
   "offers": {
     "title": "Offers & coupons",
@@ -1152,7 +1184,8 @@
       "qty": "Enter the quantities",
       "tiers": "Add a price tier",
       "code": "Enter the code",
-      "code_taken": "This code is already used"
+      "code_taken": "This code is already used",
+      "bad_date": "Invalid date — e.g. 2026-12-31"
     }
   },
   "reports": {

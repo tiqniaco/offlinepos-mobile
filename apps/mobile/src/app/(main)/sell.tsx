@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -23,6 +23,9 @@ import { useOfferCtx } from '../../features/sales/useOffers';
 import { Sheet, TextField, Button, Banner } from '../../ui';
 import { money } from '../../lib/format';
 
+const NO_HITS: SearchHit[] = [];
+const NO_HITS_STATE = { q: '', rows: NO_HITS };
+
 /** Scan-first POS (SPEC §5): scan → item on top; rescan → qty +1; pay in ≤ 3 taps. */
 export default function Sell() {
   const { t, i18n } = useTranslation();
@@ -33,7 +36,9 @@ export default function Sell() {
   const user = useApp((s) => s.user);
   const cart = useCart();
   const [search, setSearch] = useState('');
-  const [hits, setHits] = useState<SearchHit[]>([]);
+  // Hits remember the query they answer, so Enter never adds a stale result.
+  const [hitState, setHitState] = useState<{ q: string; rows: SearchHit[] }>(NO_HITS_STATE);
+  const hits = hitState.q === search.trim() ? hitState.rows : NO_HITS;
   const [lineKey, setLineKey] = useState<string | null>(null);
   const [custOpen, setCustOpen] = useState(false);
   const [discOpen, setDiscOpen] = useState(false);
@@ -45,14 +50,17 @@ export default function Sell() {
   const [couponText, setCouponText] = useState('');
 
   const draft = cart.draft();
-  const priced: PricedDraft | null = useMemo(() => {
+  const pricing = useMemo((): { priced: PricedDraft | null; err: unknown } => {
     try {
-      return cart.lines.length ? priceDraft(draft, settings, oc) : null;
-    } catch {
-      return null;
+      return { priced: cart.lines.length ? priceDraft(draft, settings, oc) : null, err: null };
+    } catch (e) {
+      return { priced: null, err: e };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cart.lines, cart.invoiceDiscount, cart.couponCode, settings, oc]);
+  const priced = pricing.priced;
+  const priceErr = cart.lines.length && pricing.err ? salesErrorMessage(t, pricing.err) : null;
+  const parking = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -62,58 +70,100 @@ export default function Sell() {
 
   // Customer balance / credit-limit note.
   useEffect(() => {
-    if (!cart.customerId) return setCustNote(null);
+    const id = cart.customerId;
+    if (!id) return setCustNote(null);
+    let alive = true;
     void (async () => {
-      const db = getDb();
-      const [c, bal] = await Promise.all([getCustomer(db, cart.customerId!), partyBalance(db, 'C', cart.customerId!)]);
-      const parts: string[] = [];
-      if (bal) parts.push(t('pos.customerBalance', { amount: money(bal, currency, i18n.language) }));
-      if (c?.creditLimitMinor && bal > c.creditLimitMinor) parts.push(t('pos.overLimit', { limit: money(c.creditLimitMinor, currency, i18n.language) }));
-      setCustNote(parts.join('  ·  ') || null);
+      try {
+        const db = getDb();
+        const [c, bal] = await Promise.all([getCustomer(db, id), partyBalance(db, 'C', id)]);
+        if (!alive) return;
+        const parts: string[] = [];
+        if (bal) parts.push(t('pos.customerBalance', { amount: money(bal, currency, i18n.language) }));
+        if (c?.creditLimitMinor && bal > c.creditLimitMinor) parts.push(t('pos.overLimit', { limit: money(c.creditLimitMinor, currency, i18n.language) }));
+        setCustNote(parts.join('  ·  ') || null);
+      } catch {
+        if (alive) setCustNote(null);
+      }
     })();
+    return () => {
+      alive = false;
+    };
   }, [cart.customerId, currency, i18n.language, t]);
 
   // Live search (name / partial barcode).
   useEffect(() => {
     const q = search.trim();
-    if (!q) return setHits([]);
-    const h = setTimeout(() => void listProducts(getDb(), { search: q, limit: 15 }).then((r) => setHits(r)), 150);
-    return () => clearTimeout(h);
+    if (!q) return setHitState(NO_HITS_STATE);
+    let alive = true;
+    const h = setTimeout(
+      () =>
+        void listProducts(getDb(), { search: q, limit: 15 }).then(
+          (r) => alive && setHitState({ q, rows: r }),
+          () => alive && setHitState({ q, rows: NO_HITS }),
+        ),
+      150,
+    );
+    return () => {
+      alive = false;
+      clearTimeout(h);
+    };
   }, [search]);
 
   const addProduct = useCallback(
-    async (productId: string, productUnitId: string | null) => {
-      const line = await cartLineFor(getDb(), settings, productId, productUnitId, useCart.getState().priceTier);
-      useCart.getState().add(line);
-      return line.name;
+    async (productId: string, productUnitId: string | null): Promise<string | null> => {
+      try {
+        const line = await cartLineFor(getDb(), settings, productId, productUnitId, useCart.getState().priceTier);
+        useCart.getState().add(line);
+        return line.name;
+      } catch (e) {
+        fx.notFound();
+        toast(salesErrorMessage(t, e), 'error');
+        return null;
+      }
     },
-    [settings],
+    [settings, t],
+  );
+
+  const notFound = useCallback(
+    (code: string) => {
+      fx.notFound();
+      toast(t('pos.notFound', { code }), 'error', roleHas(user?.permissions ?? [], 'products.manage') ? { label: t('pos.addProduct'), onPress: () => router.push({ pathname: '/products/form', params: { barcode: code } }) } : undefined);
+      return t('pos.notFound', { code });
+    },
+    [t, user],
   );
 
   const addByCode = useCallback(
     async (code: string): Promise<string | null> => {
-      const hit = await findByBarcode(getDb(), code);
-      if (!hit) {
+      try {
+        const hit = await findByBarcode(getDb(), code);
+        if (!hit) return notFound(code);
+        fx.scan();
+        return await addProduct(hit.productId, hit.productUnitId);
+      } catch (e) {
         fx.notFound();
-        toast(t('pos.notFound', { code }), 'error', roleHas(user?.permissions ?? [], 'products.manage') ? { label: t('pos.addProduct'), onPress: () => router.push({ pathname: '/products/form', params: { barcode: code } }) } : undefined);
-        return t('pos.notFound', { code });
+        toast(salesErrorMessage(t, e), 'error');
+        return null;
       }
-      fx.scan();
-      return addProduct(hit.productId, hit.productUnitId);
     },
-    [addProduct, t, user],
+    [addProduct, notFound, t],
   );
 
   const line = cart.lines.find((l) => l.key === lineKey) ?? null;
   const park = async () => {
-    if (!ctx || !cart.lines.length) return;
+    if (!ctx || !cart.lines.length || parking.current) return;
+    parking.current = true;
     try {
+      const wasParked = !!cart.sourceId;
       await parkSale(ctx, cart.draft(), cart.sourceId);
       cart.clear();
-      setParked((n) => n + 1);
+      if (!wasParked) setParked((n) => n + 1);
       toast(t('pos.parkedDone'));
     } catch (e) {
       toast(salesErrorMessage(t, e), 'error');
+    } finally {
+      parking.current = false;
     }
   };
 
@@ -123,7 +173,12 @@ export default function Sell() {
         topInset={insets.top}
         lines={cart.lines}
         priced={priced}
-        tip={<Tip id="pos" />}
+        tip={
+          <>
+            {priceErr ? <Banner tone="danger" text={priceErr} /> : null}
+            <Tip id="pos" />
+          </>
+        }
         offerNames={Object.fromEntries(Object.entries(priced?.offers?.lines ?? {}).map(([k, v]) => [k, v.name]))}
         couponLabel={cart.couponCode ? `${t('offers.coupon')}: ${cart.couponCode}` : null}
         onCoupon={oc.offers.some((o) => o.type === 'COUPON') || cart.couponCode ? () => { setCouponText(cart.couponCode ?? ''); setCouponOpen(true); } : undefined}
@@ -132,6 +187,7 @@ export default function Sell() {
         customerNote={custNote}
         search={search}
         hits={hits}
+        searched={!!search.trim() && hitState.q === search.trim()}
         currency={currency}
         lang={i18n.language}
         vatLabel={settings.vatRegistered ? t('pos.vat', { rate: settings.vatRateBp / 100 }) : null}
@@ -141,12 +197,25 @@ export default function Sell() {
         onSubmitSearch={() => {
           const q = search.trim();
           if (!q) return;
+          // Only a result list that answers THIS query may be used as a fallback.
+          const single = hitState.q === q && hitState.rows.length === 1 ? hitState.rows[0]! : null;
           setSearch('');
-          if (hits.length === 1) {
-            fx.add();
-            void addProduct(hits[0]!.id, null);
-          }
-          else void addByCode(q);
+          void (async () => {
+            try {
+              // A barcode match carries the scanned unit (carton vs piece), so it wins.
+              const hit = await findByBarcode(getDb(), q);
+              if (hit) {
+                fx.scan();
+                await addProduct(hit.productId, hit.productUnitId);
+              } else if (single) {
+                fx.add();
+                await addProduct(single.id, null);
+              } else notFound(q);
+            } catch (e) {
+              fx.notFound();
+              toast(salesErrorMessage(t, e), 'error');
+            }
+          })();
         }}
         onScan={() => {
           useScanner.getState().set({ continuous: true, onCode: addByCode });
@@ -167,7 +236,14 @@ export default function Sell() {
         onCustomer={() => setCustOpen(true)}
         onMenu={() => setMenu(true)}
         onPark={park}
-        onPay={() => router.push('/sales/pay')}
+        payDisabled={!priced}
+        onPay={() => {
+          if (!priced) {
+            fx.error();
+            return toast(priceErr ?? t('errors.unknown'), 'error');
+          }
+          router.push('/sales/pay');
+        }}
         onDiscount={() => setDiscOpen(true)}
       />
       <Sheet
@@ -186,6 +262,7 @@ export default function Sell() {
       </Sheet>
       <LineSheet
         line={line}
+        offerMinor={line ? (priced?.lines.find((l) => l.key === line.key)?.offerDiscountMinor ?? 0) : 0}
         canChangePrice={roleHas(user?.permissions ?? [], 'price.change')}
         currency={currency}
         lang={i18n.language}
@@ -206,6 +283,7 @@ export default function Sell() {
       <CustomerSheet
         visible={custOpen}
         ctx={ctx}
+        canAdd={roleHas(user?.permissions ?? [], 'parties.manage')}
         currency={currency}
         lang={i18n.language}
         onClose={() => setCustOpen(false)}
@@ -214,17 +292,21 @@ export default function Sell() {
           cart.setCustomer(c?.id ?? null, c?.name ?? null, c?.priceTier ?? 'retail');
           // Re-price existing lines for the customer's tier (only lines still at catalog price).
           const tier = c?.priceTier ?? 'retail';
-          for (const l of useCart.getState().lines) {
-            if (l.unitPriceMinor !== l.catalogPriceMinor) continue;
-            const fresh = await cartLineFor(getDb(), settings, l.productId, l.productUnitId, tier, l.qtyMilli);
-            cart.update(l.key, { unitPriceMinor: fresh.unitPriceMinor, catalogPriceMinor: fresh.catalogPriceMinor });
+          try {
+            for (const l of useCart.getState().lines) {
+              if (l.unitPriceMinor !== l.catalogPriceMinor) continue;
+              const fresh = await cartLineFor(getDb(), settings, l.productId, l.productUnitId, tier, l.qtyMilli);
+              cart.update(l.key, { unitPriceMinor: fresh.unitPriceMinor, catalogPriceMinor: fresh.catalogPriceMinor });
+            }
+          } catch (e) {
+            toast(salesErrorMessage(t, e), 'error');
           }
         }}
       />
       <InvoiceDiscountSheet
         visible={discOpen}
         value={cart.invoiceDiscount}
-        base={priced ? priced.grossMinor - priced.lineDiscountMinor : 0}
+        base={priced ? Math.max(0, priced.grossMinor - priced.offerDiscountMinor - priced.lineDiscountMinor - priced.couponMinor) : 0}
         currency={currency}
         lang={i18n.language}
         onClose={() => setDiscOpen(false)}

@@ -6,7 +6,8 @@ import { asc, desc } from 'drizzle-orm';
 import { Screen, Text, Banner, colors } from '../../ui';
 import { getDb } from '../../db/client';
 import { auditLog } from '../../db/schema';
-import { verifyAuditRows } from '../../domain/audit/audit';
+import { verifyAuditRowsChunked, type ChainCheck } from '../../domain/audit/audit';
+import { errorMessage } from '../../lib/errors';
 import { dateTimeLabel } from '../../lib/format';
 
 type Row = typeof auditLog.$inferSelect;
@@ -15,14 +16,34 @@ type Row = typeof auditLog.$inferSelect;
 export default function Audit() {
   const { t, i18n } = useTranslation();
   const [rows, setRows] = useState<Row[]>([]);
-  const [check, setCheck] = useState<ReturnType<typeof verifyAuditRows> | null>(null);
+  const [check, setCheck] = useState<ChainCheck | null>(null);
+  const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
-    const db = getDb();
-    void db.select().from(auditLog).orderBy(desc(auditLog.seq)).limit(200).then(setRows);
-    void db.select().from(auditLog).orderBy(asc(auditLog.seq)).then((all) => setCheck(verifyAuditRows(all)));
+    let alive = true;
+    // Start after the screen transition; the chain check yields to the UI between chunks.
+    const id = setTimeout(() => {
+      void (async () => {
+        try {
+          const db = getDb();
+          const recent = await db.select().from(auditLog).orderBy(desc(auditLog.seq)).limit(200);
+          if (alive) setRows(recent);
+          const all = await db.select().from(auditLog).orderBy(asc(auditLog.seq));
+          const r = await verifyAuditRowsChunked(all);
+          if (alive) setCheck(r);
+        } catch (e) {
+          if (alive) setErr(errorMessage(t, e));
+        }
+      })();
+    }, 220);
+    return () => {
+      alive = false;
+      clearTimeout(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return (
     <Screen back title={t('more.audit')} scroll={false}>
+      {err ? <Banner tone="danger" text={err} /> : null}
       {check ? <Banner tone={check.ok ? 'success' : 'danger'} icon="shield" text={check.ok ? t('audit.intact') : t('audit.broken', { seq: check.firstBreakSeq })} /> : null}
       <View className="flex-1 pt-3">
         <FlashList

@@ -160,3 +160,13 @@ export async function customersDue(db: Db, today: number, minDays = 0) {
   }
   return out.sort((a, b) => b.days - a.days);
 }
+
+/** One customer's due status (same rule as customersDue) — null when they owe nothing. */
+export async function partyDue(db: Db, id: string, today: number): Promise<{ balanceMinor: number; oldestDay: number; days: number } | null> {
+  const rows = await db.select({ businessDay: partyLedger.businessDay, at: partyLedger.createdAt, debitMinor: partyLedger.debitMinor, creditMinor: partyLedger.creditMinor }).from(partyLedger).where(and(eq(partyLedger.partyType, 'C'), eq(partyLedger.partyId, id)));
+  const balanceMinor = rows.reduce((s, r) => s + r.debitMinor - r.creditMinor, 0);
+  if (balanceMinor <= 0) return null;
+  const oldest = oldestUnpaidDay(rows);
+  if (oldest == null) return null;
+  return { balanceMinor, oldestDay: oldest, days: daysBetween(oldest, today) };
+}

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, View } from 'react-native';
 import { Pressable } from '../../ui/Press';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -44,15 +44,49 @@ export default function NewPurchase() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const fmt = (v: number) => money(v, currency, i18n.language);
+  const askedDraft = useRef(false);
 
   useEffect(() => {
-    if (params.supplierId && params.supplierId !== cart.supplierId) void getParty(getDb(), 'S', params.supplierId).then((p) => p && cart.set({ supplierId: p.id, supplierName: p.name }));
+    const applySupplier = () => {
+      const sid = params.supplierId;
+      if (sid && sid !== usePurchaseCart.getState().supplierId)
+        void getParty(getDb(), 'S', sid).then(
+          (p) => p && usePurchaseCart.getState().set({ supplierId: p.id, supplierName: p.name }),
+          () => undefined,
+        );
+    };
+    const st = usePurchaseCart.getState();
+    // A draft left over from an earlier visit: ask before mixing it with this purchase.
+    if (st.lines.length && !askedDraft.current) {
+      askedDraft.current = true;
+      Alert.alert(t('purchase.draftTitle'), t('purchase.draftBody', { n: st.lines.length }), [
+        {
+          text: t('purchase.draftContinue'),
+          onPress: () => {
+            if (!usePurchaseCart.getState().supplierId) applySupplier();
+          },
+        },
+        {
+          text: t('purchase.draftNew'),
+          style: 'destructive',
+          onPress: () => {
+            usePurchaseCart.getState().clear();
+            applySupplier();
+          },
+        },
+      ]);
+    } else applySupplier();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.supplierId]);
+  const clearDraft = () =>
+    Alert.alert(t('purchase.clearDraft'), t('purchase.clearDraftBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('purchase.clearDraft'), style: 'destructive', onPress: () => usePurchaseCart.getState().clear() },
+    ]);
   useEffect(() => {
     const q = search.trim();
     if (!q) return setHits([]);
-    const h = setTimeout(() => void listProducts(getDb(), { search: q, limit: 12 }).then(setHits), 150);
+    const h = setTimeout(() => void listProducts(getDb(), { search: q, limit: 12 }).then(setHits, () => setHits([])), 150);
     return () => clearTimeout(h);
   }, [search]);
 
@@ -80,10 +114,20 @@ export default function NewPurchase() {
     fx.scan();
     return add(hit.productId, hit.productUnitId);
   };
+  /** Fire-and-forget add from the search box / hits: a failure must not vanish silently. */
+  const safe = (p: Promise<unknown>) =>
+    p.catch((e: unknown) => {
+      fx.notFound();
+      toast(errorMessage(t, e), 'error');
+    });
 
   const total = priced?.totalMinor ?? 0;
   const save = async () => {
-    if (!ctx || !priced) return;
+    if (!ctx) return;
+    if (!priced) {
+      setErr(t('purchase.errors.empty'));
+      return;
+    }
     setErr(null);
     setBusy(true);
     const paidNow = mode === 'cash' ? total : mode === 'partial' ? Math.min(paid ?? 0, total) : 0;
@@ -102,7 +146,9 @@ export default function NewPurchase() {
   };
 
   return (
-    <Screen back title={t('purchase.new')} footer={<Button testID="purchase-next" title={cart.lines.length ? `${t('purchase.save')} · ${fmt(total)}` : t('purchase.save')} disabled={!cart.lines.length} onPress={() => setPayOpen(true)} />}>
+    <Screen back title={t('purchase.new')} footer={<Button testID="purchase-next" title={cart.lines.length ? `${t('purchase.save')} · ${fmt(total)}` : t('purchase.save')} disabled={!cart.lines.length || !priced} onPress={() => { setErr(null); setPayOpen(true); }} />}
+      right={cart.lines.length ? <Pressable testID="purchase-clear" accessibilityLabel={t('purchase.clearDraft')} onPress={clearDraft} hitSlop={8} style={{ width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.paper.card }}><Icon name="trash" size={18} color={colors.rose[700]} /></Pressable> : undefined}
+    >
       <Pressable testID="purchase-supplier" onPress={() => setPick(true)} style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 16, backgroundColor: colors.paper.card, opacity: pressed ? 0.85 : 1 }, shadow.soft]}>
         {cart.supplierId ? <Avatar name={cart.supplierName ?? ''} color={partyColor(cart.supplierId)} size={38} /> : <Icon name="truck" color={colors.ink.mute} />}
         <Text style={{ flex: 1, fontFamily: fonts.semibold, fontSize: 15.5, lineHeight: 22, color: cart.supplierId ? colors.ink.DEFAULT : colors.ink.mute }}>{cart.supplierName ?? t('parties.pickS')}</Text>
@@ -112,7 +158,7 @@ export default function NewPurchase() {
 
       <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
         <View style={{ flex: 1 }}>
-          <TextField icon="search" placeholder={t('pos.search')} value={search} onChangeText={setSearch} latinDigits={false} onSubmitEditing={() => { const q = search.trim(); setSearch(''); if (hits.length === 1) void add(hits[0]!.id, null); else if (q) void addByCode(q); }} />
+          <TextField icon="search" placeholder={t('pos.search')} value={search} onChangeText={setSearch} latinDigits={false} onSubmitEditing={() => { const q = search.trim(); setSearch(''); if (hits.length === 1) void safe(add(hits[0]!.id, null)); else if (q) void safe(addByCode(q)); }} />
         </View>
         <Pressable testID="purchase-scan" onPress={() => { useScanner.getState().set({ continuous: true, onCode: addByCode }); router.push('/scan'); }} style={{ width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary[600] }}>
           <Icon name="scan" color="#FFFFFF" tint="rgba(255,255,255,0.2)" />
@@ -121,7 +167,7 @@ export default function NewPurchase() {
       {hits.length ? (
         <Card padded={false}>
           {hits.map((h, i) => (
-            <Pressable key={h.id} onPress={() => { fx.add(); setSearch(''); void add(h.id, null); }} style={({ pressed }) => ({ padding: 12, borderTopWidth: i ? 1 : 0, borderTopColor: colors.paper.line, backgroundColor: pressed ? colors.paper.sunk : 'transparent' })}>
+            <Pressable key={h.id} onPress={() => { fx.add(); setSearch(''); void safe(add(h.id, null)); }} style={({ pressed }) => ({ padding: 12, borderTopWidth: i ? 1 : 0, borderTopColor: colors.paper.line, backgroundColor: pressed ? colors.paper.sunk : 'transparent' })}>
               <Text variant="subtitle">{h.name}</Text>
             </Pressable>
           ))}
@@ -167,7 +213,7 @@ export default function NewPurchase() {
         title={edit?.name}
         footer={
           <>
-            <Button title={t('line.done')} onPress={() => { if (edit) cart.update(edit.key, edit); setEdit(null); }} />
+            <Button title={t('line.done')} disabled={!edit || edit.qtyMilli <= 0} onPress={() => { if (edit) cart.update(edit.key, edit); setEdit(null); }} />
             <Button kind="danger" icon="trash" title={t('line.remove')} onPress={() => { fx.remove(); if (edit) cart.remove(edit.key); setEdit(null); }} />
           </>
         }
@@ -187,7 +233,7 @@ export default function NewPurchase() {
         ) : null}
       </Sheet>
 
-      <Sheet visible={payOpen} onClose={() => setPayOpen(false)} title={`${t('purchase.payTitle')} · ${fmt(total)}`} footer={<Button testID="purchase-confirm" title={t('purchase.confirm')} loading={busy} onPress={() => void save()} />}>
+      <Sheet visible={payOpen} onClose={() => setPayOpen(false)} title={`${t('purchase.payTitle')} · ${fmt(total)}`} footer={<Button testID="purchase-confirm" title={t('purchase.confirm')} loading={busy} disabled={(mode === 'credit' && !cart.supplierId) || (mode === 'partial' && !paid)} onPress={() => void save()} />}>
         <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
           <Chip testID="pay-credit" label={t('purchase.modeCredit')} selected={mode === 'credit'} onPress={() => setMode('credit')} />
           <Chip label={t('purchase.modeCash')} selected={mode === 'cash'} onPress={() => setMode('cash')} />
@@ -205,7 +251,7 @@ export default function NewPurchase() {
         {mode !== 'cash' ? (
           <View style={{ gap: 6 }}>
             <Text variant="label">{t('purchase.dueIn')}</Text>
-            <View style={{ flexDirection: 'row', gap: 6 }}>
+            <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
               {[7, 15, 30, 60].map((d) => (
                 <Chip key={d} label={t('purchase.days', { n: d })} selected={dueDays === d} onPress={() => setDueDays(d)} />
               ))}

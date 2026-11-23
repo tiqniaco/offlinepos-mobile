@@ -243,11 +243,15 @@ async function voidedDoc(db: Db, id: string) {
 }
 
 /** Recompute the whole chain of a device and report the first break (integrity screen + tests). */
-export async function verifyChain(db: Db, deviceId: string): Promise<ChainReport> {
+export async function verifyChain(db: Db, deviceId: string, opts: { yieldEvery?: number } = {}): Promise<ChainReport> {
   const entries = await db.select().from(integrityChain).where(eq(integrityChain.deviceId, deviceId)).orderBy(asc(integrityChain.chainSeq));
   let prev = GENESIS_HASH;
   let expected = 1;
+  let i = 0;
   for (const e of entries) {
+    // Optionally give the UI thread a turn every N documents (long histories on slow phones).
+    if (opts.yieldEvery && i > 0 && i % opts.yieldEvery === 0) await new Promise<void>((r) => setTimeout(r, 0));
+    i++;
     const brk = (reason: NonNullable<ChainReport['firstBreak']>['reason'], number: string | null = null): ChainReport => ({
       ok: false,
       count: entries.length,

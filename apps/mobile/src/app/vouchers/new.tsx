@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { Pressable } from '../../ui/Press';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import type { PaymentMethod } from '@daftarak/shared';
 import { fx } from '../../ui/fx';
@@ -52,8 +52,13 @@ export default function NewVoucher() {
 
   useEffect(() => {
     if (params.partyId && partyType) void getParty(getDb(), partyType, params.partyId).then((p) => p && setParty({ id: p.id, name: p.name, balanceMinor: p.balanceMinor }));
-    if (type === 'EXPENSE') void listExpenseCategories(getDb()).then((c) => setCats(c));
   }, [params.partyId, partyType, type]);
+  // On focus: coming back from "manage categories" shows the new ones.
+  useFocusEffect(
+    useCallback(() => {
+      if (type === 'EXPENSE') void listExpenseCategories(getDb()).then((c) => setCats(c)).catch(() => undefined);
+    }, [type]),
+  );
 
   const o = party && partyType ? owed(partyType, party.balanceMinor) : 0;
   const cashOnly = type === 'CASH_IN' || type === 'CASH_OUT';

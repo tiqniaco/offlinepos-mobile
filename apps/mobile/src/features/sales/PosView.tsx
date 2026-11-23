@@ -48,6 +48,8 @@ export function PosView(p: {
   customerNote: string | null;
   search: string;
   hits: SearchHit[];
+  /** True once the (debounced) search for the current text has answered. */
+  searched?: boolean;
   currency: 'EGP' | 'SAR';
   lang: string;
   vatLabel: string | null;
@@ -63,12 +65,15 @@ export function PosView(p: {
   onMenu: () => void;
   onPark: () => void;
   onPay: () => void;
+  /** The cart can't be priced (e.g. a discount larger than the item) — paying is blocked. */
+  payDisabled?: boolean;
   onDiscount: () => void;
 }) {
   const { t } = useTranslation();
   const lines = [...p.lines].reverse(); // last added on top
   const totals = p.priced;
   const showHits = p.search.trim().length > 0 && p.hits.length > 0;
+  const noHits = !!p.searched && p.search.trim().length > 0 && p.hits.length === 0;
   return (
     <View style={{ flex: 1, backgroundColor: colors.paper.DEFAULT, paddingTop: p.topInset }}>
       <View style={{ paddingHorizontal: 16, paddingTop: 8, gap: 10 }}>
@@ -176,24 +181,31 @@ export function PosView(p: {
               ))}
             </ScrollView>
           </View>
+        ) : noHits ? (
+          <View style={[{ position: 'absolute', top: 6, left: 16, right: 16, borderRadius: 18, backgroundColor: colors.paper.card, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }, shadow.lifted]}>
+            <Icon name="search" size={18} color={colors.ink.faint} />
+            <Text numberOfLines={2} style={{ flex: 1, fontFamily: fonts.medium, fontSize: 14, lineHeight: 20, color: colors.ink.soft }}>
+              {t('pos.noResults', { q: p.search.trim() })}
+            </Text>
+          </View>
         ) : null}
       </View>
 
       {/* Totals + actions (thumb zone) */}
       {lines.length ? (
         <View style={[{ backgroundColor: colors.paper.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 16, gap: 10 }, shadow.lifted]}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', columnGap: 10, rowGap: 4 }}>
             <Text variant="caption">{t('pos.items', { n: lines.length })}</Text>
-            <View style={{ flexDirection: 'row', gap: 14 }}>
+            <View style={{ flexDirection: 'row', flexShrink: 1, gap: 14 }}>
               {p.onCoupon ? (
-                <Pressable testID="pos-coupon" onPress={p.onCoupon} hitSlop={8}>
-                  <Text style={{ fontFamily: fonts.semibold, fontSize: 13.5, lineHeight: 20, color: p.couponLabel ? colors.leaf[700] : colors.primary[700] }}>
+                <Pressable testID="pos-coupon" onPress={p.onCoupon} hitSlop={8} style={{ flexShrink: 1 }}>
+                  <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 13.5, lineHeight: 20, color: p.couponLabel ? colors.leaf[700] : colors.primary[700] }}>
                     {p.couponLabel ?? `+ ${t('offers.coupon')}`}
                   </Text>
                 </Pressable>
               ) : null}
-              <Pressable onPress={p.onDiscount} hitSlop={8}>
-                <Text style={{ fontFamily: fonts.semibold, fontSize: 13.5, lineHeight: 20, color: colors.primary[700] }}>
+              <Pressable onPress={p.onDiscount} hitSlop={8} style={{ flexShrink: 1 }}>
+                <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 13.5, lineHeight: 20, color: colors.primary[700] }}>
                   {totals && totals.lineDiscountMinor + totals.invoiceDiscountMinor > 0 ? `${t('pos.discount')}: −${money(totals.lineDiscountMinor + totals.invoiceDiscountMinor, p.currency, p.lang)}` : `+ ${t('pos.invoiceDiscount')}`}
                 </Text>
               </Pressable>
@@ -216,10 +228,10 @@ export function PosView(p: {
               <Icon name="clipboard" color={colors.ink.soft} size={22} />
               <Text style={{ fontFamily: fonts.semibold, fontSize: 11.5, lineHeight: 16, color: colors.ink.soft }}>{t('pos.park')}</Text>
             </Pressable>
-            <Pressable testID="pos-pay" onPress={p.onPay} style={({ pressed }) => [{ flex: 1, height: 60, borderRadius: 18, overflow: 'hidden', transform: [{ scale: pressed ? 0.985 : 1 }] }]}>
-              <View style={{ flex: 1, backgroundColor: colors.primary[600], flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18 }}>
+            <Pressable testID="pos-pay" onPress={p.onPay} accessibilityState={{ disabled: !!p.payDisabled }} style={({ pressed }) => [{ flex: 1, height: 60, borderRadius: 18, overflow: 'hidden', opacity: p.payDisabled ? 0.5 : 1, transform: [{ scale: pressed && !p.payDisabled ? 0.985 : 1 }] }]}>
+              <View style={{ flex: 1, backgroundColor: colors.primary[600], flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 18 }}>
                 <Text style={{ color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 19, lineHeight: 26 }}>{t('pos.payShort')}</Text>
-                <Text style={{ color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 24, lineHeight: 32 }}>{money(totals?.totalMinor ?? 0, p.currency, p.lang)}</Text>
+                <Text numberOfLines={1} adjustsFontSizeToFit style={{ flexShrink: 1, color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 24, lineHeight: 32 }}>{p.payDisabled ? '—' : money(totals?.totalMinor ?? 0, p.currency, p.lang)}</Text>
               </View>
             </Pressable>
           </View>

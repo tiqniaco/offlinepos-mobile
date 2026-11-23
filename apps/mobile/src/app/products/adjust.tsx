@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ADJUST_REASONS, postAdjustment, type AdjustReason } from '../../domain/inventory/adjust';
-import { Screen, Text, Button, Choice, QtyField, TextField, SectionTitle, Card, Chip, Banner, colors } from '../../ui';
+import { Screen, Text, Button, Choice, QtyField, TextField, SectionTitle, Card, Chip, Banner, EmptyState, colors } from '../../ui';
 import { useInvCtx } from '../../features/inventory/useInvCtx';
 import { loadDetail } from '../../features/inventory/loadDetail';
 import type { DetailData } from '../../features/inventory/ProductDetailView';
@@ -23,14 +23,29 @@ export default function AdjustStock() {
   const [note, setNote] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [missing, setMissing] = useState(false);
   useEffect(() => {
-    void loadDetail(id).then(setD);
-  }, [id]);
-  if (!d) return null;
+    loadDetail(id).then(
+      (x) => {
+        setD(x);
+        setMissing(!x);
+      },
+      (e: unknown) => {
+        toast(invErrorMessage(t, e), 'error');
+        setMissing(true);
+      },
+    );
+  }, [id, t]);
+  if (!d)
+    return missing ? (
+      <Screen back title={t('adjust.title')}>
+        <EmptyState icon="box" title={t('invErrors.not_found')} />
+      </Screen>
+    ) : null;
   const after = d.level.qtyMilli + dir * (amount ?? 0);
 
   const save = async () => {
-    if (!ctx || !amount) return;
+    if (!ctx || !amount || busy) return;
     setBusy(true);
     setErr(null);
     try {

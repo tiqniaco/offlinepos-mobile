@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { ScrollView, View } from 'react-native';
 import { Pressable } from '../../ui/Press';
 import { fonts } from '../../ui/fonts';
@@ -98,7 +99,11 @@ export function HomeView({
             <Text style={{ color: '#FFFFFF', fontSize: 27, lineHeight: 38, fontFamily: fonts.bold }}>{businessName}</Text>
             <View className="flex-row flex-wrap gap-2">
               <Chip dot="#7CE0A0">{t('home.offline')}</Chip>
-              {planChip ? <Chip>{planChip}</Chip> : null}
+              {planChip ? (
+                <Pressable testID="home-plan" hitSlop={6} onPress={() => router.push('/settings/subscription')}>
+                  <Chip>{`${planChip}  ‹`}</Chip>
+                </Pressable>
+              ) : null}
             </View>
           </View>
         </View>

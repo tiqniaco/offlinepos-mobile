@@ -152,6 +152,63 @@ export const checkinResponseSchema = z.object({
 });
 export type CheckinResponse = z.infer<typeof checkinResponseSchema>;
 
+// ── Manual payments (InstaPay / Vodafone Cash + receipt photo; activated by the super admin) ──
+export const PAYMENT_METHODS = ['instapay', 'vodafone_cash'] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+export const BILLING_PERIODS = ['monthly', 'yearly'] as const;
+export type BillingPeriod = (typeof BILLING_PERIODS)[number];
+export const PAYMENT_REQUEST_STATUSES = ['pending', 'approved', 'rejected'] as const;
+export type PaymentRequestStatus = (typeof PAYMENT_REQUEST_STATUSES)[number];
+/** Max decoded receipt image size (JPEG / PNG). */
+export const RECEIPT_MAX_BYTES = 2 * 1024 * 1024;
+
+export const manualBillingInfoSchema = z.object({
+  methods: z.array(z.object({ id: z.enum(PAYMENT_METHODS), number: z.string() })),
+  slaHours: z.number(),
+  plans: z.array(
+    z.object({
+      code: z.string(),
+      nameAr: z.string(),
+      nameEn: z.string(),
+      monthlyMinor: z.number(),
+      yearlyMinor: z.number(),
+      limits: z.record(z.string(), z.number()),
+      features: z.array(z.string()),
+    }),
+  ),
+});
+export type ManualBillingInfo = z.infer<typeof manualBillingInfoSchema>;
+
+export const createPaymentRequestSchema = z.object({
+  businessId: z.string(),
+  plan: z.string().min(1).max(20),
+  period: z.enum(BILLING_PERIODS),
+  method: z.enum(PAYMENT_METHODS),
+  /** Egyptian mobile (01xxxxxxxxx; +20 / spaces accepted). */
+  payerPhone: z.string().min(10).max(20),
+  note: z.string().max(200).optional(),
+  /** Receipt photo, base64 (a `data:image/...;base64,` prefix is accepted). */
+  receipt: z.string().min(8).max(Math.ceil((RECEIPT_MAX_BYTES * 4) / 3) + 100),
+});
+export type CreatePaymentRequest = z.infer<typeof createPaymentRequestSchema>;
+
+export const createPaymentRequestResponseSchema = z.object({ id: z.string(), status: z.enum(PAYMENT_REQUEST_STATUSES), amountMinor: z.number(), createdAt: z.number() });
+export type CreatePaymentRequestResponse = z.infer<typeof createPaymentRequestResponseSchema>;
+
+export const paymentRequestSummarySchema = z.object({
+  id: z.string(),
+  plan: z.string(),
+  period: z.enum(BILLING_PERIODS),
+  amountMinor: z.number(),
+  method: z.enum(PAYMENT_METHODS),
+  status: z.enum(PAYMENT_REQUEST_STATUSES),
+  rejectReason: z.string().nullable(),
+  createdAt: z.number(),
+  reviewedAt: z.number().nullable(),
+});
+export type PaymentRequestSummary = z.infer<typeof paymentRequestSummarySchema>;
+export const paymentRequestListSchema = z.object({ requests: z.array(paymentRequestSummarySchema) });
+
 export const apiErrorSchema = z.object({
   error: z.object({ code: z.string(), message: z.string(), retryAfterMs: z.number().optional() }),
 });
@@ -181,5 +238,9 @@ export const API_ERROR_CODES = [
   'password_locked',
   'password_weak',
   'password_not_set',
+  'receipt_invalid',
+  'too_many_pending',
+  'rate_limited',
+  'not_pending',
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];

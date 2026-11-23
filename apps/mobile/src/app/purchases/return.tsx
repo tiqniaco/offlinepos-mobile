@@ -3,13 +3,14 @@ import { View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { formatQty } from '@daftarak/shared';
-import { Screen, Text, Card, Button, QtyField, Chip, TextField, Banner, colors, fonts } from '../../ui';
+import { Screen, Text, Card, Button, QtyField, Chip, TextField, Banner, EmptyState, colors, fonts } from '../../ui';
 import { getDb } from '../../db/client';
 import { getPurchase, postPurchaseReturn, previewPurchaseReturn, returnablePurchaseLines, PurchaseError, type ReturnablePurchaseLine } from '../../domain/purchases/purchases';
 import { useBizCtx } from '../../features/sales/useSalesCtx';
 import { useCurrency } from '../../features/inventory/useInvCtx';
 import { money } from '../../lib/format';
 import { errorMessage } from '../../lib/errors';
+import { toast } from '../../state/toast';
 
 /** Return goods to the supplier: pick quantities → deduct from what we owe (default) or money back. */
 export default function PurchaseReturn() {
@@ -25,14 +26,20 @@ export default function PurchaseReturn() {
   const [total, setTotal] = useState(0);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    void returnablePurchaseLines(getDb(), id).then(setLines);
-    void getPurchase(getDb(), id).then((p) => {
-      setHasSupplier(!!p?.doc.supplierId);
-      if (!p?.doc.supplierId) setHow('cash');
-    });
-  }, [id]);
+    const db = getDb();
+    Promise.all([returnablePurchaseLines(db, id), getPurchase(db, id)])
+      .then(([ls, p]) => {
+        setLines(ls);
+        setHasSupplier(!!p?.doc.supplierId);
+        if (!p?.doc.supplierId) setHow('cash');
+      })
+      .catch((e: unknown) => toast(errorMessage(t, e), 'error'))
+      .finally(() => setLoaded(true));
+  }, [id, t]);
+  const nothingLeft = loaded && !lines.some((l) => l.remainingQtyMilli > 0);
   const items = Object.entries(qty).filter(([, q]) => q > 0).map(([lineId, qtyMilli]) => ({ lineId, qtyMilli }));
   useEffect(() => {
     if (!items.length) return setTotal(0);
@@ -41,11 +48,14 @@ export default function PurchaseReturn() {
   }, [JSON.stringify(items), id]);
 
   const save = async () => {
-    if (!ctx) return;
+    if (!ctx || busy || !items.length) return;
     setErr(null);
     setBusy(true);
     try {
-      const r = await postPurchaseReturn(ctx, id, items, [{ method: how, amountMinor: total }], reason);
+      // Recompute here: the preview effect may still be in flight for the latest quantities.
+      const amount = await previewPurchaseReturn(getDb(), id, items);
+      setTotal(amount);
+      const r = await postPurchaseReturn(ctx, id, items, [{ method: how, amountMinor: amount }], reason);
       router.replace({ pathname: '/purchases/[id]', params: { id: r.docId, fresh: '1' } });
     } catch (e) {
       setErr(e instanceof PurchaseError ? t(`purchase.errors.${e.code}`) : errorMessage(t, e));
@@ -54,8 +64,15 @@ export default function PurchaseReturn() {
     }
   };
 
+  if (nothingLeft)
+    return (
+      <Screen back title={t('purchase.return')}>
+        <EmptyState icon="refresh" title={t('purchase.nothingToReturn')} />
+      </Screen>
+    );
+
   return (
-    <Screen back title={t('purchase.return')} footer={<Button title={`${t('purchase.returnConfirm')} · ${money(total, currency, i18n.language)}`} loading={busy} disabled={!total} onPress={() => void save()} />}>
+    <Screen back title={t('purchase.return')} footer={<Button title={`${t('purchase.returnConfirm')} · ${money(total, currency, i18n.language)}`} loading={busy} disabled={!total || !items.length} onPress={() => void save()} />}>
       {lines.map((l) => (
         <Card key={l.lineId}>
           <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>

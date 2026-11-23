@@ -11,12 +11,13 @@ import { listCategories } from '../../domain/inventory/catalog';
 import { listProducts } from '../../domain/inventory/products';
 import { useBizCtx } from '../../features/sales/useSalesCtx';
 import { errorMessage } from '../../lib/errors';
+import { parseDayText } from '../../features/common/DateRange';
+import { toast } from '../../state/toast';
 
 const toText = (d: number | null | undefined) => (d ? `${Math.floor(d / 10000)}-${String(Math.floor(d / 100) % 100).padStart(2, '0')}-${String(d % 100).padStart(2, '0')}` : '');
-const fromText = (s: string): number | null => {
-  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s.trim());
-  return m ? Number(m[1]) * 10000 + Number(m[2]) * 100 + Number(m[3]) : null;
-};
+const fromText = parseDayText;
+/** Non-empty text that isn't a date. */
+const badDate = (s: string) => !!s.trim() && fromText(s) == null;
 
 /** One form for every offer type; only the fields of the chosen type are shown. */
 export default function OfferForm() {
@@ -65,7 +66,7 @@ export default function OfferForm() {
       if (d.tiers?.length) setTiers(d.tiers);
       setCode(d.couponCode ?? '');
       setMinTotal(d.minTotalMinor ?? null);
-      setMaxUses(d.maxUses ?? null);
+      setMaxUses(d.maxUses != null ? d.maxUses * 1000 : null); // QtyField is milli
       setAll(!!d.scope.all);
       setCatIds(d.scope.categoryIds ?? []);
       if (d.scope.productIds?.length) {
@@ -84,6 +85,7 @@ export default function OfferForm() {
   const save = async () => {
     if (!ctx) return;
     setErr(null);
+    if (badDate(from) || badDate(to)) return setErr(t('offers.errors.bad_date'));
     setBusy(true);
     const def: Omit<OfferDef, 'id' | 'usedCount'> & { id?: string } = {
       id,
@@ -119,7 +121,7 @@ export default function OfferForm() {
       title={id ? t('offers.edit') : t('offers.new')}
       right={
         id && ctx ? (
-          <Pressable hitSlop={8} onPress={() => Alert.alert(t('offers.delete'), undefined, [{ text: t('common.cancel'), style: 'cancel' }, { text: t('common.delete'), style: 'destructive', onPress: () => void deleteOffer(ctx, id).then(() => router.back()) }])}>
+          <Pressable hitSlop={8} onPress={() => Alert.alert(t('offers.delete'), undefined, [{ text: t('common.cancel'), style: 'cancel' }, { text: t('common.delete'), style: 'destructive', onPress: () => void deleteOffer(ctx, id).then(() => router.back()).catch((e) => toast(errorMessage(t, e), 'error')) }])}>
             <Icon name="trash" size={20} color={colors.rose[600]} />
           </Pressable>
         ) : undefined
@@ -220,10 +222,10 @@ export default function OfferForm() {
 
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <View style={{ flex: 1 }}>
-          <TextField label={t('offers.from')} value={from} onChangeText={setFrom} ltr placeholder="2026-12-01" keyboardType="numbers-and-punctuation" />
+          <TextField label={t('offers.from')} value={from} onChangeText={setFrom} ltr placeholder="2026-12-01" keyboardType="numbers-and-punctuation" error={badDate(from) ? t('offers.errors.bad_date') : undefined} />
         </View>
         <View style={{ flex: 1 }}>
-          <TextField label={t('offers.to')} value={to} onChangeText={setTo} ltr placeholder="2026-12-31" keyboardType="numbers-and-punctuation" />
+          <TextField label={t('offers.to')} value={to} onChangeText={setTo} ltr placeholder="2026-12-31" keyboardType="numbers-and-punctuation" error={badDate(to) ? t('offers.errors.bad_date') : undefined} />
         </View>
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
