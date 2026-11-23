@@ -30,7 +30,7 @@
     "badge": "Made for shops in Egypt & Saudi Arabia",
     "point1Hint": "Sell and print even with no internet",
     "point2Hint": "Receipt on the printer or PDF on WhatsApp",
-    "point3Hint": "A PIN lock for every employee",
+    "point3Hint": "Fingerprint or password, and a PIN for each employee",
     "free": "Start free — 14-day full trial"
   },
   "phone": {
@@ -88,7 +88,10 @@
     "creating": "Setting up your Daftarak…",
     "sectionYou": "You",
     "sectionPin": "PIN",
-    "pinNote": "You'll use it every time you open the app. You can enable biometrics later."
+    "pinNote": "You'll use it every time you open the app. You can enable biometrics later.",
+    "bodyPassword": "Your name, and how you open the app",
+    "bioHint": "Open the app with your fingerprint. If it fails, use the phone passcode or your password.",
+    "passwordNote": "You can always open with your account password. Fingerprint is optional."
   },
   "lock": {
     "title": "Who's using the app?",
@@ -99,7 +102,13 @@
     "biometricPrompt": "Unlock Daftarak",
     "switchUser": "Another user",
     "welcomeBack": "Welcome back",
-    "chooseUser": "Choose your account"
+    "chooseUser": "Choose your account",
+    "enterPassword": "Enter your password",
+    "wrongPassword": "Wrong password",
+    "useBiometric": "Open with fingerprint",
+    "usePhoneCode": "Use phone passcode",
+    "biometricEnable": "Confirm to turn on fingerprint",
+    "open": "Open"
   },
   "home": {
     "greeting": "Good morning, {{name}}",
@@ -206,7 +215,8 @@
     "never": "Never",
     "biometric": "Biometric unlock for my account",
     "screenshots": "Block screenshots",
-    "screenshotsHint": "On profit, cost, reports and backup screens"
+    "screenshotsHint": "On profit, cost, reports and backup screens",
+    "biometricHint": "If it fails, the phone passcode is offered. Your password always works."
   },
   "language": {
     "ar": "العربية",
@@ -270,7 +280,11 @@
     "step_up_required": "Please confirm with a new code sent to your phone",
     "code_invalid": "This code is not valid",
     "code_used": "This code was already used",
-    "backup_not_uploaded": "The backup didn't finish uploading, try again"
+    "backup_not_uploaded": "The backup didn't finish uploading, try again",
+    "invalid_credentials": "Wrong mobile number or password",
+    "password_locked": "Too many wrong attempts. Wait a bit or reset the password",
+    "password_weak": "Weak password. Use 8+ characters with a letter and a number",
+    "password_not_set": "This account has no password. Sign in with an SMS code"
   },
   "audit": {
     "intact": "The log is intact — nothing was edited",
@@ -287,7 +301,8 @@
       "settings_change": "Setting changed",
       "licence_mode_change": "Licence status changed",
       "clock_rollback": "Phone clock went back",
-      "override_manager_pin": "Manager override"
+      "override_manager_pin": "Manager override",
+      "user_password_sync": "Owner password updated on this phone"
     }
   },
   "onboarding": {
@@ -1326,5 +1341,51 @@
     "update": "Update the app",
     "many": "{{n}} new messages from Daftarak",
     "channel": "Messages from Daftarak"
+  },
+  "login": {
+    "have": "I have an account — sign in",
+    "title": "Sign in",
+    "body": "With your mobile number and password",
+    "password": "Password",
+    "submit": "Sign in",
+    "forgot": "Forgot password?",
+    "newAccount": "New account",
+    "useSms": "Sign in with an SMS code",
+    "noPassword": "This account has no password yet. Sign in with an SMS code and choose one.",
+    "enterPassword": "Enter your password",
+    "locked": "Too many wrong attempts. Try again in {{min}} min, or reset the password by SMS.",
+    "show": "Show",
+    "hide": "Hide",
+    "forgotTitle": "Reset password",
+    "forgotBody": "We'll text you a code, then you choose a new password"
+  },
+  "password": {
+    "title": "Choose a password",
+    "body": "Use it to sign in on any phone and to open the app",
+    "newTitle": "New password",
+    "newBody": "Choose a new password for your account",
+    "confirm": "Confirm password",
+    "save": "Save",
+    "ruleLength": "8 or more characters",
+    "ruleLetter": "At least one letter",
+    "ruleDigit": "At least one number",
+    "otherPhones": "Any other phone signed in to your account will be signed out and must use the new password.",
+    "missing": "Choose a password first.",
+    "change": "Change password",
+    "changeHint": "The password you sign in and open the app with",
+    "changeBody": "Needs internet",
+    "current": "Current password",
+    "new": "New password",
+    "changed": "Password changed ✓",
+    "problem": {
+      "short": "Use 8 or more characters",
+      "long": "Password is too long",
+      "letter": "Add a letter",
+      "digit": "Add a number",
+      "common": "That password is too easy to guess"
+    }
+  },
+  "unlockReset": {
+    "body": "Needs internet. We'll text a code to the account's number"
   }
 }

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { View, Switch } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { Screen, Text, Choice, SectionTitle, Card, IconBadge, Banner, colors } from '../../ui';
+import { router } from 'expo-router';
+import { Screen, Text, Choice, SectionTitle, Card, IconBadge, Icon, Banner, colors } from '../../ui';
 import { getDb } from '../../db/client';
 import { changeSetting } from '../../domain/settings/settings';
 import { updateUser } from '../../domain/auth/users';
@@ -34,7 +35,7 @@ export default function Security() {
     setErr(null);
     try {
       if (v) {
-        const r = await LocalAuthentication.authenticateAsync({ promptMessage: t('lock.biometricPrompt'), disableDeviceFallback: true });
+        const r = await LocalAuthentication.authenticateAsync({ promptMessage: t('lock.biometricEnable'), disableDeviceFallback: false, fallbackLabel: t('lock.usePhoneCode') });
         if (!r.success) return;
       }
       await updateUser(getDb(), user, user.id, { biometricEnabled: v }, device);
@@ -48,13 +49,26 @@ export default function Security() {
   const shots = useApp((s) => !!s.settings.blockScreenshots);
   return (
     <Screen back title={t('more.security')}>
+      {user.secretKind === 'password' ? (
+        <Card onPress={() => router.push('/settings/password')}>
+          <View className="flex-row items-center gap-3">
+            <IconBadge name="lock" hue="amber" />
+            <View className="flex-1">
+              <Text variant="subtitle">{t('password.change')}</Text>
+              <Text variant="caption">{t('password.changeHint')}</Text>
+            </View>
+            <Icon name="chevron" size={16} color={colors.ink.faint} />
+          </View>
+        </Card>
+      ) : null}
       {bioAvailable ? (
         <Card>
           <View className="flex-row items-center gap-3">
             <IconBadge name="fingerprint" hue="primary" />
-            <Text variant="subtitle" className="flex-1">
-              {t('security.biometric')}
-            </Text>
+            <View className="flex-1">
+              <Text variant="subtitle">{t('security.biometric')}</Text>
+              <Text variant="caption">{t('security.biometricHint')}</Text>
+            </View>
             <Switch value={bio} onValueChange={(v) => void toggleBio(v)} trackColor={{ true: colors.primary[500], false: colors.paper.line }} />
           </View>
         </Card>

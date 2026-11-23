@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `secret_kind` text DEFAULT 'pin' NOT NULL;

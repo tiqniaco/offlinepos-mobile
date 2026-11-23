@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { getDb } from '../db/client';
@@ -26,7 +27,8 @@ export default function LockScreen() {
 
   const tryBiometric = useCallback(
     async (u: LockUser) => {
-      const r = await LocalAuthentication.authenticateAsync({ promptMessage: t('lock.biometricPrompt'), disableDeviceFallback: true, cancelLabel: t('common.cancel') });
+      // Fingerprint / face first; if it fails the phone offers its own passcode (device fallback).
+      const r = await LocalAuthentication.authenticateAsync({ promptMessage: t('lock.biometricPrompt'), disableDeviceFallback: false, fallbackLabel: t('lock.usePhoneCode'), cancelLabel: t('common.cancel') });
       if (r.success) useApp.getState().unlock(await unlockWithBiometric(getDb(), u.id));
     },
     [t],
@@ -37,7 +39,7 @@ export default function LockScreen() {
   }, [selected, bioAvailable, tryBiometric]);
 
   const submit = async () => {
-    if (!selected || busy || pin.length < 4) return;
+    if (!selected || busy || pin.length < (selected.secretKind === 'password' ? 1 : 4)) return;
     setBusy(true);
     try {
       useApp.getState().unlock(await unlockWithPin(getDb(), selected.id, pin));
@@ -46,7 +48,7 @@ export default function LockScreen() {
       if (e instanceof PinError && e.code === 'locked' && e.lockedUntil) {
         const secs = Math.ceil((e.lockedUntil - Date.now()) / 1000);
         setMsg(t('lock.lockedFor', { time: secs >= 60 ? `${Math.ceil(secs / 60)} min` : `${secs} s` }));
-      } else setMsg(t('lock.wrong'));
+      } else setMsg(t(selected.secretKind === 'password' ? 'lock.wrongPassword' : 'lock.wrong'));
     } finally {
       setBusy(false);
     }
@@ -72,6 +74,7 @@ export default function LockScreen() {
       }}
       onSubmit={() => void submit()}
       onBiometric={() => selected && void tryBiometric(selected)}
+      onForgot={selected?.secretKind === 'password' ? () => router.push({ pathname: '/unlock-reset', params: { userId: selected.id } }) : undefined}
     />
   );
 }

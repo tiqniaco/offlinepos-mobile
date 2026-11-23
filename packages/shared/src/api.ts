@@ -52,8 +52,21 @@ export const authResponseSchema = z.object({
   accessToken: z.string(),
   refreshToken: z.string(),
   accessExpiresAt: z.number(),
-  account: z.object({ id: z.string(), phone: z.string() }),
+  account: z.object({ id: z.string(), phone: z.string(), hasPassword: z.boolean().default(false) }),
   businesses: z.array(businessSummarySchema),
+});
+
+/** Phone + password login (any phone). */
+export const passwordLoginSchema = z.object({
+  phone: z.string().min(6).max(20),
+  password: z.string().min(1).max(128),
+  device: deviceInfoSchema,
+});
+
+/** Set / change the account password: right after an SMS code (new account, forgot password) or with the current one. */
+export const passwordSetSchema = z.object({
+  password: z.string().min(1).max(128),
+  currentPassword: z.string().max(128).optional(),
 });
 export type AuthResponse = z.infer<typeof authResponseSchema>;
 
@@ -164,5 +177,9 @@ export const API_ERROR_CODES = [
   'code_used',
   'backup_not_uploaded',
   'integrity_failed',
+  'invalid_credentials',
+  'password_locked',
+  'password_weak',
+  'password_not_set',
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];

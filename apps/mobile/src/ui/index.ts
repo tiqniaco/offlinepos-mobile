@@ -1,6 +1,7 @@
 export { Text, fs } from './Text';
 export { Button } from './Button';
 export { TextField } from './TextField';
+export { PasswordField } from './PasswordField';
 export { Card } from './Card';
 export { Screen, OnboardingScreen, SectionTitle } from './Screen';
 export { Banner } from './Banner';

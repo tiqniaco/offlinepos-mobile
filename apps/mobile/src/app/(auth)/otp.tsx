@@ -31,7 +31,8 @@ export default function OtpScreen() {
     try {
       const auth = await api.verifyOtp(phone, value, await deviceInfo());
       useOnboarding.getState().set({ auth });
-      router.replace(auth.businesses.length > 0 ? '/choose-business' : '/business');
+      // The SMS code proved the phone: choose the account password (new account or forgot password).
+      router.replace('/password');
     } catch (e) {
       setError(errorMessage(t, e));
       setCode('');

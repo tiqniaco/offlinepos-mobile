@@ -3,6 +3,7 @@ import { fonts } from '../../ui/fonts';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useOnboarding } from '../../state/app';
 import { Text, Button, Hero, Logo, IconBadge, Card, colors, type IconName, type Hue } from '../../ui';
 
 const POINTS: { icon: IconName; hue: Hue; key: string; hint: string }[] = [
@@ -43,7 +44,8 @@ export default function Welcome() {
           ))}
         </Card>
         <View className="gap-3 pt-5">
-          <Button testID="welcome-start" title={t('welcome.start')} icon="chevron" onPress={() => router.push('/phone')} />
+          <Button testID="welcome-start" title={t('welcome.start')} icon="chevron" onPress={() => (useOnboarding.getState().set({ mode: 'signup' }), router.push('/phone'))} />
+          <Button testID="welcome-login" kind="secondary" title={t('login.have')} onPress={() => router.push('/login')} />
           <Text variant="caption" className="text-center">
             {t('welcome.free')}
           </Text>

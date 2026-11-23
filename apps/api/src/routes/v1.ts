@@ -12,6 +12,7 @@ import {
   otpRequestSchema,
   otpVerifySchema,
   uuidv7,
+  ed25519PublicKey,
 } from '@daftarak/shared';
 import { z } from 'zod';
 import type { AppEnv, Env } from '../env';
@@ -21,6 +22,7 @@ import { requestOtp, verifyOtp } from '../otp/service';
 import { providerFor, type OtpProvider } from '../otp/providers';
 import { createSession, requireSession, revokeSession, rotateRefresh } from '../auth/tokens';
 import { buildLicence, getPlan, signAnchorReceipt, type BusinessRow, type DeviceRow } from '../licence/issue';
+import { addPasswordRoutes } from './password';
 import { matches, sendExpoPush, type PushMessage, type Target } from '../announce/announce';
 import { addPhase6Routes, commitBackup, setIntegrityChecker, startBackup } from './phase6';
 import { blocks, verifyIntegrity, type IntegrityInput } from '../integrity/verify';
@@ -118,19 +120,26 @@ export function v1Routes(deps: Deps = defaultDeps) {
     await verifyOtp(c.env, { phone, purpose: 'login', code: b.code, now });
     const acc = await c.env.DB.prepare(
       `INSERT INTO accounts (id, phone, created_at, last_login_at) VALUES (?1, ?2, ?3, ?3)
-       ON CONFLICT (phone) DO UPDATE SET last_login_at = ?3 RETURNING id`,
+       ON CONFLICT (phone) DO UPDATE SET last_login_at = ?3 RETURNING id, password_hash`,
     )
       .bind(uuidv7(now), phone, now)
-      .first<{ id: string }>();
+      .first<{ id: string; password_hash: string | null }>();
     const tokens = await createSession(c.env, { accountId: acc!.id, device: b.device, ip: clientIp(c), now });
+    // The SMS code just proved the phone: open a short window to set / reset the password on this session.
+    await c.env.DB.prepare(`UPDATE sessions SET password_reset_until = ?2 WHERE id = ?1`).bind(tokens.sessionId, now + 10 * 60_000).run();
     return c.json({
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
       accessExpiresAt: tokens.accessExpiresAt,
-      account: { id: acc!.id, phone },
+      account: { id: acc!.id, phone, hasPassword: !!acc!.password_hash },
       businesses: await businessesOf(c.env, acc!.id),
     });
   });
+
+  addPasswordRoutes(app, deps, businessesOf);
+
+  /** Public licence verification key (the app embeds it at build time). Public by design, like a JWKS. */
+  app.get('/licence/public-key', (c) => c.json({ kid: c.env.LICENCE_KID, publicKey: ed25519PublicKey(c.env.LICENCE_SIGNING_KEY) }));
 
   app.post('/auth/refresh', async (c) => {
     const b = await body(c, z.object({ refreshToken: z.string() }));

@@ -16,6 +16,8 @@ import { setRestoreBusinessId } from '../../features/backup/restoreState';
 import { dayText } from '../../features/export/builders';
 import { errorMessage } from '../../lib/errors';
 import { fx } from '../../ui/fx';
+import { syncOwnerPassword } from '../../domain/auth/users';
+import { getCurrentDevice, setMeta } from '../../domain/device';
 
 type Backup = Awaited<ReturnType<typeof api.listBackups>>['backups'][number];
 type Step = 'list' | 'otp' | 'working' | 'preview' | 'installing';
@@ -83,6 +85,12 @@ export default function Restore() {
       await setSecret(SECURE_KEYS.refreshToken, auth.refreshToken);
       await storeLicence(getDb(), reg.registration.licence, reg.registration.serverTime);
       await refreshLicenceState(getDb());
+      // The restored owner opens with the CURRENT account password on this phone.
+      const pw = useOnboarding.getState().password;
+      const dev = await getCurrentDevice(getDb());
+      if (pw && dev) await syncOwnerPassword(getDb(), pw, dev.id);
+      await setMeta(getDb(), 'account.phone', auth.account.phone);
+      useOnboarding.getState().reset();
       fx.success();
       await boot(); // restored users → lock screen
     } catch (e) {

@@ -3,11 +3,9 @@
  * without forcing an app update. The "dev" key is accepted only in development builds.
  * Generate production keys with: node apps/api/scripts/gen-licence-key.mjs
  */
-import Constants from 'expo-constants';
-
-/** Set at build time from the LICENCE_PUBLIC_KEY variable (printed by the deploy-api workflow): "kid:hex[,kid:hex]". */
+/** Inlined at build time (EXPO_PUBLIC_LICENCE_PUBLIC_KEY, set by build-apps from the server): "kid:hex[,kid:hex]". */
 function fromBuild(): Record<string, string> {
-  const raw = (Constants.expoConfig?.extra as { licencePublicKeys?: string } | undefined)?.licencePublicKeys ?? '';
+  const raw = process.env.EXPO_PUBLIC_LICENCE_PUBLIC_KEY ?? '';
   const out: Record<string, string> = {};
   for (const part of raw.split(',')) {
     const [kid, hex] = part.trim().split(':');

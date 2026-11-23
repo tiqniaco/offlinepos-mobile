@@ -53,6 +53,9 @@ export const api = {
       body: { phone, purpose: 'login', locale },
     }),
   verifyOtp: (phone: string, code: string, device: DeviceInfo) => request('/v1/auth/otp/verify', authResponseSchema, { body: { phone, code, device } }),
+  passwordLogin: (phone: string, password: string, device: DeviceInfo) => request('/v1/auth/password/login', authResponseSchema, { body: { phone, password, device } }),
+  setPassword: (token: string, password: string, currentPassword?: string) =>
+    request('/v1/auth/password/set', z.object({ ok: z.boolean() }), { body: { password, currentPassword }, token }),
   createBusiness: (
     token: string,
     b: { name: string; country: 'EG' | 'SA'; type: 'shop' | 'trading'; vatRegistered: boolean; backupKey: string; device: DeviceInfo; integrity?: Integrity },

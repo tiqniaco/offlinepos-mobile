@@ -9,6 +9,7 @@ import { withTx } from '../../db/tx';
 import { roles, users } from '../../db/schema';
 import { appendAudit } from '../audit/audit';
 import { assertCanWrite, assertWithinLimit } from '../licence/guard';
+import { passwordProblem } from '@daftarak/shared';
 import { checkPin, hashPin, isValidPin, isWeakPin, lockoutAfterFailure } from './pin';
 
 export type UserRow = typeof users.$inferSelect;
@@ -25,10 +26,12 @@ export interface SessionUser {
   maxItemDiscountBp: number;
   maxInvoiceDiscountBp: number;
   biometricEnabled: boolean;
+  /** 'password' = the account owner (unlocks with the account password). */
+  secretKind?: 'pin' | 'password';
 }
 
 export class PinError extends Error {
-  constructor(public readonly code: 'wrong' | 'locked' | 'invalid' | 'weak', public readonly lockedUntil?: number) {
+  constructor(public readonly code: 'wrong' | 'locked' | 'invalid' | 'weak' | 'password_weak', public readonly lockedUntil?: number) {
     super(code);
   }
 }
@@ -74,11 +77,19 @@ export async function seedSystemRoles(tx: Tx, ctx: { deviceId: string; deviceCod
 
 export async function insertUser(
   tx: Tx,
-  input: { name: string; pin: string; roleId: string; createdBy: string | null; deviceId: string; deviceCode: string; now: number; colorIndex: number },
+  input: { name: string; pin?: string; password?: string; roleId: string; createdBy: string | null; deviceId: string; deviceCode: string; now: number; colorIndex: number },
 ): Promise<string> {
-  if (!isValidPin(input.pin)) throw new PinError('invalid');
-  if (isWeakPin(input.pin)) throw new PinError('weak');
-  const h = await hashPin(input.pin);
+  let secret: string;
+  if (input.password !== undefined) {
+    if (passwordProblem(input.password)) throw new PinError('password_weak');
+    secret = input.password;
+  } else {
+    const pin = input.pin ?? '';
+    if (!isValidPin(pin)) throw new PinError('invalid');
+    if (isWeakPin(pin)) throw new PinError('weak');
+    secret = pin;
+  }
+  const h = await hashPin(secret);
   const id = uuidv7(input.now);
   await tx.insert(users).values({
     id,
@@ -87,6 +98,7 @@ export async function insertUser(
     pinHash: h.hash,
     pinSalt: h.salt,
     pinParams: h.params,
+    secretKind: input.password !== undefined ? 'password' : 'pin',
     color: USER_COLORS[input.colorIndex % USER_COLORS.length]!,
     createdAt: input.now,
     updatedAt: input.now,
@@ -108,7 +120,7 @@ export async function insertUser(
 
 export async function listActiveUsers(db: AppDb) {
   return db
-    .select({ id: users.id, name: users.name, color: users.color, roleName: roles.name, roleKey: roles.key, biometricEnabled: users.biometricEnabled, lockedUntil: users.lockedUntil })
+    .select({ id: users.id, name: users.name, color: users.color, roleName: roles.name, roleKey: roles.key, biometricEnabled: users.biometricEnabled, lockedUntil: users.lockedUntil, secretKind: users.secretKind })
     .from(users)
     .innerJoin(roles, eq(roles.id, users.roleId))
     .where(and(eq(users.isActive, true), isNull(users.deletedAt)))
@@ -133,6 +145,7 @@ async function toSessionUser(db: AppDb, userId: string): Promise<SessionUser> {
     maxItemDiscountBp: row.roles.maxItemDiscountBp,
     maxInvoiceDiscountBp: row.roles.maxInvoiceDiscountBp,
     biometricEnabled: row.users.biometricEnabled,
+    secretKind: row.users.secretKind,
   };
 }
 
@@ -226,6 +239,28 @@ export async function updateUser(
       deviceId: device.id,
       at: now,
     });
+  });
+}
+
+/**
+ * The account holder (first owner user) unlocks with the ACCOUNT password. Called after every successful online
+ * password login / set / reset, so this phone always accepts the current password offline. Old installs that used
+ * a PIN for the owner switch to the password here.
+ */
+export async function syncOwnerPassword(db: AppDb, password: string, deviceId: string, now = Date.now()): Promise<string | null> {
+  if (passwordProblem(password)) return null;
+  const h = await hashPin(password);
+  return withTx(db, async (tx) => {
+    const ownerRole = (await tx.select().from(roles).where(eq(roles.key, 'owner')).limit(1))[0];
+    if (!ownerRole) return null;
+    const owner = (await tx.select().from(users).where(and(eq(users.roleId, ownerRole.id), eq(users.isActive, true), isNull(users.deletedAt))).orderBy(asc(users.createdAt)).limit(1))[0];
+    if (!owner) return null;
+    await tx
+      .update(users)
+      .set({ pinHash: h.hash, pinSalt: h.salt, pinParams: h.params, secretKind: 'password', failedPinAttempts: 0, lockedUntil: null, updatedAt: now })
+      .where(eq(users.id, owner.id));
+    await appendAudit(tx, { action: 'user.password_sync', entity: 'users', entityId: owner.id, after: { secretKind: 'password' }, userId: owner.id, deviceId, at: now });
+    return owner.id;
   });
 }
 

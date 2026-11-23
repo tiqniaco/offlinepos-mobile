@@ -101,9 +101,9 @@ export function OnboardingScreen({
   footer,
   back = true,
 }: {
-  step: number;
+  step?: number;
   total?: number;
-  stepLabel: string;
+  stepLabel?: string;
   title: string;
   subtitle?: string;
   children: React.ReactNode;
@@ -118,9 +118,11 @@ export function OnboardingScreen({
             <View className="gap-5 px-5 pt-3">
               <View className="flex-row items-center justify-between">
                 {back ? <BackButton light /> : <View style={{ height: 44 }} />}
-                <View style={{ width: 120 }}>
-                  <Steps current={step} total={total} label={stepLabel} light />
-                </View>
+                {step ? (
+                  <View style={{ width: 120 }}>
+                    <Steps current={step} total={total} label={stepLabel ?? ''} light />
+                  </View>
+                ) : null}
               </View>
               <View className="gap-1 pb-2">
                 <Text style={{ color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 28, lineHeight: 40 }}>{title}</Text>

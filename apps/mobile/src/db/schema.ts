@@ -84,6 +84,8 @@ export const users = sqliteTable(
     pinHash: text('pin_hash').notNull(),
     pinSalt: text('pin_salt').notNull(),
     pinParams: text('pin_params').notNull(),
+    /** 'pin' (staff, 4–6 digits) or 'password' (the account owner: same password as phone + password login). */
+    secretKind: text('secret_kind', { enum: ['pin', 'password'] }).notNull().default('pin'),
     biometricEnabled: integer('biometric_enabled', { mode: 'boolean' }).notNull().default(false),
     isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
     failedPinAttempts: integer('failed_pin_attempts').notNull().default(0),

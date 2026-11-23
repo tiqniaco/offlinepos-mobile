@@ -15,6 +15,7 @@ export type AuditAction =
   | 'user.update'
   | 'user.disable'
   | 'user.pin_change'
+  | 'user.password_sync'
   | 'role.create'
   | 'role.update'
   | 'settings.change'

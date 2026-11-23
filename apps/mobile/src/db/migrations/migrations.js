@@ -15,6 +15,7 @@ import m0010 from './0010_report_indexes.sql';
 import m0011 from './0011_sales_rollup.sql';
 import m0012 from './0012_anchor_receipts.sql';
 import m0013 from './0013_inbox.sql';
+import m0014 from './0014_user_secret_kind.sql';
 
   export default {
     journal,
@@ -32,7 +33,8 @@ m0009,
 m0010,
 m0011,
 m0012,
-m0013
+m0013,
+m0014
     }
   }
   

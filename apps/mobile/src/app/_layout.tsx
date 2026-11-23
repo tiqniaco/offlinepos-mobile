@@ -76,6 +76,7 @@ export default function RootLayout() {
           </Stack.Protected>
           <Stack.Protected guard={status === 'locked'}>
             <Stack.Screen name="lock" options={{ animation: 'fade', gestureEnabled: false }} />
+            <Stack.Screen name="unlock-reset" />
           </Stack.Protected>
           <Stack.Protected guard={status === 'ready'}>
             <Stack.Screen name="(main)" options={{ animation: 'fade', gestureEnabled: false }} />

@@ -54,6 +54,10 @@ export const useApp = create<AppState>((set) => ({
 /** In-memory onboarding draft (never persisted: tokens stay in memory until the business is created). */
 interface OnboardingDraft {
   phone: string;
+  /** signup: new account by SMS · reset: forgot password (SMS, then a new password). */
+  mode: 'signup' | 'reset';
+  /** The account password, memory only, to set the owner's unlock on this phone. */
+  password: string | null;
   auth: AuthResponse | null;
   businessForm: BusinessForm | null;
   existingBusinessId: string | null;
@@ -63,9 +67,11 @@ interface OnboardingDraft {
 
 export const useOnboarding = create<OnboardingDraft>((set) => ({
   phone: '',
+  mode: 'signup',
+  password: null,
   auth: null,
   businessForm: null,
   existingBusinessId: null,
   set: (p) => set(p),
-  reset: () => set({ phone: '', auth: null, businessForm: null, existingBusinessId: null }),
+  reset: () => set({ phone: '', mode: 'signup', password: null, auth: null, businessForm: null, existingBusinessId: null }),
 }));

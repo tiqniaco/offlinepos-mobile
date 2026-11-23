@@ -1,7 +1,7 @@
 import { Pressable, View } from 'react-native';
 import { fonts } from '../../ui/fonts';
 import { useTranslation } from 'react-i18next';
-import { Text, Hero, Avatar, PinDots, PinPad, Button, Logo, shadow, colors } from '../../ui';
+import { Text, Hero, Avatar, PinDots, PinPad, PasswordField, Button, Logo, shadow, colors } from '../../ui';
 
 export interface LockUser {
   id: string;
@@ -9,6 +9,8 @@ export interface LockUser {
   color: string;
   roleName: string;
   biometricEnabled: boolean;
+  /** 'password' for the account owner, 'pin' for staff. */
+  secretKind?: 'pin' | 'password';
 }
 
 /** Pure view (no DB) so it can be previewed in the dev gallery. Container: src/app/lock.tsx */
@@ -24,6 +26,7 @@ export function LockView({
   onPin,
   onSubmit,
   onBiometric,
+  onForgot,
 }: {
   businessName: string;
   users: LockUser[];
@@ -36,7 +39,10 @@ export function LockView({
   onPin: (v: string) => void;
   onSubmit: () => void;
   onBiometric: () => void;
+  /** Owner only: reset the password by SMS (needs internet). */
+  onForgot?: () => void;
 }) {
+  const isPassword = selected?.secretKind === 'password';
   const { t } = useTranslation();
   return (
     <View className="flex-1 bg-paper">
@@ -53,10 +59,12 @@ export function LockView({
                 <Text style={{ color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 22, lineHeight: 32 }}>{selected.name}</Text>
                 <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 20, fontFamily: fonts.medium }}>{selected.roleName}</Text>
               </View>
-              <View className="h-6 justify-center">
-                <PinDots count={pin.length} total={Math.max(4, pin.length)} error={!!message} light />
-              </View>
-              <Text style={{ color: message ? '#FFD9D4' : 'rgba(255,255,255,0.85)', fontSize: 14, lineHeight: 22, fontFamily: fonts.medium }}>{message ?? t('lock.enterPin')}</Text>
+              {!isPassword ? (
+                <View className="h-6 justify-center">
+                  <PinDots count={pin.length} total={Math.max(4, pin.length)} error={!!message} light />
+                </View>
+              ) : null}
+              <Text style={{ color: message ? '#FFD9D4' : 'rgba(255,255,255,0.85)', fontSize: 14, lineHeight: 22, fontFamily: fonts.medium }}>{message ?? (isPassword ? t('lock.enterPassword') : t('lock.enterPin'))}</Text>
             </>
           ) : (
             <View className="items-center gap-1 py-4">
@@ -86,7 +94,15 @@ export function LockView({
         </View>
       ) : (
         <View className="flex-1 items-center justify-between px-6 pb-6 pt-4">
-          <PinPad value={pin} onChange={onPin} maxLength={6} disabled={busy} onBiometric={selected.biometricEnabled && bioAvailable ? onBiometric : undefined} />
+          {isPassword ? (
+            <View className="w-full max-w-[340px] gap-3">
+              <PasswordField testID="lock-password" label={t('login.password')} value={pin} onChangeText={onPin} onSubmitEditing={onSubmit} autoFocus={!(selected.biometricEnabled && bioAvailable)} />
+              {selected.biometricEnabled && bioAvailable ? <Button kind="secondary" icon="fingerprint" title={t('lock.useBiometric')} onPress={onBiometric} /> : null}
+              {onForgot ? <Button kind="ghost" compact title={t('login.forgot')} onPress={onForgot} /> : null}
+            </View>
+          ) : (
+            <PinPad value={pin} onChange={onPin} maxLength={6} disabled={busy} onBiometric={selected.biometricEnabled && bioAvailable ? onBiometric : undefined} />
+          )}
           <View className="w-full max-w-[300px] flex-row gap-3 pt-4">
             {users.length > 1 ? (
               <View className="flex-1">
@@ -94,7 +110,7 @@ export function LockView({
               </View>
             ) : null}
             <View className="flex-1">
-              <Button testID="pin-ok" compact title={t('common.done')} loading={busy} disabled={pin.length < 4} onPress={onSubmit} />
+              <Button testID="pin-ok" compact title={isPassword ? t('lock.open') : t('common.done')} loading={busy} disabled={pin.length < (isPassword ? 1 : 4)} onPress={onSubmit} />
             </View>
           </View>
         </View>

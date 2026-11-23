@@ -39,7 +39,8 @@ export interface BusinessForm {
 
 export interface OwnerForm {
   name: string;
-  pin: string;
+  /** The account password (owner unlocks with it on this phone, also offline). */
+  password: string;
 }
 
 /** Document prefixes per device; numbers look like INV-A-000123 (SPEC §4). */
@@ -94,10 +95,11 @@ async function writeLocal(db: AppDb, auth: AuthResponse, reg: CreateBusinessResp
     const roleIds = await seedSystemRoles(tx, { deviceId, deviceCode, now });
     await appendAudit(tx, { action: 'business.create', entity: 'business', entityId: registration.businessId, after: form, deviceId, at: now });
     await appendAudit(tx, { action: 'device.register', entity: 'devices', entityId: deviceId, after: { code: deviceCode }, deviceId, at: now });
-    await insertUser(tx, { name: owner.name, pin: owner.pin, roleId: roleIds.owner, createdBy: null, deviceId, deviceCode, now, colorIndex: 0 });
+    await insertUser(tx, { name: owner.name, password: owner.password, roleId: roleIds.owner, createdBy: null, deviceId, deviceCode, now, colorIndex: 0 });
   });
   await ensureInventorySeed(db, { id: deviceId, code: deviceCode }, now);
   await setSecret(SECURE_KEYS.refreshToken, auth.refreshToken);
+  await setMeta(db, 'account.phone', auth.account.phone);
   await storeLicence(db, registration.licence, registration.serverTime);
   await refreshLicenceState(db);
 }
