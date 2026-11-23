@@ -5,7 +5,7 @@
  */
 import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { businessDay, pricePurchase, settle, toBaseQty, uuidv7, addDays, mulDivRound, type PaymentInput, type PricedPurchase } from '@daftarak/shared';
-import { payments, products, productUnits, purchaseDocs, purchaseLines, units } from '../../db/schema';
+import { inventoryDocs, inventoryLines, payments, products, productUnits, purchaseDocs, purchaseLines, stockLevels, units } from '../../db/schema';
 import type { Db } from '../../db/types';
 import { withTx } from '../../db/tx';
 import { appendAudit } from '../audit/audit';
@@ -15,7 +15,7 @@ import type { InvCtx } from '../inventory/context';
 import { defaultWarehouseId, postMovements } from '../inventory/ledger';
 import { nextDocNumber } from '../inventory/numbering';
 import { appendChain, chainHead, purchasePayload, voidPayload } from '../integrity/chain';
-import { postJournal, type AccountKey, type JournalLineInput } from '../accounting/journal';
+import { postJournal, signedLine, type AccountKey, type JournalLineInput } from '../accounting/journal';
 import { postPartyLedger } from '../parties/customers';
 import { getParty } from '../parties/parties';
 import { shiftIdFor } from '../shifts/shifts';
@@ -135,6 +135,7 @@ export async function postPurchase(ctx: PurchaseCtx, draft: PurchaseDraft, pays:
     let invValue = 0;
     let expenseValue = 0;
     let variance = 0;
+    let trueUp = 0;
     for (const [i, l] of draft.lines.entries()) {
       const pl = priced.lines[i]!;
       const stockValue = ctx.vatRegistered ? pl.netMinor : pl.totalMinor;
@@ -142,7 +143,9 @@ export async function postPurchase(ctx: PurchaseCtx, draft: PurchaseDraft, pays:
       if (tracked.has(l.productId) && baseQty > 0) {
         const [mv] = await postMovements(tx, ctx, warehouseId, [{ productId: l.productId, qtyMilli: baseQty, type: 'PURCHASE', unitCostMinor: pl.baseUnitCostMinor, sourceType: 'purchase_doc', sourceId: docId, sourceLineId: lineIds[i] }]);
         invValue += mv!.valueMinor;
-        variance += stockValue - mv!.valueMinor; // rounding of the per-unit cost
+        // Units sold below zero were costed at the old average; buying resets it, so their cost is trued up (COGS).
+        trueUp += mv!.trueUpMinor;
+        variance += stockValue - (mv!.valueMinor - mv!.trueUpMinor); // rounding of the per-unit cost
       } else expenseValue += stockValue;
       // Last purchase cost (per base unit) becomes the product's reference cost.
       await tx.update(products).set({ costMinor: pl.baseUnitCostMinor, updatedAt: t }).where(eq(products.id, l.productId));
@@ -181,7 +184,8 @@ export async function postPurchase(ctx: PurchaseCtx, draft: PurchaseDraft, pays:
     }
     if (st.creditMinor > 0) await postPartyLedger(tx, ctx, { partyType: 'S', partyId: draft.supplierId!, sourceType: 'purchase_doc', sourceId: docId, debitMinor: 0, creditMinor: st.creditMinor, businessDay: day, at: t, dueDay: draft.dueDays ? addDays(day, draft.dueDays) : null });
 
-    const jl: JournalLineInput[] = [{ account: 'INVENTORY', debit: invValue }, { account: 'EXPENSES', debit: expenseValue }];
+    const jl: JournalLineInput[] = [signedLine('INVENTORY', invValue), { account: 'EXPENSES', debit: expenseValue }];
+    if (trueUp !== 0) jl.push(signedLine('COGS', -trueUp));
     if (ctx.vatRegistered) jl.push({ account: 'VAT_IN', debit: priced.taxMinor });
     if (variance > 0) jl.push({ account: 'STOCK_ADJ', debit: variance });
     if (variance < 0) jl.push({ account: 'STOCK_ADJ', credit: -variance });
@@ -311,6 +315,7 @@ export async function voidPurchase(ctx: PurchaseCtx, docId: string, reason: stri
     const t = nowOf(ctx);
     const doc = (await tx.select().from(purchaseDocs).where(eq(purchaseDocs.id, docId)).limit(1))[0];
     if (!doc || doc.type !== 'PURCHASE' || doc.status !== 'POSTED') throw new PurchaseError('not_voidable');
+    if (t < (await chainHead(tx, ctx.device.id)).postedAt) throw new PurchaseError('clock_behind');
     try {
       await assertVoidWindow(tx, doc.shiftId, doc.businessDay, t, ctx.timezone);
     } catch {
@@ -329,6 +334,13 @@ export async function voidPurchase(ctx: PurchaseCtx, docId: string, reason: stri
       const original = mulDivRound(l.baseQtyMilli, l.baseUnitCostMinor, 1000);
       diff += original - -mv!.valueMinor; // inventory credited at the original value; average drift → stock adj.
     }
+    // The product's reference cost goes back to what it was before this invoice (if nothing changed it since).
+    for (const l of lines) {
+      const p = (await tx.select({ cost: products.costMinor }).from(products).where(eq(products.id, l.productId)).limit(1))[0];
+      if (!p || p.cost !== l.baseUnitCostMinor) continue;
+      const prev = await previousCost(tx, l.productId, docId, doc.postedAt ?? t, warehouseId);
+      if (prev != null && prev !== p.cost) await tx.update(products).set({ costMinor: prev, updatedAt: t }).where(eq(products.id, l.productId));
+    }
     await mirrorJournal(tx, ctx, 'purchase_doc', docId, 'purchase_void', day, t, `void ${doc.number}`);
     if (diff !== 0) await postJournal(tx, ctx, { sourceType: 'purchase_void', sourceId: docId, businessDay: day, memo: `void ${doc.number} avg`, at: t, lines: diff > 0 ? [{ account: 'INVENTORY', debit: diff }, { account: 'STOCK_ADJ', credit: diff }] : [{ account: 'STOCK_ADJ', debit: -diff }, { account: 'INVENTORY', credit: -diff }] });
     if (doc.creditMinor > 0 && doc.supplierId) await postPartyLedger(tx, ctx, { partyType: 'S', partyId: doc.supplierId, sourceType: 'purchase_void', sourceId: docId, debitMinor: doc.creditMinor, creditMinor: 0, businessDay: day, at: t });
@@ -337,6 +349,28 @@ export async function voidPurchase(ctx: PurchaseCtx, docId: string, reason: stri
     await appendChain(tx, ctx.device.id, 'VOID', docId, t, () => voidPayload({ docId, number: doc.number, reason: reason.trim(), by: ctx.user.id, at: t }));
     await appendAudit(tx, { action: 'purchase.void', entity: 'purchase_docs', entityId: docId, before: { status: 'POSTED', total: doc.totalMinor }, after: { status: 'VOIDED' }, reason, userId: ctx.user.id, deviceId: ctx.device.id, at: t });
   });
+}
+
+/** Cost before `docId`: the last other posted purchase, else the opening stock cost, else the current average. */
+async function previousCost(tx: Db, productId: string, docId: string, before: number, warehouseId: string): Promise<number | null> {
+  const lp = (await tx
+    .select({ c: purchaseLines.baseUnitCostMinor })
+    .from(purchaseLines)
+    .innerJoin(purchaseDocs, eq(purchaseDocs.id, purchaseLines.docId))
+    .where(and(eq(purchaseLines.productId, productId), eq(purchaseDocs.type, 'PURCHASE'), eq(purchaseDocs.status, 'POSTED'), sql`${purchaseDocs.id} <> ${docId}`, lte(purchaseDocs.postedAt, before)))
+    .orderBy(desc(purchaseDocs.postedAt), desc(purchaseDocs.id))
+    .limit(1))[0];
+  if (lp) return lp.c;
+  const op = (await tx
+    .select({ c: inventoryLines.unitCostMinor })
+    .from(inventoryLines)
+    .innerJoin(inventoryDocs, eq(inventoryDocs.id, inventoryLines.docId))
+    .where(and(eq(inventoryLines.productId, productId), eq(inventoryDocs.type, 'OPENING'), eq(inventoryDocs.status, 'POSTED')))
+    .orderBy(desc(inventoryDocs.postedAt))
+    .limit(1))[0];
+  if (op?.c != null) return op.c;
+  const lv = (await tx.select({ a: stockLevels.avgCostMinor, q: stockLevels.qtyMilli }).from(stockLevels).where(and(eq(stockLevels.productId, productId), eq(stockLevels.warehouseId, warehouseId))).limit(1))[0];
+  return lv && lv.q > 0 && lv.a > 0 ? lv.a : null;
 }
 
 export async function getPurchase(db: Db, id: string) {

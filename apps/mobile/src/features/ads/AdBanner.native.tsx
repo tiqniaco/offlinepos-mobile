@@ -15,14 +15,15 @@ import { adRequestOptions, bannerUnitId } from './backend.native';
 
 const goPlans = () => router.push('/settings/subscription');
 
-export function AdBanner({ place }: { place: string }) {
+/** `inList`: placed inside an already padded list/screen (no extra side margin). */
+export function AdBanner({ place, inList }: { place: string; inList?: boolean }) {
   const { t } = useTranslation();
   const { slot, live } = useAdSlot(place);
   const [failed, setFailed] = useState(false);
   if (!slot) return null;
   const showReal = live && !failed;
   return (
-    <View style={{ marginHorizontal: 16, marginVertical: 8, borderRadius: 16, borderWidth: 1, borderColor: colors.paper.line, backgroundColor: colors.paper.card, overflow: 'hidden' }}>
+    <View style={{ marginHorizontal: inList ? 0 : 16, marginVertical: 8, borderRadius: 16, borderWidth: 1, borderColor: colors.paper.line, backgroundColor: colors.paper.card, overflow: 'hidden' }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 6 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <View style={{ paddingHorizontal: 7, paddingVertical: 1, borderRadius: 6, backgroundColor: colors.amber[100] }}>

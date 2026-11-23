@@ -77,7 +77,7 @@ export default function Purchases() {
             onEndReachedThreshold={0.5}
             contentContainerStyle={{ paddingBottom: 90 }}
             // The ad sits at the TOP of the list, far from the floating + (no accidental taps).
-            ListHeaderComponent={<AdBanner place="purchases" />}
+            ListHeaderComponent={<AdBanner place="purchases" inList />}
             ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
             renderItem={({ item }) => (
               <DocRow

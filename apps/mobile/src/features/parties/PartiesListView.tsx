@@ -108,7 +108,7 @@ export function PartiesListView({
             keyExtractor={(r) => r.id}
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 96 }}
             // The ad sits at the TOP of the list, far from the floating + (no accidental taps).
-            ListHeaderComponent={<AdBanner place="parties" />}
+            ListHeaderComponent={<AdBanner place="parties" inList />}
             ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
             renderItem={({ item }) => {
               const b = balanceLabel(type, item.owedMinor, currency, lang);

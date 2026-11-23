@@ -64,7 +64,7 @@ export default function Expenses() {
         </Card>
         <ExportBar build={async () => expensesDoc(rows, totals, range.from, range.to, await bizHeader())} kinds={['pdf', 'excel', 'print', 'whatsapp']} />
         {/* Ad above the list, far from the floating + at the bottom (no accidental taps). */}
-        <AdBanner place="expenses" />
+        <AdBanner place="expenses" inList />
         {rows.length === 0 ? <EmptyState icon="wallet" hue="rose" title={t('expenses.empty')} body={t('expenses.emptyBody')} /> : null}
         {rows.map((r) => (
           <DocRow
