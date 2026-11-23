@@ -69,11 +69,64 @@ export class SmsMisrProvider implements OtpProvider {
   }
 }
 
+/**
+ * SMS Misr normal SMS API (no approved OTP template needed): POST https://smsmisr.com/api/SMS/
+ * form fields environment, username, password, sender (Sender Token), mobile (2010…), language, message.
+ * Success is code "1901". language: 2 = Arabic (unicode). The message never contains anything but the code.
+ */
+export class SmsMisrSmsProvider implements OtpProvider {
+  readonly name = 'smsmisr-sms';
+  constructor(
+    private readonly cfg: { baseUrl: string; environment: string; username: string; password: string; sender: string },
+    private readonly fetchFn: typeof fetch = fetch,
+  ) {}
+
+  static text(code: string, locale: 'ar' | 'en') {
+    return locale === 'en' ? `Your Kashiro code: ${code}\nDo not share it with anyone.` : `كود الدخول لكاشيرو: ${code}\nما تديهوش لأي حد.`;
+  }
+
+  async send(phone: string, code: string, locale: 'ar' | 'en'): Promise<SendResult> {
+    const form = new URLSearchParams({
+      environment: this.cfg.environment,
+      username: this.cfg.username,
+      password: this.cfg.password,
+      sender: this.cfg.sender,
+      mobile: phone,
+      language: locale === 'en' ? '1' : '2',
+      message: SmsMisrSmsProvider.text(code, locale),
+    });
+    try {
+      const res = await this.fetchFn(this.cfg.baseUrl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form.toString() });
+      const text = await res.text();
+      let codeField: string;
+      try {
+        codeField = String((JSON.parse(text) as { code?: unknown }).code ?? '');
+      } catch {
+        codeField = text.trim().slice(0, 40);
+      }
+      if (res.ok && codeField === '1901') return { ok: true, providerRef: codeField };
+      return { ok: false, error: `smsmisr-sms:${res.status}:${codeField}` };
+    } catch (e) {
+      return { ok: false, error: `smsmisr-sms:network:${(e as Error).message}` };
+    }
+  }
+}
+
 export function providerFor(env: Env): OtpProvider {
   if (env.OTP_PROVIDER === 'smsmisr') {
     const { SMSMISR_USERNAME, SMSMISR_PASSWORD, SMSMISR_SENDER, SMSMISR_TEMPLATE } = env;
-    if (!SMSMISR_USERNAME || !SMSMISR_PASSWORD || !SMSMISR_SENDER || !SMSMISR_TEMPLATE) {
+    if (!SMSMISR_USERNAME || !SMSMISR_PASSWORD || !SMSMISR_SENDER) {
       throw new Error('SMS Misr secrets are not configured');
+    }
+    // No approved OTP template → the normal SMS API with our own short text.
+    if (!SMSMISR_TEMPLATE) {
+      return new SmsMisrSmsProvider({
+        baseUrl: env.SMSMISR_SMS_URL || 'https://smsmisr.com/api/SMS/',
+        environment: env.SMSMISR_ENVIRONMENT,
+        username: SMSMISR_USERNAME,
+        password: SMSMISR_PASSWORD,
+        sender: SMSMISR_SENDER,
+      });
     }
     return new SmsMisrProvider({
       baseUrl: env.SMSMISR_BASE_URL,

@@ -29,6 +29,8 @@ export interface Env {
   SMSMISR_PASSWORD?: string;
   SMSMISR_SENDER?: string;
   SMSMISR_TEMPLATE?: string;
+  /** Normal SMS API endpoint (used when there is no OTP template). */
+  SMSMISR_SMS_URL?: string;
 }
 
 export interface Vars {

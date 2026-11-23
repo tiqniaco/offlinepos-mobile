@@ -15,3 +15,9 @@ Interface `OtpProvider.send(phone, code, locale)` in `apps/api/src/otp/providers
   **Before going live:** confirm the parameter names, your approved template id and the success code in
   your SMS Misr dashboard docs, and test delivery to a Saudi (+966) number. If KSA delivery is poor,
   add a Twilio / WhatsApp Cloud API provider here and route `+966` to it — no other code changes.
+
+## SMS Misr without an OTP template (2026-11)
+If `SMSMISR_TEMPLATE` is empty, the server uses the normal SMS API (`POST https://smsmisr.com/api/SMS/`, form fields
+`environment, username, password, sender, mobile, language, message`; success code `1901`). The text is only the code:
+«كود الدخول لكاشيرو: 123456 — ما تديهوش لأي حد» (language 2 = Arabic) or the English line for English users.
+Secrets: `SMSMISR_USERNAME`, `SMSMISR_PASSWORD`, `SMSMISR_SENDER` (Sender Token). Delete `OTP_TEST_CODE` to go live.

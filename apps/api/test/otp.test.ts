@@ -121,3 +121,22 @@ describe('OTP verify rules', () => {
     expect((await c.call('POST', '/v1/auth/otp/verify', { phone: '01022222225', code: second, device: device() })).status).toBe(200);
   });
 });
+
+describe('SMS Misr normal SMS (no template)', () => {
+  it('posts the form with Arabic text and treats 1901 as sent', async () => {
+    const { SmsMisrSmsProvider } = await import('../src/otp/providers');
+    const calls: { url: string; body: string }[] = [];
+    const ok = new SmsMisrSmsProvider({ baseUrl: 'https://smsmisr.com/api/SMS/', environment: '1', username: 'u', password: 'p', sender: 'tok' }, (async (url: string, init: RequestInit) => {
+      calls.push({ url, body: String(init.body) });
+      return new Response(JSON.stringify({ code: '1901', SMSID: '9' }));
+    }) as unknown as typeof fetch);
+    expect(await ok.send('201012345678', '482913', 'ar')).toEqual({ ok: true, providerRef: '1901' });
+    const f = new URLSearchParams(calls[0]!.body);
+    expect(calls[0]!.url).toBe('https://smsmisr.com/api/SMS/');
+    expect(Object.fromEntries(f)).toMatchObject({ environment: '1', username: 'u', password: 'p', sender: 'tok', mobile: '201012345678', language: '2' });
+    expect(f.get('message')).toContain('482913');
+    expect(f.get('message')).toContain('كاشيرو');
+    const bad = new SmsMisrSmsProvider({ baseUrl: 'x:', environment: '1', username: 'u', password: 'p', sender: 't' }, (async () => new Response(JSON.stringify({ code: '1903' }))) as unknown as typeof fetch);
+    expect(await bad.send('201012345678', '1', 'en')).toEqual({ ok: false, error: 'smsmisr-sms:200:1903' });
+  });
+});
