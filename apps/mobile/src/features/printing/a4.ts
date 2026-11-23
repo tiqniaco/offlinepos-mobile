@@ -94,12 +94,12 @@ export function buildA4Html(d: ReceiptData, o: A4Options = {}): string {
   const n = (s: string, cls = '') => `<bdi class="num${cls ? ` ${cls}` : ''}" dir="ltr">${s}</bdi>`;
   const money = (v: number) => `${n(m(v))} <span class="cur">${cur}</span>`;
 
-  // Column widths (%): # 5, code 10, unit 9, qty 8, price 12, discount 10, total 13 — the name takes the rest.
-  const cols = [`<col style="width:5%"/>`, showCode ? `<col style="width:10%"/>` : '', `<col/>`, `<col style="width:9%"/>`, `<col style="width:8%"/>`, `<col style="width:12%"/>`, showDisc ? `<col style="width:10%"/>` : '', `<col style="width:13%"/>`].join('');
+  // Column widths (%): # 5, code 13 (a 13-digit barcode must fit on one line), unit 9, qty 8, price 12, discount 10, total 13 — the name takes the rest.
+  const cols = [`<col style="width:5%"/>`, showCode ? `<col style="width:13%"/>` : '', `<col/>`, `<col style="width:9%"/>`, `<col style="width:8%"/>`, `<col style="width:12%"/>`, showDisc ? `<col style="width:10%"/>` : '', `<col style="width:13%"/>`].join('');
   const rows = d.lines
     .map(
       (l, i) =>
-        `<tr><td class="c idx">${n(String(i + 1))}</td>${showCode ? `<td class="c code">${l.code ? n(esc(l.code)) : ''}</td>` : ''}<td class="name">${esc(l.name)}</td><td class="c">${esc(l.unit)}</td><td class="c">${n(formatQty(l.qtyMilli))}</td><td class="c">${n(m(l.priceMinor))}</td>${showDisc ? `<td class="c">${l.discountMinor ? n(m(l.discountMinor)) : '<span class="dim">—</span>'}</td>` : ''}<td class="c b">${n(m(l.totalMinor))}</td></tr>`,
+        `<tr><td class="c idx">${n(String(i + 1))}</td>${showCode ? `<td class="c code">${l.code ? n(esc(l.code), 'code') : ''}</td>` : ''}<td class="name">${esc(l.name)}</td><td class="c">${esc(l.unit)}</td><td class="c">${n(formatQty(l.qtyMilli))}</td><td class="c">${n(m(l.priceMinor))}</td>${showDisc ? `<td class="c">${l.discountMinor ? n(m(l.discountMinor)) : '<span class="dim">—</span>'}</td>` : ''}<td class="c b">${n(m(l.totalMinor))}</td></tr>`,
     )
     .join('');
 
@@ -109,7 +109,7 @@ export function buildA4Html(d: ReceiptData, o: A4Options = {}): string {
   if (d.discountMinor) tot.push(row('الإجمالي قبل الخصم', n(m(sub))), row('الخصم', n(`-${m(d.discountMinor)}`)));
   if (vat) tot.push(row('الإجمالي بدون الضريبة', n(m(d.netMinor))), row(`ضريبة القيمة المضافة ${n(`${d.taxRatePct}%`)}`, n(m(d.taxMinor))));
   if (d.roundingMinor) tot.push(row('تقريب', n(m(d.roundingMinor))));
-  tot.push(row(quote ? 'إجمالي العرض' : ret ? 'إجمالي المرتجع' : 'الإجمالي المستحق', `<span>${money(d.totalMinor)}</span>`, 'grand'));
+  tot.push(row(`<span class="glbl">${quote ? 'إجمالي العرض' : ret ? 'إجمالي المرتجع' : 'الإجمالي المستحق'}</span>`, `<span class="gval">${money(d.totalMinor)}</span>`, 'grand'));
   const pays: string[] = [];
   if (!quote) {
     for (const p of d.payments) pays.push(row(`${esc(method(p.method))}${p.label ? ` (${esc(p.label)})` : ''}`, n(m(p.amountMinor))));
@@ -183,17 +183,16 @@ table.items th{font-weight:700;font-size:9pt;padding:9px 6px;text-align:center;l
 table.items th.name{text-align:right}
 table.items td{padding:7px 6px;vertical-align:top;line-height:1.5}
 table.items td.name{text-align:right;overflow-wrap:anywhere;word-break:normal}
-table.items td.code{font-size:8.5pt;color:${mute};overflow-wrap:anywhere}
+table.items td.code{font-size:8pt;color:${mute};padding-left:3px;padding-right:3px}table.items .num.code{white-space:normal;overflow-wrap:anywhere}
 table.items td.idx{color:#667085}
 /* bottom: notes/QR (right) · totals + words (left) */
 .bottom{display:flex;gap:16px;margin-top:16px;align-items:flex-start;page-break-inside:avoid;break-inside:avoid}
 .side{flex:1;display:flex;flex-direction:column;gap:12px;min-width:0}
-.sums{width:44%;flex:none;display:flex;flex-direction:column;gap:12px}
+.sums{width:46%;flex:none;display:flex;flex-direction:column;gap:12px}
 .totals{font-size:10.5pt}
 .r{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:6px 12px}
 .totals .r+.r{border-top:1px solid ${line}}
-.totals .r:not(.grand){font-size:10.5pt}
-.grand{font-size:15pt;font-weight:700;padding:10px 12px}.grand .cur{color:inherit;font-weight:700}
+.grand{font-weight:700;padding:10px 12px;align-items:center}.glbl{font-size:12pt;white-space:nowrap}.gval{font-size:15pt;white-space:nowrap}.grand .cur{color:inherit;font-weight:700}
 .pays{font-size:9.5pt;color:#344054}.pays .r{padding:4px 12px}
 .due{color:#B42318;font-weight:700}
 .words{padding:10px 12px;font-weight:700;font-size:10pt;line-height:1.7}
@@ -217,7 +216,7 @@ table.items td{border:1px solid #344054}
 .shop h1{color:${ink}}.docbox h2{color:${brand}}
 .head{border-bottom:1px solid #E4E7EC;margin-bottom:16px}
 .hnote{background:${brand}12;color:${brand};border-radius:8px}
-.box{background:#F8F9FC;border-radius:8px;border-inline-start:3px solid ${brand}}
+.box{background:#F8F9FC;border-radius:8px;border:1px solid #EAECF0}.cust .lbl{color:${brand}}
 table.items th{background:${brand}14;color:${ink};border-bottom:1.5px solid ${brand}}
 table.items td{border-bottom:1px solid #EAECF0}
 table.items tbody tr:nth-child(even) td{background:#FAFBFC}
