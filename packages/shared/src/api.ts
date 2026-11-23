@@ -274,6 +274,7 @@ export const API_ERROR_CODES = [
   'too_many_pending',
   'rate_limited',
   'not_pending',
+  'image_invalid',
   'ocr_not_in_plan',
   'ocr_quota_exceeded',
   'ocr_failed',

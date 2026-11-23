@@ -61,6 +61,24 @@ export async function getPlan(env: Env, code: string): Promise<PlanRow> {
   return p;
 }
 
+/** Plan limits as stored; a row saved before a limit existed reads it as 0 (e.g. ocr_month). */
+export function planLimits(p: PlanRow): PlanLimits {
+  const l = JSON.parse(p.limits_json) as Partial<PlanLimits>;
+  return { users: 0, products: 0, parties: 0, invoices_month: 0, backups_kept: 0, ocr_month: 0, ...l };
+}
+
+/**
+ * The limits the business may use right now — the same decision the phone makes from the licence
+ * (computeLicenceState): the plan while it runs (trial included), paid plans keep it through grace, then the free plan.
+ */
+export async function effectiveLimits(env: Env, business: BusinessRow, now: number): Promise<{ plan: string; limits: PlanLimits }> {
+  const plan = await getPlan(env, business.plan_code);
+  const graceUntil = business.plan_expires_at + (business.status === 'trial' ? 0 : GRACE_DAYS * DAY_MS);
+  if (business.status !== 'suspended' && (plan.is_free || now <= graceUntil)) return { plan: plan.code, limits: planLimits(plan) };
+  const free = await getPlan(env, FREE_PLAN_CODE);
+  return { plan: free.code, limits: business.status === 'suspended' ? { ...planLimits(free), ocr_month: 0 } : planLimits(free) };
+}
+
 async function adsEnabled(env: Env): Promise<boolean> {
   const r = await env.DB.prepare(`SELECT value FROM app_settings WHERE key = 'ads_enabled'`).first<{ value: string }>();
   return r?.value !== 'false';
@@ -78,9 +96,9 @@ export async function buildLicence(env: Env, business: BusinessRow, device: Devi
     did: device.id,
     plan: plan.code,
     status: device.deactivated_at ? 'deactivated' : business.status,
-    limits: JSON.parse(plan.limits_json) as PlanLimits,
+    limits: planLimits(plan),
     features: JSON.parse(plan.features_json) as Feature[],
-    fallback: { plan: free.code, limits: JSON.parse(free.limits_json) as PlanLimits, features: JSON.parse(free.features_json) as Feature[] },
+    fallback: { plan: free.code, limits: planLimits(free), features: JSON.parse(free.features_json) as Feature[] },
     iat: now,
     expires_at: expiresAt,
     grace_until: expiresAt + GRACE_DAYS * DAY_MS,

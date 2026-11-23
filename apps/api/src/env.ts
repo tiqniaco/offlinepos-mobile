@@ -29,6 +29,12 @@ export interface Env {
   SMSMISR_PASSWORD?: string;
   SMSMISR_SENDER?: string;
   SMSMISR_TEMPLATE?: string;
+  /** Claude API key for supplier-invoice scans (OCR). Without it /v1/purchases/scan answers 503 ocr_unavailable. */
+  ANTHROPIC_API_KEY?: string;
+  /** First (cheap) OCR model; default claude-haiku-5-5. */
+  OCR_MODEL?: string;
+  /** Retry model when the first read fails; default claude-opus-5-5. */
+  OCR_FALLBACK_MODEL?: string;
   /** Normal SMS API endpoint (used when there is no OTP template). */
   SMSMISR_SMS_URL?: string;
 }

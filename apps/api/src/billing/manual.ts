@@ -28,21 +28,26 @@ export async function paymentSettings(env: Env): Promise<{ instapay: string; vod
   };
 }
 
-/** Decodes the base64 receipt and checks size + magic bytes. Throws 400 receipt_invalid. */
-export function decodeReceipt(raw: string): { bytes: Uint8Array; ext: 'jpg' | 'png'; contentType: string } {
+/** Decodes a base64 JPEG/PNG and checks size + magic bytes. Throws 400 with `code` on failure. */
+export function decodeImage(raw: string, maxBytes: number, code: 'receipt_invalid' | 'image_invalid', what = 'image'): { bytes: Uint8Array; ext: 'jpg' | 'png'; contentType: 'image/jpeg' | 'image/png'; base64: string } {
   const b64 = raw.replace(/^data:[\w/+.-]+;base64,/, '').replace(/\s+/g, '');
   let bin: string;
   try {
     bin = atob(b64);
   } catch {
-    throw new ApiError(400, 'receipt_invalid', 'receipt is not valid base64');
+    throw new ApiError(400, code, `${what} is not valid base64`);
   }
-  if (bin.length === 0 || bin.length > RECEIPT_MAX_BYTES) throw new ApiError(400, 'receipt_invalid', 'receipt must be at most 2 MB');
+  if (bin.length === 0 || bin.length > maxBytes) throw new ApiError(400, code, `${what} must be at most ${Math.round((maxBytes / 1024 / 1024) * 10) / 10} MB`);
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return { bytes, ext: 'jpg', contentType: 'image/jpeg' };
-  if (bytes.length >= 4 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return { bytes, ext: 'png', contentType: 'image/png' };
-  throw new ApiError(400, 'receipt_invalid', 'receipt must be a JPEG or PNG image');
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return { bytes, ext: 'jpg', contentType: 'image/jpeg', base64: b64 };
+  if (bytes.length >= 4 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return { bytes, ext: 'png', contentType: 'image/png', base64: b64 };
+  throw new ApiError(400, code, `${what} must be a JPEG or PNG image`);
+}
+
+/** Decodes the base64 receipt and checks size + magic bytes. Throws 400 receipt_invalid. */
+export function decodeReceipt(raw: string) {
+  return decodeImage(raw, RECEIPT_MAX_BYTES, 'receipt_invalid', 'receipt');
 }
 
 export const receiptContentType = (key: string) => (key.endsWith('.png') ? 'image/png' : 'image/jpeg');
