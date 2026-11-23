@@ -1,3 +1,4 @@
+import { useApp } from '../../state/app';
 /**
  * Backup orchestration: "backup now", the automatic daily backup that rides on the check-in, local export,
  * and restore on a new phone. Business data never leaves the phone unencrypted.
@@ -163,7 +164,7 @@ export async function prepareAutoBackup(): Promise<{ size: number; sha256: strin
   }
 }
 
-/** After the check-in: upload to the presigned URL; tomorrow's check-in commits it. */
+/** After the check-in: upload to the presigned URL and commit it (the next check-in commits it if that fails). */
 export async function finishAutoBackup(put: { backupId: string; url: string; headers: Record<string, string> } | null | undefined) {
   const p = prepared;
   prepared = null;
@@ -173,6 +174,16 @@ export async function finishAutoBackup(put: { backupId: string; url: string; hea
       await uploadBackup(p.file, put);
       await setMeta(getDb(), 'backup.pending', JSON.stringify({ id: put.backupId, size: p.size }));
       if (p.photos) await setMeta(getDb(), 'backup.photosAt', String(Date.now()));
+      // Commit right away so today's backup is restorable today; the next check-in still commits it if this fails.
+      try {
+        const sid = useApp.getState().business?.serverBusinessId;
+        if (sid) {
+          const r = await api.backupCommit(await accessToken(), put.backupId, sid);
+          if (r.ok) await markCommitted(true);
+        }
+      } catch {
+        /* the check-in will commit it */
+      }
     }
   } catch {
     /* next day */
