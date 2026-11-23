@@ -70,7 +70,8 @@ export const DEFAULT_PLANS: PlanDefinition[] = [
     monthly: { EGP: 29_900, SAR: 7_900 },
     yearly: { EGP: 299_000, SAR: 79_000 },
     limits: { users: 10, products: UNLIMITED, parties: UNLIMITED, invoices_month: UNLIMITED, backups_kept: 30, ocr_month: 150 },
-    features: ['no_ads', 'multi_unit', 'offers', 'expenses_shifts', 'expiry', 'adv_reports', 'custom_roles'],
+    // custom_roles stays a known feature (old licences carry it) but is not offered: the feature is not built.
+    features: ['no_ads', 'multi_unit', 'offers', 'expenses_shifts', 'expiry', 'adv_reports'],
     isFree: false,
     trialDays: 14,
   },
