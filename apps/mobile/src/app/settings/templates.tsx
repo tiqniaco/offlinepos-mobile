@@ -1,3 +1,6 @@
+import { A4Live } from '../../features/printing/A4Live';
+import { embeddedFontCss } from '../../features/printing/pdf';
+import { longSample } from '../../features/printing/sample';
 import { useEffect, useMemo, useState } from 'react';
 import { Switch, useWindowDimensions, View } from 'react-native';
 import { router } from 'expo-router';
@@ -67,6 +70,13 @@ export default function Templates() {
     return d;
   }, [kind, tpl, shop, s.vatRegistered, s.vatRateBp, qrAvailable, user.name]);
   const brand = safeColor(tpl.brandColor ?? colors.primary['600']);
+  // Live A4: the real HTML in a WebView, re-rendered on every (unsaved) change; the font is embedded once.
+  const [fontCss, setFontCss] = useState('');
+  const [longPreview, setLongPreview] = useState(false);
+  useEffect(() => {
+    void embeddedFontCss().then(setFontCss, () => setFontCss(''));
+  }, []);
+  const a4Opts = useMemo(() => ({ style: tpl.a4Style, brand, methodLabel: (m: string) => t(`pay.methods.${m}`) }), [tpl.a4Style, brand, t]);
 
   const save = async () => {
     if (saving) return;
@@ -115,8 +125,16 @@ export default function Templates() {
       <View style={{ backgroundColor: colors.paper.sunk, borderRadius: 16, padding: 12, alignItems: 'center', gap: 10 }}>
         {fmt === 'A4' ? (
           <>
-            <A4Mini d={sample} tpl={tpl} brand={brand} />
-            <Button kind="secondary" compact icon="file" title={t('templates.fullPreview')} loading={opening} onPress={() => void openA4()} />
+            <A4Live
+              d={longPreview ? longSample(sample) : sample}
+              opts={a4Opts}
+              fontCss={fontCss}
+              fallback={<A4Mini d={sample} tpl={tpl} brand={brand} />}
+            />
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Button kind="ghost" compact icon="list" title={t('templates.longSample')} onPress={() => setLongPreview((v) => !v)} />
+              <Button kind="secondary" compact icon="file" title={t('templates.fullPreview')} loading={opening} onPress={() => void openA4()} />
+            </View>
           </>
         ) : (
           <ThermalPreview d={sample} dots={PAPER_DOTS[fmt === '58' ? 58 : 80]} />
