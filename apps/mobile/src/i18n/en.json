@@ -378,7 +378,8 @@
       "shift_close": "Shift closed",
       "offer_change": "Offer changed",
       "backup_create": "Backup made",
-      "backup_restore": "Backup restored"
+      "backup_restore": "Backup restored",
+      "stock_count_discard": "Stock count cancelled"
     },
     "system": "System",
     "unknownUser": "Removed user",
@@ -544,7 +545,35 @@
     "added": "+1 {{name}}",
     "empty": "Start scanning products",
     "confirmDiscard": "Everything counted so far will be lost. Discard the count?",
-    "removeItem": "Remove from count"
+    "removeItem": "Remove from count",
+    "newTitle": "New stock count",
+    "start": "Start counting",
+    "startHeadline": "Let's count what's on the shelf",
+    "startHint": "Every scan is saved on its own — close and come back any time.",
+    "nameLabel": "Count name (optional)",
+    "namePh": "e.g. Month-end count",
+    "scopeLabel": "What are you counting?",
+    "scopeAll": "All products",
+    "scopeOne": "Category {{name}}",
+    "scopeAllHint": "A full count of the shop.",
+    "scopeCatHint": "Partial count: this category only; other products are not affected.",
+    "outOfScope": "“{{name}}” is not in the category you're counting",
+    "progress": "Counted {{n}} of {{total}}",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "savedAt": "Saved {{time}}",
+    "autoSaveHint": "Everything is saved as you go. Close and continue whenever you like.",
+    "searchPh": "Scan a barcode or search by name",
+    "confirmDiscardKeep": "Stock won't change; the count stays in the count report as cancelled. Cancel it?",
+    "reviewTitle": "Count summary before posting",
+    "keepCounting": "Keep counting",
+    "reviewItems": "{{n}} items counted · {{match}} matching",
+    "reviewNet": "Net: {{v}}",
+    "missingQ": "{{n}} items in scope weren't counted and still have stock. What should happen to them?",
+    "missingKeep": "Leave them as they are",
+    "missingZero": "Count them as zero",
+    "missingKeepHint": "Their stock won't change.",
+    "missingZeroHint": "Their stock becomes zero (counted as shortage)."
   },
   "categories": {
     "title": "Categories",
@@ -602,7 +631,8 @@
     "unit_required": "Choose a unit",
     "empty_count": "Nothing counted yet",
     "clock_behind": "The phone clock is behind. Fix date & time.",
-    "gram_base_unit": "Price per gram is under 1. Use Kg as the base unit and sell fractions (e.g. 0.250 kg)."
+    "gram_base_unit": "Price per gram is under 1. Use Kg as the base unit and sell fractions (e.g. 0.250 kg).",
+    "out_of_scope": "“{{name}}” is not in the category you're counting"
   },
   "importer": {
     "title": "Import from Excel",
@@ -691,7 +721,15 @@
     "soundTry": "Try",
     "notifications": "Notifications",
     "notificationsOn": "Morning summary & reminders",
-    "notificationsHint": "Late customers, supplier dues, low stock, plan renewal"
+    "notificationsHint": "Late customers, supplier dues, low stock, plan renewal",
+    "soundVolume": "Sound level",
+    "volume": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    },
+    "hapticsOn": "Vibration",
+    "hapticsHint": "Light vibration on scan, sale and save"
   },
   "pos": {
     "title": "New sale",
@@ -936,7 +974,8 @@
     "sell": "New sale",
     "sellHint": "Scan or search and start the invoice",
     "invoices": "Invoices",
-    "plus": "Quick add"
+    "plus": "Quick add",
+    "stockCount": "Stock count"
   },
   "share": {
     "whatsapp": "WhatsApp",
@@ -1348,7 +1387,8 @@
       "aging_c": "Customer aging",
       "aging_s": "Supplier aging",
       "expenses": "Expenses",
-      "shifts": "Shifts"
+      "shifts": "Shifts",
+      "stock_counts": "Stock count report"
     },
     "dim": {
       "day": "Day",
@@ -1851,5 +1891,56 @@
     "a4Body": "Send the file or print it?",
     "a4Share": "Send (WhatsApp…)",
     "a4Print": "Print / save"
+  },
+  "countReport": {
+    "title": "Stock count report",
+    "docTitle": "Stock count",
+    "newCount": "New count",
+    "countsN": "{{n}} counts",
+    "empty": "No stock counts yet",
+    "emptyBody": "Start a new count and everything you count shows up here.",
+    "notFound": "This count doesn't exist",
+    "noneInFilter": "No items here",
+    "items": "Items",
+    "short": "Shortage",
+    "surplus": "Surplus",
+    "match": "Matching",
+    "shortTitle": "Shortage ({{n}})",
+    "surplusTitle": "Surplus ({{n}})",
+    "net": "Net",
+    "shortage": "Shortage value",
+    "surplusValue": "Surplus value",
+    "discardedHint": "This count was cancelled and didn't change any stock.",
+    "draftHint": "This count is still open. Values use today's cost.",
+    "status": {
+      "DRAFT": "Open",
+      "POSTED": "Posted",
+      "DISCARDED": "Cancelled"
+    },
+    "filter": {
+      "all": "All",
+      "short": "Shortage",
+      "surplus": "Surplus",
+      "match": "Matching"
+    },
+    "col": {
+      "product": "Item",
+      "expected": "In system",
+      "counted": "Counted",
+      "diff": "Difference",
+      "value": "Value",
+      "kind": "Status",
+      "count": "Count",
+      "scope": "Scope",
+      "status": "Status"
+    }
+  },
+  "countFlow": {
+    "openTitle": "A count is still open",
+    "openBody": "“{{name}}” is open with {{n}} items counted. Continue it or start a new one?",
+    "unnamed": "Unnamed count",
+    "startNew": "Start a new count",
+    "resume": "Continue the open count",
+    "oldKept": "The old count was kept in the report as cancelled"
   }
 }

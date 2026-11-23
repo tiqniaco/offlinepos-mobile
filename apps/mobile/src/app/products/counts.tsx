@@ -49,7 +49,7 @@ export default function CountsReport() {
             testID={`count-row-${i}`}
             scaleTo={0.98}
             onPress={() => router.push({ pathname: '/products/count-report', params: { id: c.id } })}
-            style={[{ padding: 14, gap: 10, borderRadius: 18, backgroundColor: colors.paper.card, borderWidth: c.status === 'DRAFT' ? 1.5 : 0, borderColor: colors.amber[200] }, shadow.soft]}
+            style={[{ padding: 14, gap: 10, borderRadius: 18, backgroundColor: colors.paper.card, borderWidth: c.status === 'DRAFT' ? 1.5 : 0, borderColor: colors.amber[300] }, shadow.soft]}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <IconBadge name={c.status === 'DRAFT' ? 'clock' : c.status === 'POSTED' ? 'check' : 'trash'} hue={HUE[c.status]} size={38} />
@@ -62,7 +62,7 @@ export default function CountsReport() {
                 </Text>
               </View>
               <View style={{ borderRadius: 99, paddingHorizontal: 9, paddingVertical: 3, backgroundColor: c.status === 'DRAFT' ? colors.amber[50] : c.status === 'POSTED' ? colors.leaf[50] : colors.paper.sunk }}>
-                <Text style={{ fontFamily: fonts.semibold, fontSize: 12, lineHeight: 18, color: c.status === 'DRAFT' ? colors.amber[800] : c.status === 'POSTED' ? colors.leaf[700] : colors.ink.soft }}>{t(`countReport.status.${c.status}`)}</Text>
+                <Text style={{ fontFamily: fonts.semibold, fontSize: 12, lineHeight: 18, color: c.status === 'DRAFT' ? colors.amber[700] : c.status === 'POSTED' ? colors.leaf[700] : colors.ink.soft }}>{t(`countReport.status.${c.status}`)}</Text>
               </View>
             </View>
             <View style={{ flexDirection: 'row', gap: 8 }}>

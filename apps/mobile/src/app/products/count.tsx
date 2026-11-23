@@ -467,7 +467,7 @@ export default function StockCount() {
         {costView ? <Text variant="caption">{t('count.reviewNet', { v: m(surplus - short) })}</Text> : null}
         {progress.missing > 0 ? (
           <View style={{ gap: 8, padding: 12, borderRadius: 14, backgroundColor: colors.amber[50] }}>
-            <Text style={{ fontFamily: fonts.semibold, fontSize: 14, lineHeight: 21, color: colors.amber[800] }}>{t('count.missingQ', { n: progress.missing })}</Text>
+            <Text style={{ fontFamily: fonts.semibold, fontSize: 14, lineHeight: 21, color: colors.amber[700] }}>{t('count.missingQ', { n: progress.missing })}</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               <Chip testID="count-missing-keep" label={t('count.missingKeep')} selected={missing === 'keep'} onPress={() => setMissing('keep')} />
               <Chip testID="count-missing-zero" label={t('count.missingZero')} selected={missing === 'zero'} onPress={() => setMissing('zero')} />
