@@ -44,3 +44,15 @@ Legend: ✅ done & tested · 🟡 done, needs on-device verification · ⏳ late
 ## Process
 - ✅ CI runs typecheck, all tests and `pnpm audit --prod --audit-level high`; dependency review on PRs
 - Before each release: rotate any secret that was ever shared, review this file, run `pnpm audit`.
+
+## Phase 7 review (2026-11)
+- ✅ Device integrity: Play Integrity verified server-side (app recognised, device integrity, request hash bound to the
+  install, freshness ≤ 10 min); App Attest recorded; policy log/enforce (enforce blocks sign-up & activation only).
+- ✅ Optional screenshot / screen-recording block on profit, cost, report and backup screens.
+- ✅ E2E-only fixed OTP works only with the console provider (which cannot send SMS) — never in production.
+- ✅ No secrets in the app bundle: build-time values are public IDs/keys only (AdMob, RevenueCat public SDK keys,
+  GCP project number); all secrets live in Worker secrets / EAS secrets.
+- ✅ Dependencies: `pnpm audit` + dependency review in CI; new native deps this phase: expo-notifications,
+  @expo/app-integrity, expo-screen-capture, expo-audio, react-native-purchases, react-native-google-mobile-ads.
+- Residual risks (unchanged, honest): a rooted phone can still alter data after the last daily anchor; a patched APK can
+  bypass the licence check on a rooted phone (integrity verdicts make it visible to us, not impossible).

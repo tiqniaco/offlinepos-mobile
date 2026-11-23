@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { Alert } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { useNoScreenshots } from '../../features/NoScreenshots';
 import { businessDay, roleHas } from '@daftarak/shared';
 import { getDb } from '../../db/client';
 import { useApp } from '../../state/app';
@@ -18,6 +19,7 @@ export default function Reports() {
   const user = useApp((s) => s.user)!;
   const tz = useApp((s) => s.settings.timezone ?? 'Africa/Cairo');
   const [d, setD] = useState<Dashboard | null>(null);
+  useNoScreenshots('reports');
   useFocusEffect(useCallback(() => void dashboard(getDb(), businessDay(Date.now(), tz)).then(setD), [tz]));
   const visible = REPORTS.filter((r) => roleHas(user.permissions, r.perm));
   const locked = (r: ReportDef) => !!r.feature && !hasFeature(r.feature);

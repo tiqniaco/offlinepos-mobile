@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { Alert } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { useNoScreenshots } from '../../features/NoScreenshots';
 import { addVariant, deleteProduct, restoreProduct } from '../../domain/inventory/products';
 import { loadDetail } from '../../features/inventory/loadDetail';
 import { ProductDetailView, type DetailData } from '../../features/inventory/ProductDetailView';
@@ -11,6 +12,7 @@ import { toast } from '../../state/toast';
 import { Sheet, TextField, Button } from '../../ui';
 
 export default function ProductScreen() {
+  useNoScreenshots('product');
   const { t, i18n } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const ctx = useInvCtx();

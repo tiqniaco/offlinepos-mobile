@@ -203,7 +203,9 @@
     "autoLock": "Auto-lock after",
     "minutes": "{{n}} min",
     "never": "Never",
-    "biometric": "Biometric unlock for my account"
+    "biometric": "Biometric unlock for my account",
+    "screenshots": "Block screenshots",
+    "screenshotsHint": "On profit, cost, reports and backup screens"
   },
   "language": {
     "ar": "العربية",

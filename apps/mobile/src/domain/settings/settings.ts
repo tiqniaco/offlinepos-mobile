@@ -7,7 +7,7 @@ import { settings } from '../../db/schema';
 import { appendAudit } from '../audit/audit';
 import { assertCanWrite } from '../licence/guard';
 
-export type SettingKey = keyof BusinessSettings | 'language' | 'palette' | 'appearance' | 'font' | 'textSize' | 'sounds' | 'notifications' | 'tipsSeen' | 'printer' | 'receipt' | 'cashRoundingMinor' | 'requireShift' | 'reminderDays' | 'reminderTemplate';
+export type SettingKey = keyof BusinessSettings | 'language' | 'palette' | 'appearance' | 'font' | 'textSize' | 'sounds' | 'notifications' | 'tipsSeen' | 'blockScreenshots' | 'printer' | 'receipt' | 'cashRoundingMinor' | 'requireShift' | 'reminderDays' | 'reminderTemplate';
 /** palette/appearance are personal display settings (src/ui/theme.ts). */
 export type AppSettings = BusinessSettings & { language: 'ar' | 'en'; palette: 'tiqnia' | 'teal' | 'emerald' | 'sunset' | 'graphite'; appearance: 'light' | 'dark' | 'comfort' | 'system';
   font: 'readex' | 'alexandria' | 'almarai' | 'plex';
@@ -18,6 +18,8 @@ export type AppSettings = BusinessSettings & { language: 'ar' | 'en'; palette: '
   notifications: boolean;
   /** First-use tips already dismissed. */
   tipsSeen: string[];
+  /** Block screenshots on profit/cost/backup screens. Default off. */
+  blockScreenshots: boolean;
   /** This phone's default printer (PLAN.md §10). */
   printer: import('../../features/printing/types').PrinterConfig | null;
   receipt: ReceiptTemplate;

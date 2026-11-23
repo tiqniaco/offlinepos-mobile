@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { NoScreenshots } from '../../features/NoScreenshots';
 import { Screen, Text, Card, Button, Banner, IconBadge, SectionTitle, colors, fonts } from '../../ui';
 import { fx } from '../../ui/fx';
 import { useApp } from '../../state/app';
@@ -54,6 +55,7 @@ export default function BackupScreen() {
   const stale = age == null || age > 3 * 86_400_000;
   return (
     <Screen back title={t('backup.title')} subtitle={t('backup.subtitle')}>
+      <NoScreenshots id="backup" />
       <Card>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <IconBadge name="shield" hue={stale ? 'amber' : 'leaf'} size={44} />

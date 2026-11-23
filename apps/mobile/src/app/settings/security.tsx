@@ -45,6 +45,7 @@ export default function Security() {
     }
   };
 
+  const shots = useApp((s) => !!s.settings.blockScreenshots);
   return (
     <Screen back title={t('more.security')}>
       {bioAvailable ? (
@@ -58,6 +59,16 @@ export default function Security() {
           </View>
         </Card>
       ) : null}
+      <Card>
+        <View className="flex-row items-center gap-3">
+          <IconBadge name="shield" hue="sky" />
+          <View style={{ flex: 1 }}>
+            <Text variant="subtitle">{t('security.screenshots')}</Text>
+            <Text variant="caption">{t('security.screenshotsHint')}</Text>
+          </View>
+          <Switch value={shots} onValueChange={(v) => void changeSetting(getDb(), 'blockScreenshots', v, { userId: user.id, deviceId: device.id }).then(reloadAppData)} trackColor={{ true: colors.primary[500], false: colors.paper.line }} />
+        </View>
+      </Card>
       <SectionTitle>{t('security.autoLock')}</SectionTitle>
       <View className="flex-row flex-wrap gap-2">
         {OPTIONS.map((n) => (

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { NoScreenshots } from '../../features/NoScreenshots';
 import { businessDay } from '@daftarak/shared';
 import { Screen, Chip, Text } from '../../ui';
 import { getDb } from '../../db/client';
@@ -52,6 +53,7 @@ export default function ReportScreen() {
   if (!def) return <Screen back>{null}</Screen>;
   return (
     <Screen back title={t(`reports.names.${def.id}`)} subtitle={doc?.period ?? undefined}>
+      <NoScreenshots id="report" />
       {def.ranged ? <DateRangeBar value={range} today={today} onChange={setRange} presets={['today', 'week', 'month', 'lastMonth', 'quarter', 'year', 'custom']} /> : null}
       {def.options ? (
         <View style={{ flexDirection: 'row', gap: 6 }}>
