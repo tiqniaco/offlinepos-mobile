@@ -71,12 +71,14 @@ export interface OpenCount {
   note: string | null;
   categoryId: string | null;
   createdAt: number;
+  /** Last scan/edit. */
+  updatedAt: number;
 }
 
 /** The open (draft) count, if any. */
 export async function getOpenCount(db: Db): Promise<OpenCount | null> {
   const d = (await db.select().from(inventoryDocs).where(and(eq(inventoryDocs.type, 'COUNT'), eq(inventoryDocs.status, 'DRAFT'))).orderBy(desc(inventoryDocs.createdAt)).limit(1))[0];
-  return d ? { id: d.id, note: d.note, categoryId: scopeCategoryId(d.reason), createdAt: d.createdAt } : null;
+  return d ? { id: d.id, note: d.note, categoryId: scopeCategoryId(d.reason), createdAt: d.createdAt, updatedAt: d.updatedAt } : null;
 }
 
 /** The open count session, or a new one (with the given name/scope). Only one draft count at a time. */

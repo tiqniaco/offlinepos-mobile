@@ -134,7 +134,7 @@ export default function StockCount() {
       (o) => {
         if (!o) return setPhase('start');
         setOpen(o);
-        setSavedAt(Date.now());
+        setSavedAt(o.updatedAt);
         setPhase('count');
         void reload(o.id);
       },
@@ -196,12 +196,12 @@ export default function StockCount() {
         fx.notFound();
         return t('count.notFound');
       }
+      fx.scan(); // instant feedback; the write takes a few ms
       try {
         await write(() => countItem(ctx, docId, hit.productId, hit.factorMilli, 'add'), hit.productId);
       } catch (e) {
         return scopeError(e);
       }
-      fx.scan();
       const l = (await countLines(getDb(), docId)).find((x) => x.productId === hit.productId);
       return l ? `${l.name}: ${qty(l.countedMilli)}` : null;
     },
@@ -223,10 +223,10 @@ export default function StockCount() {
 
   const step = async (productId: string, deltaMilli: number) => {
     if (!ctx || !docId) return;
+    if (deltaMilli > 0) fx.add();
+    else fx.remove();
     try {
       await write(() => countItem(ctx, docId, productId, deltaMilli, 'add'), productId);
-      if (deltaMilli > 0) fx.add();
-      else fx.remove();
     } catch (e) {
       toast(scopeError(e), 'error');
     }

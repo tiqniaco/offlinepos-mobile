@@ -49,7 +49,6 @@ export interface CountReportLine {
 /** Same rounding as SQLite round() (half away from zero), so list totals = sum of report lines. */
 export const diffValue = (diffMilli: number, unitCostMinor: number) => Math.sign(diffMilli * unitCostMinor) * Math.round(Math.abs(diffMilli * unitCostMinor) / 1000);
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const all = <T>(db: Db, q: ReturnType<typeof sql>) => db.all(q) as unknown as Promise<T[]>;
 const n = (v: unknown) => Number(v ?? 0);
 
