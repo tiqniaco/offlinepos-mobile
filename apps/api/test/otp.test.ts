@@ -140,3 +140,20 @@ describe('SMS Misr normal SMS (no template)', () => {
     expect(await bad.send('201012345678', '1', 'en')).toMatchObject({ ok: false, error: 'smsmisr-sms:200:1903' });
   });
 });
+
+describe('providers call the global fetch unbound (Workers "Illegal invocation")', () => {
+  it('default fetch is not invoked with the provider as `this`', async () => {
+    const { SmsMisrSmsProvider } = await import('../src/otp/providers');
+    const real = globalThis.fetch;
+    globalThis.fetch = function (this: unknown) {
+      if (this !== undefined && this !== globalThis) throw new TypeError('Illegal invocation');
+      return Promise.resolve(new Response(JSON.stringify({ code: '1901' })));
+    } as typeof fetch;
+    try {
+      const p = new SmsMisrSmsProvider({ baseUrl: 'https://smsmisr.com/api/SMS/', environment: '1', username: 'u', password: 'p', sender: 't' });
+      expect(await p.send('201012345678', '123456', 'ar')).toMatchObject({ ok: true });
+    } finally {
+      globalThis.fetch = real;
+    }
+  });
+});

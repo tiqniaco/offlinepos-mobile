@@ -42,7 +42,7 @@ export class SmsMisrProvider implements OtpProvider {
   readonly name = 'smsmisr';
   constructor(
     private readonly cfg: { baseUrl: string; environment: string; username: string; password: string; sender: string; template: string },
-    private readonly fetchFn: typeof fetch = fetch,
+    private readonly fetchFn: typeof fetch = (input, init) => fetch(input, init),
   ) {}
 
   async send(phone: string, code: string): Promise<SendResult> {
@@ -80,7 +80,7 @@ export class SmsMisrSmsProvider implements OtpProvider {
   readonly name = 'smsmisr-sms';
   constructor(
     private readonly cfg: { baseUrl: string; environment: string; username: string; password: string; sender: string },
-    private readonly fetchFn: typeof fetch = fetch,
+    private readonly fetchFn: typeof fetch = (input, init) => fetch(input, init),
   ) {}
 
   static text(code: string, locale: 'ar' | 'en') {
