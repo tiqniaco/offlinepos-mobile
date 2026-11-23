@@ -42,6 +42,8 @@ jobs:
           EXPO_PUBLIC_API_URL: http://10.0.2.2:8787
           # Dev licence key (local Worker signs with the dev key in .dev.vars.example)
           EXPO_PUBLIC_LICENCE_PUBLIC_KEY: dev:9266fb073a85bb00d2e8df5a408c6186cfcf525f3a630cec0b849f0eed5f8e17
+          # Screenshot build only: show the free-plan ad slots although the test shop is on the trial.
+          EXPO_PUBLIC_E2E_SHOW_ADS: '1'
         run: |
           npx expo prebuild --platform android --clean --no-install
           cd android && ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=x86_64 -Dorg.gradle.jvmargs="-Xmx6g -XX:MaxMetaspaceSize=1g"

@@ -5,7 +5,8 @@ import { useApp } from '../../state/app';
 import { setAdInputs } from './ads';
 
 export function AdsProvider() {
-  const showAds = useApp((s) => !!s.licence?.showAds);
+  // EXPO_PUBLIC_E2E_SHOW_ADS is set only in the emulator screenshot build (to photograph the free-plan ad slots).
+  const showAds = useApp((s) => !!s.licence?.showAds) || process.env.EXPO_PUBLIC_E2E_SHOW_ADS === '1';
   useEffect(() => setAdInputs({ showAds }), [showAds]);
   useEffect(() => {
     void Network.getNetworkStateAsync().then((n) => setAdInputs({ online: !!n.isConnected && n.isInternetReachable !== false }), () => undefined);

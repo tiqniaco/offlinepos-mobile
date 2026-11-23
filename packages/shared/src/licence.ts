@@ -155,8 +155,7 @@ export function computeLicenceState(verify: VerifyResult | null, ctx: LicenceCon
       limits: p.limits,
       features: p.features,
       canWrite: true,
-      // Trial = every paid feature, but with ads, so the shop sees what upgrading removes.
-      showAds: p.status === 'trial' ? !!p.ads_enabled : adsFor(p.features),
+      showAds: adsFor(p.features),
       trialDaysLeft: p.status === 'trial' ? daysLeft(p.expires_at) : null,
       graceDaysLeft: null,
     };

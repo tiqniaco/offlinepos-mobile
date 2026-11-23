@@ -812,7 +812,7 @@
   "ads": {
     "remove": "Remove ads",
     "tag": "Ad",
-    "why": "Ads disappear when you subscribe",
+    "why": "Ads show on the free plan only",
     "removeCta": "Remove ads — upgrade",
     "houseTitle": "Work faster without ads",
     "houseBody": "Upgrade for more users, unlimited products and invoices, offers and advanced reports.",
@@ -1390,6 +1390,17 @@
       "parties": "Customers & suppliers",
       "invoices_month": "Invoices this month",
       "users": "Users"
+    },
+    "nudgeTitle": "Take Kashiro to the next level",
+    "nudgeBody": "You're on the free plan. Subscribe to any plan to remove ads instantly and unlock stronger features:",
+    "trialEndTitle": "Your trial is ending soon",
+    "trialEndBody": "After the trial you'll move to the free plan (with ads and limits). Subscribe now to keep everything:",
+    "perk": {
+      "noAds": "No ads at all",
+      "unlimited": "More or unlimited products and invoices",
+      "users": "More staff with permissions",
+      "reports": "Profit and advanced reports",
+      "offers": "Offers, coupons and multiple units"
     }
   },
   "search": {
@@ -1490,5 +1501,22 @@
     "noUrl": "Get the new version from the store, or contact support for the link.",
     "contactSupport": "Contact support on WhatsApp",
     "supportMessage": "I need to update Kashiro to version {{v}}"
+  },
+  "planCard": {
+    "active": "Your active plan",
+    "trial": "Trial · {{n}} days left",
+    "grace": "Grace · {{n}} days left",
+    "free": "Free",
+    "activeTag": "Active",
+    "limited": "Limited",
+    "upgrade": "Upgrade and remove ads",
+    "used": "{{used}} of {{limit}} · {{left}} left",
+    "usedUnlimited": "{{used}} · unlimited",
+    "k": {
+      "invoices_month": "Invoices this month",
+      "products": "Products",
+      "parties": "Customers / suppliers",
+      "users": "Users"
+    }
   }
 }

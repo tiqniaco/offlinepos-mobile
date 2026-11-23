@@ -1,3 +1,6 @@
+import { PlanCard } from '../../features/home/PlanCard';
+import { planUsage, type UsageRow } from '../../domain/licence/usage';
+import { maybeNudgeUpgrade } from '../../features/upgradeNudge';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { Pressable } from '../../ui/Press';
@@ -42,6 +45,7 @@ export default function Home() {
   const reminderDays = useApp((s) => s.settings.reminderDays ?? 30);
   const requireShift = useApp((s) => !!s.settings.requireShift);
   const [users, setUsers] = useState(1);
+  const [usage, setUsage] = useState<UsageRow[] | null>(null);
   const [inv, setInv] = useState<InventorySummary | null>(null);
   const [today, setToday] = useState<Awaited<ReturnType<typeof todaySummary>> | null>(null);
   const [owedToUs, setOwedToUs] = useState(0);
@@ -107,6 +111,9 @@ export default function Home() {
       const db = getDb();
       const day = businessDay(Date.now(), tz);
       void activeUserCount(db).then(setUsers);
+      const lic = useApp.getState().licence;
+      if (lic) void planUsage(db, lic.limits, day).then(setUsage, () => undefined);
+      maybeNudgeUpgrade(db, lic);
       void inventorySummary(db).then(setInv);
       void todaySummary(db, day).then(setToday);
       if (roleHas(user.permissions, 'reports.view')) void dashboard(db, day).then(setDash, () => undefined);
@@ -178,6 +185,18 @@ export default function Home() {
       businessName={business?.name ?? ''}
       dateLabel={dateLabel(i18n.language)}
       planChip={planChip}
+      planCard={
+        licence && usage ? (
+          <PlanCard
+            planName={planName ?? licence.plan}
+            status={licence.trialDaysLeft != null ? t('planCard.trial', { n: licence.trialDaysLeft }) : licence.graceDaysLeft != null ? t('planCard.grace', { n: licence.graceDaysLeft }) : licence.mode === 'free' || plan?.isFree ? t('planCard.free') : licence.mode === 'full' ? t('planCard.activeTag') : t('planCard.limited')}
+            tone={licence.trialDaysLeft != null ? 'trial' : licence.graceDaysLeft != null || (licence.mode !== 'full' && licence.mode !== 'free') ? 'warn' : licence.mode === 'free' || plan?.isFree ? 'free' : 'paid'}
+            usage={usage}
+            upgradeLabel={licence.trialDaysLeft != null || licence.mode === 'free' || plan?.isFree ? t('planCard.upgrade') : undefined}
+            onPress={() => router.push('/settings/subscription')}
+          />
+        ) : null
+      }
       banner={licence && licence.mode !== 'full' ? <LicenceBanner /> : null}
       tasks={tasks}
       onLock={() => useApp.getState().lock()}

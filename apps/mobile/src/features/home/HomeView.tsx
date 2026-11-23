@@ -35,6 +35,7 @@ export function HomeView({
   dateLabel,
   planChip,
   banner,
+  planCard,
   tasks,
   onLock,
   onSearch,
@@ -52,6 +53,8 @@ export function HomeView({
   dateLabel: string;
   planChip: string | null;
   banner?: React.ReactNode;
+  /** Active plan + usage of its limits. */
+  planCard?: React.ReactNode;
   tasks: SetupTask[];
   onLock: () => void;
   onSearch?: () => void;
@@ -134,6 +137,7 @@ export function HomeView({
             </View>
           </>
         ) : null}
+        {planCard}
         {alerts}
         {quick && quick.length ? (
           <>
