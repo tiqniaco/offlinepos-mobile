@@ -92,7 +92,7 @@
     "sectionPin": "PIN",
     "pinNote": "You'll use it every time you open the app. You can enable biometrics later.",
     "bodyPassword": "Your name, and how you open the app",
-    "bioHint": "Open the app with your fingerprint. If it fails, use the phone passcode or your password.",
+    "bioHint": "Open the app with your fingerprint or face. If it fails, use your password.",
     "passwordNote": "You can always open with your account password. Fingerprint is optional."
   },
   "lock": {
@@ -226,7 +226,7 @@
     "biometric": "Biometric unlock for my account",
     "screenshots": "Block screenshots",
     "screenshotsHint": "On profit, cost, reports and backup screens",
-    "biometricHint": "If it fails, the phone passcode is offered. Your password always works.",
+    "biometricHint": "Fingerprint or face only — the phone's screen-lock code does not open Kashiro, so nobody who knows it can sign in as you. Your password always works.",
     "managedOnly": "Only the owner or a manager can change these settings."
   },
   "language": {
