@@ -1,4 +1,7 @@
+import { useEffect } from 'react';
 import { View } from 'react-native';
+import { usePriceReview, refreshPriceReview } from '../../state/priceReview';
+import { onDataCommitted } from '../../db/tx';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PressableScale } from '../../ui/PressableScale';
 import { QuickSheet } from '../../features/quick/QuickSheet';
@@ -52,6 +55,12 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Pro
 export default function MainLayout() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  // Badge on the products tab: products created with a guessed / missing sale price.
+  const reviewCount = usePriceReview((s) => s.count);
+  useEffect(() => {
+    void refreshPriceReview();
+    return onDataCommitted(() => void refreshPriceReview());
+  }, []);
   return (
     <>
     <Tabs
@@ -80,7 +89,16 @@ export default function MainLayout() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: t('tabs.home'), tabBarIcon: ({ focused }) => <TabIcon name="home" focused={focused} /> }} />
-      <Tabs.Screen name="products" options={{ title: t('tabs.products'), tabBarIcon: ({ focused }) => <TabIcon name="box" focused={focused} /> }} />
+      <Tabs.Screen
+        name="products"
+        options={{
+          title: t('tabs.products'),
+          tabBarIcon: ({ focused }) => <TabIcon name="box" focused={focused} />,
+          tabBarBadge: reviewCount ? (reviewCount > 99 ? '99+' : reviewCount) : undefined,
+          tabBarBadgeStyle: { backgroundColor: colors.amber[500], color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 10.5 },
+          tabBarAccessibilityLabel: reviewCount ? t('priceReview.badgeA11y', { n: reviewCount }) : undefined,
+        }}
+      />
       <Tabs.Screen name="new" options={{ title: '', tabBarButton: () => <PlusButton /> }} listeners={{ tabPress: (e) => e.preventDefault() }} />
       <Tabs.Screen name="parties" options={{ title: t('tabs.parties'), tabBarIcon: ({ focused }) => <TabIcon name="users" focused={focused} /> }} />
       <Tabs.Screen name="more" options={{ title: t('tabs.more'), tabBarIcon: ({ focused }) => <TabIcon name="more" focused={focused} /> }} />

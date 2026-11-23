@@ -164,7 +164,7 @@ export default function Home() {
     ...(can('users.manage') ? [{ key: 'team', title: t('home.taskTeam'), icon: 'users' as const, hue: 'amber' as const, done: users > 1, onPress: () => router.push('/settings/users') }] : []),
     // Fingerprint lock is only a task on phones that can do it (no hardware / nothing enrolled → not shown).
     ...(bioAvailable ? [{ key: 'lock', title: t('home.taskLock'), icon: 'fingerprint' as const, hue: 'sky' as const, done: user.biometricEnabled, onPress: () => router.push('/settings/security') }] : []),
-    { key: 'products', title: inv?.products ? t('home.taskProductsDone') : t('home.taskProducts'), icon: 'box', hue: 'rose', done: !!inv?.products, onPress: () => router.push('/(main)/products') },
+    { key: 'products', title: inv?.products ? t('home.taskProductsDone') : t('home.taskProducts'), icon: 'box', hue: 'rose', done: !!inv?.products, onPress: () => router.push(!inv?.products && can('products.manage') ? '/products/quick-add' : '/(main)/products') },
     ...(!inv?.products && can('products.manage') ? [{ key: 'sample', title: t('home.taskSample'), icon: 'layers' as const, hue: 'sky' as const, done: false, onPress: () => void trySample() }] : []),
     ...(sample && can('products.manage') ? [{ key: 'sampleOff', title: t('home.taskSampleRemove'), icon: 'trash' as const, hue: 'rose' as const, done: false, onPress: () => void dropSample() }] : []),
   ];

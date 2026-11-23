@@ -16,6 +16,8 @@ export interface ProductRowData {
   qtyMilli: number;
   unitName: string;
   categoryColor?: string | null;
+  /** Created automatically with a guessed / missing sale price. */
+  needsPriceReview?: boolean;
 }
 
 /** Stock badge colour: red = none/negative, amber = at/below alert, green = fine. */
@@ -68,7 +70,14 @@ export function ProductRow({ p, currency, lang, selected, selecting, onPress, on
           {p.name}
           {p.variantLabel ? <Text style={{ color: colors.ink.mute, fontFamily: fonts.medium }}>{`  ·  ${p.variantLabel}`}</Text> : null}
         </Text>
-        <Text style={{ fontFamily: fonts.semibold, fontSize: 15, lineHeight: 22, color: colors.primary[700] }}>{money(p.retailPriceMinor, currency, lang)}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={{ fontFamily: fonts.semibold, fontSize: 15, lineHeight: 22, color: p.needsPriceReview && !p.retailPriceMinor ? colors.ink.mute : colors.primary[700] }}>{p.needsPriceReview && !p.retailPriceMinor ? t('priceReview.noPrice') : money(p.retailPriceMinor, currency, lang)}</Text>
+          {p.needsPriceReview ? (
+            <View style={{ paddingHorizontal: 7, paddingVertical: 1, borderRadius: 99, backgroundColor: colors.amber[100] }}>
+              <Text style={{ fontFamily: fonts.bold, fontSize: 10.5, lineHeight: 16, color: colors.amber[700] }}>{t('priceReview.tag')}</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
       <View style={{ backgroundColor: TONE[tone].bg, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, minWidth: 64, alignItems: 'center' }}>
         <Text style={{ fontFamily: fonts.bold, fontSize: 14, lineHeight: 20, color: TONE[tone].fg }}>{tone === 'none' ? '—' : signedText(qty(p.qtyMilli))}</Text>

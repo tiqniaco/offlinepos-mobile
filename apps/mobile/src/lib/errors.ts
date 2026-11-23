@@ -1,6 +1,6 @@
 import type { TFunction } from 'i18next';
 import { ApiError } from '../api/client';
-import { LicenceError } from '../domain/licence/guard';
+import { LicenceError, ProductLimitError } from '../domain/licence/guard';
 import { PermissionError } from '../domain/auth/users';
 import { PartyError } from '../domain/parties/parties';
 import { useUpgrade } from '../state/upgrade';
@@ -11,6 +11,10 @@ export function errorMessage(t: TFunction, e: unknown): string {
     const key = `errors.${e.code}`;
     const msg = t(key);
     return msg === key ? t('errors.unknown') : msg;
+  }
+  if (e instanceof ProductLimitError) {
+    setTimeout(() => useUpgrade.getState().show('products'), 0);
+    return e.fits > 0 ? t('quickAdd.limitSome', { fits: e.fits, n: e.wanted }) : t('quickAdd.limitNone', { n: e.wanted });
   }
   if (e instanceof LicenceError && (e.reason === 'limit' || e.reason === 'feature')) setTimeout(() => useUpgrade.getState().show(e.reason === 'feature' ? 'feature' : String(e.limit ?? 'limit')), 0);
   if (e instanceof LicenceError) return e.reason === 'limit' ? t('licence.limit') : e.reason === 'feature' ? t('licence.feature') : t(`licence.reason.${e.reason}`, { defaultValue: t('licence.readOnly') });

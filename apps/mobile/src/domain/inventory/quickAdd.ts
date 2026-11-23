@@ -152,6 +152,8 @@ export interface QuickStockItem {
   productId?: string | null;
   /** Unit row (product_units.id) the qty is in, for an existing product; null = base unit. */
   productUnitId?: string | null;
+  /** Or the unit as written (كرتونة…): used when it is one of the existing product's units; else the base unit. */
+  unit?: string | null;
   /** New product. */
   create?: NewProductSpec | null;
   /** On-hand quantity in that unit (milli); 0 = no stock line. */
@@ -202,6 +204,10 @@ export async function quickAddStock(ctx: InvCtx, items: readonly QuickStockItem[
       if (i.productUnitId) {
         const u = (await tx.select({ f: productUnits.factorMilli }).from(productUnits).where(and(eq(productUnits.id, i.productUnitId), eq(productUnits.productId, p.id))).limit(1))[0];
         factor = u?.f ?? 1000;
+      } else if (i.unit) {
+        const want = normName(unitFromWord(i.unit)?.ar ?? i.unit);
+        const pus = await tx.select({ f: productUnits.factorMilli, ar: units.nameAr }).from(productUnits).innerJoin(units, eq(units.id, productUnits.unitId)).where(and(eq(productUnits.productId, p.id), isNull(productUnits.deletedAt)));
+        factor = pus.find((u) => normName(u.ar) === want)?.f ?? 1000;
       }
       const baseQty = Math.round((i.qtyMilli * factor) / 1000);
       const baseCost = i.costMinor != null ? Math.round((i.costMinor * 1000) / factor) : p.costMinor;

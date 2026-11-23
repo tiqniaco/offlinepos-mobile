@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Screen, Text, Card, Button, Choice, TextField, SectionTitle, Banner, Icon, colors, fonts } from '../../ui';
+import { Screen, Text, Card, Button, Choice, TextField, SectionTitle, Banner, Icon, Chip, QtyField, colors, fonts } from '../../ui';
+import { PRICE_ROUNDING_STEPS, markupPrice, pricingOf } from '../../domain/inventory/quickPricing';
+import { money } from '../../lib/format';
 import { Pressable } from '../../ui/Press';
 import { getDb } from '../../db/client';
 import { useApp } from '../../state/app';
@@ -13,10 +15,20 @@ import { toast } from '../../state/toast';
 /** Shown the first time (EG): the usual Egyptian wallets. */
 export const DEFAULT_WALLETS_EG = ['فودافون كاش', 'إنستاباي', 'اتصالات كاش'];
 
-/** Selling settings: what happens when stock runs out, and the wallets / payment apps offered at checkout. */
+const MARKUPS = [10, 15, 20, 25, 30, 40, 50];
+
+/**
+ * Selling settings: what happens when stock runs out, the wallets / payment apps offered at checkout, and how sale
+ * prices are suggested for products added automatically (default markup on cost + rounding).
+ */
 export default function SellingSettings() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const user = useApp((s) => s.user)!;
+  const markupBp = useApp((s) => s.settings.defaultMarkupBp);
+  const roundingMinor = useApp((s) => s.settings.priceRoundingMinor);
+  const currency = useApp((s) => s.business?.currency ?? 'EGP');
+  const pricing = pricingOf({ defaultMarkupBp: markupBp, priceRoundingMinor: roundingMinor });
+  const [customPct, setCustomPct] = useState<number | null>(null);
   const device = useApp((s) => s.device);
   const country = useApp((s) => s.business?.country ?? 'EG');
   const negative = useApp((s) => s.settings.negativeStock ?? 'warn');
@@ -36,6 +48,18 @@ export default function SellingSettings() {
       toast(errorMessage(t, e), 'error');
     }
   };
+
+  const setPricing = async <K extends 'defaultMarkupBp' | 'priceRoundingMinor'>(key: K, v: number) => {
+    try {
+      await changeSetting(getDb(), key, v, ctx);
+      await reloadAppData();
+      toast(t('common.saved'));
+    } catch (e) {
+      toast(errorMessage(t, e), 'error');
+    }
+  };
+  const pct = pricing.markupBp / 100;
+  const example = markupPrice(1000, pricing);
 
   const dirty = JSON.stringify(wallets) !== JSON.stringify(saved ?? null);
   const add = () => {
@@ -71,6 +95,30 @@ export default function SellingSettings() {
         <Choice testID="neg-warn" icon="warning" hue="amber" title={t('selling.warn')} hint={t('selling.warnHint')} selected={negative === 'warn'} onPress={() => void setNegative('warn')} />
         <Choice testID="neg-block" icon="lock" hue="rose" title={t('selling.block')} hint={t('selling.blockHint')} selected={negative === 'block'} onPress={() => void setNegative('block')} />
       </View>
+
+      <SectionTitle>{t('selling.pricingTitle')}</SectionTitle>
+      <Text variant="caption">{t('selling.pricingHint')}</Text>
+      <Card style={{ gap: 10 }}>
+        <Text variant="label">{t('selling.markup')}</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {MARKUPS.map((m) => (
+            <Chip key={m} testID={`markup-${m}`} label={`${m}%`} selected={pct === m} onPress={() => void setPricing('defaultMarkupBp', m * 100)} />
+          ))}
+        </View>
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
+          <View style={{ flex: 1 }}>
+            <QtyField label={t('selling.markupCustom')} placeholder={`${pct}`} valueMilli={customPct == null ? null : Math.round(customPct * 1000)} onValue={(v) => setCustomPct(v == null ? null : v / 1000)} />
+          </View>
+          <Button compact kind="secondary" title={t('common.save')} disabled={customPct == null || customPct > 1000} onPress={() => { if (customPct != null) { void setPricing('defaultMarkupBp', Math.round(customPct * 100)); setCustomPct(null); } }} />
+        </View>
+        <Text variant="label">{t('selling.rounding')}</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {PRICE_ROUNDING_STEPS.map((r) => (
+            <Chip key={r} testID={`rounding-${r}`} label={r === 0 ? t('selling.roundNone') : money(r, currency, i18n.language)} selected={pricing.stepMinor === r} onPress={() => void setPricing('priceRoundingMinor', r)} />
+          ))}
+        </View>
+        {example ? <Text variant="caption">{t('selling.pricingExample', { cost: money(1000, currency, i18n.language), price: money(example, currency, i18n.language), pct })}</Text> : null}
+      </Card>
 
       <SectionTitle>{t('selling.walletsTitle')}</SectionTitle>
       <Text variant="caption">{t('selling.walletsHint')}</Text>

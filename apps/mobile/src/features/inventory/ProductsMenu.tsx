@@ -21,6 +21,7 @@ export function ProductsMenu({ visible, onClose }: { visible: boolean; onClose: 
     router.push(path);
   };
   const items = [
+    manage && { key: 'quick', icon: 'camera' as const, hue: 'primary' as const, title: t('quickAdd.title'), onPress: () => go('/products/quick-add') },
     manage && { key: 'cat', icon: 'layers' as const, hue: 'amber' as const, title: t('products.categories'), onPress: () => go('/products/categories') },
     adjust && { key: 'count', icon: 'clipboard' as const, hue: 'sky' as const, title: t('products.stockCount'), onPress: () => (onClose(), void startCountFlow()) },
     adjust && { key: 'counts', icon: 'chart' as const, hue: 'sky' as const, title: t('countReport.title'), onPress: () => go('/products/counts') },

@@ -8,6 +8,8 @@ import { Text, Icon, Chip, Fab, EmptyState, Button, colors, shadow } from '../..
 import { ProductRow, type ProductRowData } from './ProductRow';
 import { money } from '../../lib/format';
 
+export type ProductFilter = { kind: 'all' } | { kind: 'low' } | { kind: 'review' } | { kind: 'category'; id: string };
+
 export interface CategoryChip {
   id: string;
   name: string;
@@ -23,8 +25,11 @@ export function ProductsListView(props: {
   onSearch: (v: string) => void;
   onSubmitSearch: () => void;
   onScan: () => void;
-  filter: { kind: 'all' } | { kind: 'low' } | { kind: 'category'; id: string };
-  onFilter: (f: { kind: 'all' } | { kind: 'low' } | { kind: 'category'; id: string }) => void;
+  filter: ProductFilter;
+  onFilter: (f: ProductFilter) => void;
+  /** Products waiting for a sale-price review (chip shown when > 0 or selected). */
+  reviewCount?: number;
+  onQuickAdd?: () => void;
   categories: CategoryChip[];
   summary: { products: number; lowStock: number; stockValueMinor: number } | null;
   showValue: boolean;
@@ -98,15 +103,23 @@ export function ProductsListView(props: {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
           <Chip label={t('products.all')} selected={p.filter.kind === 'all'} onPress={() => p.onFilter({ kind: 'all' })} />
           <Chip label={t('products.low')} dot={colors.amber[500]} count={p.summary?.lowStock} selected={p.filter.kind === 'low'} onPress={() => p.onFilter({ kind: 'low' })} />
+          {p.reviewCount || p.filter.kind === 'review' ? (
+            <Chip testID="products-filter-review" label={t('priceReview.chip')} dot={colors.rose[500]} count={p.reviewCount} selected={p.filter.kind === 'review'} onPress={() => p.onFilter({ kind: 'review' })} />
+          ) : null}
           {p.categories.map((c) => (
             <Chip key={c.id} label={c.name} dot={c.color} selected={p.filter.kind === 'category' && p.filter.id === c.id} onPress={() => p.onFilter({ kind: 'category', id: c.id })} />
           ))}
         </ScrollView>
       </View>
 
+      {p.filter.kind === 'review' && !empty ? (
+        <Text variant="caption" style={{ paddingHorizontal: 20, paddingTop: 6 }}>{t('priceReview.hint')}</Text>
+      ) : null}
       {empty ? (
         <ScrollView contentContainerStyle={{ paddingHorizontal: 20 }}>
-          {searching ? (
+          {p.filter.kind === 'review' && !searching ? (
+            <EmptyState icon="check" hue="leaf" title={t('priceReview.emptyTitle')} body={t('priceReview.emptyBody')} />
+          ) : searching ? (
             <EmptyState icon="search" hue="ink" title={t('products.noResults', { q: p.search })}>
               {p.canManage ? <Button kind="secondary" icon="plus" title={t('products.addWithBarcode')} onPress={p.onAdd} /> : null}
             </EmptyState>
@@ -114,8 +127,9 @@ export function ProductsListView(props: {
             <EmptyState icon="box" hue="amber" title={t('products.emptyTitle')} body={t('products.emptyBody')}>
               {p.canManage ? (
                 <>
-                  <Button icon="plus" title={t('products.add')} onPress={p.onAdd} />
-                  <Button kind="secondary" icon="upload" title={t('products.import')} onPress={p.onImport} />
+                  {p.onQuickAdd ? <Button testID="products-quick-add" icon="camera" title={t('quickAdd.cta')} onPress={p.onQuickAdd} /> : null}
+                  <Button kind="secondary" icon="plus" title={t('products.add')} onPress={p.onAdd} />
+                  {p.onQuickAdd ? null : <Button kind="secondary" icon="upload" title={t('products.import')} onPress={p.onImport} />}
                 </>
               ) : null}
             </EmptyState>

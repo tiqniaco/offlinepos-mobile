@@ -89,7 +89,8 @@ export default function ScanScreen() {
   );
 }
 
-function NativeScanner({ onCode, onError }: { onCode: (code: string) => void; onError: (msg: string) => void }) {
+/** Camera + permission flow; also embedded by «امسح الباركود وكمّل» (products/scan-add), paused with `active`. */
+export function NativeScanner({ onCode, onError, active = true }: { onCode: (code: string) => void; onError: (msg: string) => void; active?: boolean }) {
   const { t } = useTranslation();
   // Loaded lazily so the web preview and Jest never touch the native camera modules.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -110,11 +111,11 @@ function NativeScanner({ onCode, onError }: { onCode: (code: string) => void; on
       </View>
     );
   }
-  return <ScannerCamera onCode={onCode} onError={() => onError(t('scan.cameraError'))} />;
+  return <ScannerCamera onCode={onCode} onError={() => onError(t('scan.cameraError'))} active={active} />;
 }
 
 /** Back camera + barcode output, with a flashlight toggle for dark shops / stockrooms. */
-function ScannerCamera({ onCode, onError }: { onCode: (code: string) => void; onError: () => void }) {
+function ScannerCamera({ onCode, onError, active }: { onCode: (code: string) => void; onError: () => void; active: boolean }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -140,7 +141,7 @@ function ScannerCamera({ onCode, onError }: { onCode: (code: string) => void; on
   }
   return (
     <View style={{ flex: 1 }}>
-      <Camera style={{ flex: 1 }} isActive device={device} outputs={[output]} torchMode={torch ? 'on' : 'off'} onError={onError} />
+      <Camera style={{ flex: 1 }} isActive={active} device={device} outputs={[output]} torchMode={torch ? 'on' : 'off'} onError={onError} />
       {device.hasTorch ? (
         <View style={{ position: 'absolute', top: insets.top + 8, end: 16 }}>
           <Pressable

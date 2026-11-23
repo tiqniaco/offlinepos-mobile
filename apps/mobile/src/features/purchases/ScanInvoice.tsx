@@ -3,8 +3,9 @@
  * offline). Paid plans only (licence limit `ocr_month`); free plans get the upgrade sheet instead.
  * Photo / gallery images are downsized on the phone (long edge 1280 px, JPEG 0.6 ≈ 1.5k image tokens); PDFs are sent
  * as is (≤ 1.5 MB, ≤ 3 pages). The result goes to the review screen (/purchases/scan-review).
+ * mode 'list' reads any list of the shop's items instead (stock list / notebook) → /products/list-review (same quota).
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Modal, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -13,7 +14,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Network from 'expo-network';
 import { File } from 'expo-file-system';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
-import { OCR_IMAGE_MAX_BYTES, OCR_PDF_MAX_PAGES, UNLIMITED, sha256Hex, type OcrMediaType } from '@daftarak/shared';
+import { OCR_IMAGE_MAX_BYTES, OCR_PDF_MAX_PAGES, UNLIMITED, sha256Hex, type OcrMediaType, type OcrScanMode } from '@daftarak/shared';
 import { Sheet, Text, Button, Icon, IconBadge, colors, fonts, shadow, type IconName } from '../../ui';
 import { Pressable } from '../../ui/Press';
 import { api, ApiError } from '../../api/client';
@@ -22,6 +23,7 @@ import { errorMessage } from '../../lib/errors';
 import { useApp } from '../../state/app';
 import { useUpgrade } from '../../state/upgrade';
 import { useOcrScan } from '../../state/ocrScan';
+import { useListScan } from '../../state/listScan';
 import { toast } from '../../state/toast';
 import { fx } from '../../ui/fx';
 
@@ -77,7 +79,20 @@ async function pickFile(source: Source, onCameraDenied: () => void): Promise<{ d
   return { data: small.base64, mediaType: 'image/jpeg' };
 }
 
-export function ScanInvoiceButton() {
+export interface ScanTrigger {
+  open: () => void;
+  reading: boolean;
+  /** Scans left this month (null = unknown / unlimited). */
+  left: number | null;
+  unlimited: boolean;
+  paid: boolean;
+}
+
+/**
+ * The scan button + source sheet + reading overlay. `mode` 'list' reads an item list; `autoOpen` opens the source
+ * sheet right away (from the quick-add hub); `trigger` replaces the default button (big hub tile).
+ */
+export function ScanInvoiceButton({ mode = 'invoice', autoOpen = false, trigger }: { mode?: OcrScanMode; autoOpen?: boolean; trigger?: (p: ScanTrigger) => ReactNode } = {}) {
   const { t } = useTranslation();
   const business = useApp((s) => s.business);
   const ocrLimit = useApp((s) => s.licence?.limits.ocr_month ?? 0);
@@ -128,7 +143,21 @@ export function ScanInvoiceButton() {
         const ctrl = new AbortController();
         abort.current = ctrl;
         // Same file again (retry after a timeout / network drop) → same key → the stored result, not a second charge.
-        const idempotencyKey = `scan-${sha256Hex(`${bid}|${file.data.length}|${file.data.slice(0, 65_536)}|${file.data.slice(-65_536)}`).slice(0, 40)}`;
+        const idempotencyKey = `${mode === 'list' ? 'list' : 'scan'}-${sha256Hex(`${bid}|${file.data.length}|${file.data.slice(0, 65_536)}|${file.data.slice(-65_536)}`).slice(0, 40)}`;
+        if (mode === 'list') {
+          const r = await api.scanList(await accessToken(), bid, file.data, file.mediaType, { signal: ctrl.signal, idempotencyKey });
+          if (ctrl.signal.aborted) return;
+          setUsedCount(r.used);
+          setServerLimit(r.limit);
+          if (!r.lines.length) {
+            toast(t('quickAdd.listNone'), 'error');
+            return;
+          }
+          useListScan.getState().set(r);
+          fx.notify();
+          router.push('/products/list-review');
+          return;
+        }
         const r = await api.scanInvoice(await accessToken(), bid, file.data, file.mediaType, { signal: ctrl.signal, idempotencyKey });
         if (ctrl.signal.aborted) return;
         setUsedCount(r.used);
@@ -156,14 +185,21 @@ export function ScanInvoiceButton() {
         inFlight.current = false;
       }
     },
-    [bid, serverLimit, t],
+    [bid, serverLimit, t, mode],
   );
 
-  const open = () => {
+  const open = useCallback(() => {
     if (inFlight.current) return;
     if (ocrLimit === 0) return useUpgrade.getState().show('ocr');
     setChoose(true);
-  };
+  }, [ocrLimit]);
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (!autoOpen || autoOpened.current) return;
+    autoOpened.current = true;
+    const h = setTimeout(open, 350); // after the screen transition
+    return () => clearTimeout(h);
+  }, [autoOpen, open]);
   const pickSource = (s: Source) => {
     setChoose(false);
     // Let the sheet close before the system picker opens.
@@ -180,6 +216,8 @@ export function ScanInvoiceButton() {
 
   return (
     <View style={{ gap: 4 }}>
+      {trigger ? trigger({ open, reading, left, unlimited: limit === UNLIMITED, paid: ocrLimit !== 0 }) : null}
+      {trigger ? null : (
       <Pressable
         testID="purchase-ocr-scan"
         accessibilityLabel={t('ocr.button')}
@@ -198,10 +236,11 @@ export function ScanInvoiceButton() {
         </View>
         <Icon name="chevron" size={16} color={colors.ink.faint} />
       </Pressable>
-      {ocrLimit !== 0 && (left != null || limit === UNLIMITED) ? <Text style={{ fontSize: 11.5, lineHeight: 17, color: colors.ink.mute, paddingHorizontal: 4 }}>{t('ocr.needsNet')}</Text> : null}
+      )}
+      {!trigger && ocrLimit !== 0 && (left != null || limit === UNLIMITED) ? <Text style={{ fontSize: 11.5, lineHeight: 17, color: colors.ink.mute, paddingHorizontal: 4 }}>{t('ocr.needsNet')}</Text> : null}
 
-      <Sheet visible={choose} onClose={() => setChoose(false)} title={t('ocr.chooseTitle')}>
-        <Text variant="caption">{t('ocr.needsNet')}</Text>
+      <Sheet visible={choose} onClose={() => setChoose(false)} title={mode === 'list' ? t('quickAdd.listChooseTitle') : t('ocr.chooseTitle')}>
+        <Text variant="caption">{mode === 'list' ? t('quickAdd.listTips') : t('ocr.needsNet')}</Text>
         {options.map((o) => (
           <Pressable
             key={o.s}
@@ -239,7 +278,7 @@ export function ScanInvoiceButton() {
         <View testID="ocr-reading" style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, padding: 32, backgroundColor: 'rgba(15,23,42,0.78)' }}>
           <ActivityIndicator size="large" color="#FFFFFF" />
           <Text style={{ fontFamily: fonts.bold, fontSize: 20, lineHeight: 30, color: '#FFFFFF', textAlign: 'center' }}>{t('ocr.reading')}</Text>
-          <Text style={{ fontSize: 13.5, lineHeight: 20, color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>{t('ocr.readingHint')}</Text>
+          <Text style={{ fontSize: 13.5, lineHeight: 20, color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>{mode === 'list' ? t('quickAdd.listReadingHint') : t('ocr.readingHint')}</Text>
           <Button testID="ocr-cancel" kind="light" compact title={t('common.cancel')} onPress={() => abort.current?.abort()} />
         </View>
       </Modal>

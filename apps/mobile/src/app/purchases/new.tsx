@@ -16,6 +16,7 @@ import { getParty } from '../../domain/parties/parties';
 import { postPurchase, pricePurchaseDraft, purchaseLineFor, PurchaseError, type PurchaseLine } from '../../domain/purchases/purchases';
 import { PartyPicker } from '../../features/parties/PartyPicker';
 import { ScanInvoiceButton } from '../../features/purchases/ScanInvoice';
+import { refreshPriceReview } from '../../state/priceReview';
 import { partyColor } from '../../features/parties/format';
 import { useBizCtx } from '../../features/sales/useSalesCtx';
 import { useCurrency } from '../../features/inventory/useInvCtx';
@@ -28,7 +29,9 @@ type PayMode = 'credit' | 'cash' | 'partial';
 /** New purchase invoice: supplier → scan/search items → cost & qty → save (default: unpaid on the supplier; paid in cash when no supplier is picked). */
 export default function NewPurchase() {
   const { t, i18n } = useTranslation();
-  const params = useLocalSearchParams<{ supplierId?: string }>();
+  const params = useLocalSearchParams<{ supplierId?: string; scan?: string }>();
+  // From «أضف أصنافك بسرعة» → «صوّر فاتورة شراء»: open the scan sheet straight away (not over a leftover draft).
+  const [autoScan] = useState(() => params.scan === '1' && !usePurchaseCart.getState().lines.length);
   const ctx = useBizCtx();
   const currency = useCurrency();
   const user = useApp((s) => s.user)!;
@@ -135,7 +138,9 @@ export default function NewPurchase() {
     const pays: PaymentInput[] = [...(paidNow ? [{ method, amountMinor: paidNow }] : []), ...(total - paidNow ? [{ method: 'credit' as const, amountMinor: total - paidNow }] : [])];
     try {
       const r = await postPurchase(ctx, { supplierId: cart.supplierId, supplierRef: cart.supplierRef, lines: cart.lines, pricesIncludeVat: cart.pricesIncludeVat, invoiceDiscountMinor: cart.invoiceDiscountMinor, dueDays }, pays.length ? pays : [{ method: 'cash', amountMinor: 0 }]);
+      const hadNew = cart.lines.some((l) => l.newProduct);
       cart.clear();
+      if (hadNew) void refreshPriceReview();
       fx.success();
       setPayOpen(false);
       router.replace({ pathname: '/purchases/[id]', params: { id: r.docId, fresh: '1' } });
@@ -155,7 +160,7 @@ export default function NewPurchase() {
         <Text style={{ flex: 1, fontFamily: fonts.semibold, fontSize: 15.5, lineHeight: 22, color: cart.supplierId ? colors.ink.DEFAULT : colors.ink.mute }}>{cart.supplierName ?? t('parties.pickS')}</Text>
         <Icon name="chevron" size={16} color={colors.ink.faint} />
       </Pressable>
-      <ScanInvoiceButton />
+      <ScanInvoiceButton autoOpen={autoScan} />
       <TextField label={t('purchase.ref')} value={cart.supplierRef} onChangeText={(v) => cart.set({ supplierRef: v })} ltr placeholder={t('purchase.refPh')} />
 
       <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
@@ -183,6 +188,11 @@ export default function NewPurchase() {
           <Pressable key={l.key} onPress={() => setEdit(l)} style={({ pressed }) => [{ padding: 12, borderRadius: 14, backgroundColor: l.key === cart.lastKey ? colors.primary[50] : colors.paper.card, opacity: pressed ? 0.85 : 1 }, shadow.soft]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
               <Text style={{ flex: 1, fontFamily: fonts.semibold, fontSize: 15, lineHeight: 21, color: colors.ink.DEFAULT }}>{l.name}</Text>
+              {l.newProduct ? (
+                <View style={{ alignSelf: 'center', paddingHorizontal: 8, paddingVertical: 1, borderRadius: 99, backgroundColor: colors.primary[100] }}>
+                  <Text style={{ fontFamily: fonts.bold, fontSize: 11, color: colors.primary[700] }}>{t('ocr.create')}</Text>
+                </View>
+              ) : null}
               <Text style={{ fontFamily: fonts.bold, fontSize: 15, lineHeight: 21, color: colors.ink.DEFAULT }}>{priced ? fmt(priced.lines[i]!.totalMinor) : ''}</Text>
             </View>
             <Text variant="caption">
