@@ -5,6 +5,7 @@
 import { Text as RNText, View } from 'react-native';
 import { fonts } from '../../ui';
 import type { ReportDoc } from './report';
+import { signedText } from '../../lib/format';
 
 const INK = '#000000';
 
@@ -16,7 +17,7 @@ function KV({ label, value, b = false, s = 22 }: { label: string; value: string;
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
       <T s={s} b={b}>{label}</T>
-      <T s={s} b={b} style={{ writingDirection: 'ltr' }}>{value}</T>
+      <T s={s} b={b} style={{ writingDirection: 'ltr' }}>{signedText(value)}</T>
     </View>
   );
 }
@@ -49,7 +50,7 @@ export function ReportView({ d, dots }: { d: ReportDoc; dots: number }) {
               ))}
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', columnGap: 10 }}>
                 {cols.filter((c) => c.num && r.cells[c.key]).map((c) => (
-                  <T key={c.key} s={19}>{`${c.label}: `}<T s={19} b style={{ writingDirection: 'ltr' }}>{r.cells[c.key]}</T></T>
+                  <T key={c.key} s={19}>{`${c.label}: `}<T s={19} b style={{ writingDirection: 'ltr' }}>{signedText(r.cells[c.key] ?? '')}</T></T>
                 ))}
               </View>
               {r.sub?.map((s, j) => <T key={j} s={18}>{`  • ${s}`}</T>)}

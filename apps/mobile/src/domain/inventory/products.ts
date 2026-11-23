@@ -81,6 +81,18 @@ async function assertCodesFree(tx: Db, codes: string[], exceptProductId?: string
   if (clash) throw new InventoryError('barcode_taken', { code: clash.code, productName: clash.name });
 }
 
+/**
+ * Weighed goods: money is stored in whole piastres per BASE unit, so a gram base unit cannot hold a price like
+ * 12.5 piastres/gram (125 per kilo) — it rounds on every sale. A new product with a gram base unit and a price under
+ * 1.00 per gram is refused with a clear message: use the kilo as the base unit and sell fractions (0.250 kilo).
+ */
+async function assertBaseUnitHoldsPrices(tx: Db, input: ProductInput) {
+  const u = (await tx.select({ en: units.nameEn }).from(units).where(eq(units.id, input.baseUnitId)).limit(1))[0];
+  if (u?.en !== 'Gram') return;
+  const prices = [input.retailPriceMinor, input.wholesalePriceMinor, input.costMinor].filter((v) => v > 0);
+  if (prices.some((v) => v < 100)) throw new InventoryError('gram_base_unit');
+}
+
 async function assertSkuFree(tx: Db, sku: string | null | undefined, exceptProductId?: string) {
   if (!sku) return;
   const r = await tx.select({ id: products.id }).from(products).where(and(eq(products.sku, sku), isNull(products.deletedAt))).limit(1);
@@ -164,6 +176,7 @@ export async function createProduct(ctx: InvCtx, input: ProductInput & { opening
   return withTx(ctx.db, async (tx) => {
     await assertCodesFree(tx, cleanCodes([...input.barcodes, input.largerUnit?.barcode]));
     await assertSkuFree(tx, input.sku);
+    await assertBaseUnitHoldsPrices(tx, input);
     const { productId } = await insertProductRows(tx, ctx, input, now);
     if (input.openingQtyMilli && input.trackStock) await postOpeningStock(tx, ctx, [{ productId, qtyMilli: input.openingQtyMilli, unitCostMinor: input.costMinor }], now);
     await appendAudit(tx, {

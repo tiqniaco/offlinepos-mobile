@@ -19,6 +19,8 @@ describe('sample data', () => {
     expect(await hasSampleData(ctx)).toBe(true);
     expect((await listProducts(db, { limit: 100 })).length).toBe(19);
     expect(await findByBarcode(db, '6220001000011')).not.toBeNull();
+    // Opening stock: a first test sale must not go negative.
+    expect((await listProducts(db, { limit: 100 })).every((p) => p.qtyMilli === 20_000)).toBe(true);
     expect((await listParties(db, 'C')).length).toBe(3);
     await removeSampleData(ctx);
     expect(await hasSampleData(ctx)).toBe(false);

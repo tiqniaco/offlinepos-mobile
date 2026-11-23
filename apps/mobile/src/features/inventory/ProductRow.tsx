@@ -3,7 +3,7 @@ import { Pressable } from '../../ui/Press';
 import { fonts } from '../../ui/fonts';
 import { useTranslation } from 'react-i18next';
 import { Text, Icon, colors, shadow } from '../../ui';
-import { money, qty } from '../../lib/format';
+import { money, qty, signedText } from '../../lib/format';
 
 export interface ProductRowData {
   id: string;
@@ -71,7 +71,7 @@ export function ProductRow({ p, currency, lang, selected, selecting, onPress, on
         <Text style={{ fontFamily: fonts.semibold, fontSize: 15, lineHeight: 22, color: colors.primary[700] }}>{money(p.retailPriceMinor, currency, lang)}</Text>
       </View>
       <View style={{ backgroundColor: TONE[tone].bg, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, minWidth: 64, alignItems: 'center' }}>
-        <Text style={{ fontFamily: fonts.bold, fontSize: 14, lineHeight: 20, color: TONE[tone].fg }}>{tone === 'none' ? '—' : qty(p.qtyMilli)}</Text>
+        <Text style={{ fontFamily: fonts.bold, fontSize: 14, lineHeight: 20, color: TONE[tone].fg }}>{tone === 'none' ? '—' : signedText(qty(p.qtyMilli))}</Text>
         <Text style={{ fontSize: 11, lineHeight: 15, color: TONE[tone].fg, fontFamily: fonts.medium }}>{tone === 'none' ? t('products.notTracked') : p.unitName}</Text>
       </View>
     </Pressable>
