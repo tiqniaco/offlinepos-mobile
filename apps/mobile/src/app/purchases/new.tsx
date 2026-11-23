@@ -15,6 +15,7 @@ import { findByBarcode, listProducts } from '../../domain/inventory/products';
 import { getParty } from '../../domain/parties/parties';
 import { postPurchase, pricePurchaseDraft, purchaseLineFor, PurchaseError, type PurchaseLine } from '../../domain/purchases/purchases';
 import { PartyPicker } from '../../features/parties/PartyPicker';
+import { ScanInvoiceButton } from '../../features/purchases/ScanInvoice';
 import { partyColor } from '../../features/parties/format';
 import { useBizCtx } from '../../features/sales/useSalesCtx';
 import { useCurrency } from '../../features/inventory/useInvCtx';
@@ -154,6 +155,7 @@ export default function NewPurchase() {
         <Text style={{ flex: 1, fontFamily: fonts.semibold, fontSize: 15.5, lineHeight: 22, color: cart.supplierId ? colors.ink.DEFAULT : colors.ink.mute }}>{cart.supplierName ?? t('parties.pickS')}</Text>
         <Icon name="chevron" size={16} color={colors.ink.faint} />
       </Pressable>
+      <ScanInvoiceButton />
       <TextField label={t('purchase.ref')} value={cart.supplierRef} onChangeText={(v) => cart.set({ supplierRef: v })} ltr placeholder={t('purchase.refPh')} />
 
       <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
