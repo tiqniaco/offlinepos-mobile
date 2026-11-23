@@ -33,15 +33,52 @@ export type AppSettings = BusinessSettings & { language: 'ar' | 'en'; palette: '
   reminderTemplate: string;
 };
 
-/** Receipt template options (SPEC §3). */
+/** Receipt / invoice template options (SPEC §3 + «شكل الفواتير»). Every field has a good default. */
 export interface ReceiptTemplate {
   footer: string;
   showLogo: boolean;
+  /** VAT breakdown (net + VAT lines). */
   showTax: boolean;
   showDiscount: boolean;
   showBalance: boolean;
+  /** Preview / default thermal paper (the configured printer's own width wins when printing). */
+  thermalSize?: 58 | 80;
+  a4Style?: 'classic' | 'modern';
+  /** Brand accent for A4 (#RRGGBB); null = the app's current theme colour. */
+  brandColor?: string | null;
+  showCashier?: boolean;
+  showItemCode?: boolean;
+  showQr?: boolean;
+  /** A4: total in Arabic words (تفقيط). */
+  showWords?: boolean;
+  headerNote?: string;
+  quoteTerms?: string;
+  quoteValidDays?: number;
 }
-export const DEFAULT_RECEIPT: ReceiptTemplate = { footer: 'شكراً لزيارتكم 🌷', showLogo: true, showTax: true, showDiscount: true, showBalance: true };
+export const DEFAULT_RECEIPT: Required<ReceiptTemplate> = {
+  footer: 'شكراً لزيارتكم 🌷',
+  showLogo: true,
+  showTax: true,
+  showDiscount: true,
+  showBalance: true,
+  thermalSize: 80,
+  a4Style: 'modern',
+  brandColor: null,
+  showCashier: true,
+  showItemCode: false,
+  showQr: true,
+  showWords: true,
+  headerNote: '',
+  quoteTerms: 'الأسعار سارية حتى تاريخ الصلاحية المذكور. التوريد حسب توفر الكميات.',
+  quoteValidDays: 7,
+};
+
+/** Saved template on top of the defaults (older saves miss the newer fields). */
+export function resolveTemplate(saved: Partial<ReceiptTemplate> | null | undefined): Required<ReceiptTemplate> {
+  const out = { ...DEFAULT_RECEIPT } as Required<ReceiptTemplate>;
+  for (const [k, v] of Object.entries(saved ?? {})) if (v !== undefined) (out as Record<string, unknown>)[k] = v;
+  return out;
+}
 
 export async function loadSettings(db: AppDb): Promise<Partial<AppSettings>> {
   const rows = await db.select().from(settings);
