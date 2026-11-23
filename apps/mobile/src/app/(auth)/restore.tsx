@@ -11,7 +11,7 @@ import { deviceInfo } from '../../domain/onboarding';
 import { storeLicence, refreshLicenceState } from '../../domain/licence/service';
 import { getDb } from '../../db/client';
 import { boot } from '../../state/boot';
-import { applyRestore, stageRestore, type RestorePreview } from '../../features/backup/service';
+import { applyRestore, RestoreError, stageRestore, type RestorePreview } from '../../features/backup/service';
 import { setRestoreBusinessId } from '../../features/backup/restoreState';
 import { dayText } from '../../features/export/builders';
 import { errorMessage } from '../../lib/errors';
@@ -87,7 +87,7 @@ export default function Restore() {
       setPreview(pv);
       setStep('preview');
     } catch (e) {
-      setErr(e instanceof ApiError ? errorMessage(t, e) : t('restore.decryptFailed'));
+      setErr(e instanceof ApiError ? errorMessage(t, e) : e instanceof RestoreError ? t(`restore.err.${e.code}`) : t('restore.decryptFailed'));
       setStep(e instanceof ApiError && e.code === 'otp_invalid' ? 'otp' : 'list');
     } finally {
       verifying.current = false;
@@ -111,7 +111,7 @@ export default function Restore() {
       fx.success();
       await boot(); // restored users → lock screen
     } catch (e) {
-      setErr(errorMessage(t, e));
+      setErr(e instanceof RestoreError ? t(`restore.err.${e.code}`) : errorMessage(t, e));
       setStep('preview');
     }
   };

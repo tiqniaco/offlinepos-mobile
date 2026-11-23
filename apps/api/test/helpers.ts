@@ -6,7 +6,7 @@ import type { Deps } from '../src/routes/v1';
 
 export const TEST_PK_SK = '9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60';
 
-export function makeClient(start = 1_800_000_000_000, extra: Partial<Deps> = {}) {
+export function makeClient(start = 1_800_000_000_000, extra: Partial<Deps> = {}, envOverride: Partial<Env> = {}) {
   const clock = { now: start };
   const app = createApp({ now: () => clock.now, provider: () => new ConsoleProvider(), ...extra });
   let ip = '10.0.0.1';
@@ -18,7 +18,7 @@ export function makeClient(start = 1_800_000_000_000, extra: Partial<Deps> = {})
         headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': ip, ...headers },
         body: json === undefined ? undefined : JSON.stringify(json),
       },
-      env as unknown as Env,
+      { ...(env as unknown as Env), ...envOverride },
     );
     const text = await res.text();
     return { status: res.status, json: text ? (JSON.parse(text) as any) : null };
@@ -45,3 +45,13 @@ export async function login(c: ReturnType<typeof makeClient>, phone = '010123456
 }
 
 export const BACKUP_KEY = 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8';
+
+/** Fresh SMS step-up on a session (needed to attach / activate over another active phone, release the backup key…). */
+export async function stepUp(c: ReturnType<typeof makeClient>, accessToken: string, phoneE164: string) {
+  const h = { Authorization: `Bearer ${accessToken}` };
+  const r1 = await c.call('POST', '/v1/auth/step-up/request', {}, h);
+  if (r1.status !== 200) throw new Error(JSON.stringify(r1.json));
+  const r2 = await c.call('POST', '/v1/auth/step-up/verify', { code: ConsoleProvider.lastCodeFor(phoneE164)! }, h);
+  if (r2.status !== 200) throw new Error(JSON.stringify(r2.json));
+  return r2.json;
+}

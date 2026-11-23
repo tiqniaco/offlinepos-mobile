@@ -7,12 +7,22 @@ import * as SQLite from 'expo-sqlite';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
 import { base64urlDecode, ObkReader, ObkWriter, readObkHeader, type ObkHeader } from '@daftarak/shared';
-import { getSqlite, DB_NAME } from '../../db/client';
+import { DB_NAME } from '../../db/client';
+import { getOrCreateDbKey } from '../../lib/secure';
 
 // 64 KB per slice: ≈ 7 ms in Node, ~25–40 ms expected on Hermes — far below the 100 ms freeze budget.
 const SLICE = 64 * 1024;
 const yieldUi = () => new Promise<void>((r) => setTimeout(r, 0));
 const IMAGES = 'product-images';
+/** Restore refuses a file that would decompress to more than this (zip-bomb / disk-full guard). */
+export const MAX_RESTORE_BYTES = 2 * 1024 * 1024 * 1024;
+
+export class RestoreFileError extends Error {
+  constructor(public readonly code: 'too_large' | 'bad_entry') {
+    super(code);
+    this.name = 'RestoreFileError';
+  }
+}
 
 export function backupDir(): Directory {
   const d = new Directory(Paths.cache, 'backups');
@@ -27,16 +37,43 @@ function fresh(dir: Directory, name: string): File {
   return f;
 }
 
-/** Consistent plain-text copy of the live encrypted DB (SQLCipher export inside one read transaction). */
-function snapshot(target: File) {
+/** Delete leftovers of an interrupted backup/restore (plain-text snapshot.sqlite / restore.sqlite, staged photos). Run at boot. */
+export function cleanBackupCache() {
+  try {
+    const d = new Directory(Paths.cache, 'backups');
+    if (!d.exists) return;
+    for (const f of d.list()) {
+      try {
+        f.delete();
+      } catch {
+        /* next boot */
+      }
+    }
+  } catch {
+    /* cache may be unavailable: harmless */
+  }
+}
+
+/**
+ * Consistent plain-text copy of the live encrypted DB (SQLCipher export inside one read transaction).
+ * Runs on its OWN connection with the async API: the export happens on a native thread (WAL lets it read a
+ * consistent snapshot while the app keeps writing), so the JS thread never blocks on a large database.
+ */
+async function snapshot(target: File) {
   if (target.exists) target.delete();
   const path = decodeURIComponent(target.uri.replace(/^file:\/\//, ''));
-  const db = getSqlite();
-  db.execSync(`ATTACH DATABASE '${path.replace(/'/g, "''")}' AS bk KEY ''`);
+  const key = await getOrCreateDbKey();
+  const conn = await SQLite.openDatabaseAsync(DB_NAME, { useNewConnection: true });
   try {
-    db.execSync(`SELECT sqlcipher_export('bk')`);
+    await conn.execAsync(`PRAGMA key = "x'${key}'"`);
+    await conn.execAsync(`ATTACH DATABASE '${path.replace(/'/g, "''")}' AS bk KEY ''`);
+    try {
+      await conn.execAsync(`SELECT sqlcipher_export('bk')`);
+    } finally {
+      await conn.execAsync(`DETACH DATABASE bk`);
+    }
   } finally {
-    db.execSync(`DETACH DATABASE bk`);
+    await conn.closeAsync();
   }
 }
 
@@ -47,18 +84,28 @@ export interface BuiltBackup {
 }
 
 /** Snapshot → .obk (gzip + AES-256-GCM with the business backup key). Progress 0…1. */
-export async function buildBackup(keyB64: string, header: ObkHeader, onProgress?: (p: number) => void): Promise<BuiltBackup> {
-  return writeBackupFile(new ObkWriter(base64urlDecode(keyB64), header), `backup-${header.createdAt}.obk`, [], onProgress);
+export async function buildBackup(keyB64: string, header: ObkHeader, onProgress?: (p: number) => void, opts: BackupFileOptions = {}): Promise<BuiltBackup> {
+  return writeBackupFile(new ObkWriter(base64urlDecode(keyB64), header), `backup-${header.createdAt}.obk`, [], onProgress, opts);
+}
+
+export interface BackupFileOptions {
+  /** Include product photos (default true). The automatic daily backup carries them once a week only. */
+  photos?: boolean;
 }
 
 /**
  * Snapshot + product photos (+ small extra entries) through any container writer (cloud .obk or portable .kashiro),
  * in 64 KB slices with a yield between them. Progress 0…1.
  */
-export async function writeBackupFile(w: ObkWriter<object>, fileName: string, extras: [string, Uint8Array][], onProgress?: (p: number) => void): Promise<BuiltBackup> {
+export async function writeBackupFile(w: ObkWriter<object>, fileName: string, extras: [string, Uint8Array][], onProgress?: (p: number) => void, opts: BackupFileOptions = {}): Promise<BuiltBackup> {
   const dir = backupDir();
   const plain = new File(dir, 'snapshot.sqlite');
-  snapshot(plain);
+  try {
+    await snapshot(plain);
+  } catch (e) {
+    if (plain.exists) plain.delete();
+    throw e;
+  }
   const out = fresh(dir, fileName);
   const outH = out.open();
   const fileHash = sha256.create();
@@ -84,7 +131,7 @@ export async function writeBackupFile(w: ObkWriter<object>, fileName: string, ex
     inH.close();
     // Product photos travel in the same file (owner decision Q-08).
     const imgDir = new Directory(Paths.document, IMAGES);
-    if (imgDir.exists) {
+    if (opts.photos !== false && imgDir.exists) {
       for (const f of imgDir.list()) {
         if (!(f instanceof File)) continue;
         const bytes = await f.bytes();
@@ -151,14 +198,21 @@ export async function decryptBackupFile<H extends object>(
   let cur: { name: string; handle: ReturnType<File['open']> | null } = { name: '', handle: null };
   const pending: Promise<void>[] = [];
   const secrets: Record<string, Uint8Array> = {};
+  let written = 0;
   const r = new ObkReader<H>(key, {
     onEntry: (name) => {
       if (cur.handle && cur.handle !== snapH) cur.handle.close();
       if (name === 'db.sqlite') cur = { name, handle: snapH };
-      else if (name.startsWith('img/')) cur = { name, handle: fresh(imgStage, name.slice(4).replace(/[^\w.-]/g, '_')).open() };
-      else cur = { name, handle: null };
+      else if (name.startsWith('img/')) {
+        const safe = name.slice(4).replace(/[^\w.-]/g, '_');
+        // "." / ".." / hidden names would escape or clobber the staging folder.
+        if (!safe || safe.startsWith('.') || safe.includes('..')) throw new RestoreFileError('bad_entry');
+        cur = { name, handle: fresh(imgStage, safe).open() };
+      } else cur = { name, handle: null };
     },
     onData: (d) => {
+      written += d.length;
+      if (written > MAX_RESTORE_BYTES) throw new RestoreFileError('too_large');
       if (cur.handle) cur.handle.writeBytesSync(d.slice());
       else if (cur.name.startsWith('key/') && d.length) {
         const prev = secrets[cur.name];
@@ -209,7 +263,7 @@ export function openSnapshot(snapshot: File): SQLite.SQLiteDatabase {
  * Replace the live DB with the snapshot, encrypted with THIS phone's DB key. The caller closes the current
  * connection first and reopens with openDatabase() afterwards (migrations run there).
  */
-export function installSnapshot(snapshot: File, dbKeyHex: string, images: Directory) {
+export function installSnapshot(snapshot: File, dbKeyHex: string, images: Directory, opts: { keepSnapshot?: boolean } = {}) {
   const sqliteDir = new Directory(Paths.document, 'SQLite');
   const target = new File(sqliteDir, 'restore-new.db');
   if (target.exists) target.delete();
@@ -224,11 +278,18 @@ export function installSnapshot(snapshot: File, dbKeyHex: string, images: Direct
     const f = new File(sqliteDir, DB_NAME + suffix);
     if (f.exists) f.delete();
   }
-  target.move(new File(sqliteDir, DB_NAME));
-  snapshot.delete();
+  target.moveSync(new File(sqliteDir, DB_NAME));
+  if (!opts.keepSnapshot) snapshot.delete();
   // Photos
-  const live = new Directory(Paths.document, IMAGES);
-  if (!live.exists) live.create({ intermediates: true });
-  for (const f of images.list()) if (f instanceof File) f.move(new File(live, f.name));
-  images.delete();
+  if (images.exists) {
+    const live = new Directory(Paths.document, IMAGES);
+    if (!live.exists) live.create({ intermediates: true });
+    for (const f of images.list()) {
+      if (!(f instanceof File)) continue;
+      const dest = new File(live, f.name);
+      if (dest.exists) dest.delete();
+      f.moveSync(dest);
+    }
+    images.delete();
+  }
 }

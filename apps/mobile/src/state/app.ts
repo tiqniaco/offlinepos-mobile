@@ -20,7 +20,9 @@ export interface BusinessInfo {
 
 interface AppState {
   status: AppStatus;
-  fatal: 'db_not_encrypted' | 'db_open_failed' | null;
+  fatal: 'db_not_encrypted' | 'db_open_failed' | 'boot_failed' | null;
+  /** Technical detail of the start-up failure (shown small on the fatal screen, sent with a report). */
+  fatalDetail: string | null;
   device: { id: string; code: string } | null;
   business: BusinessInfo | null;
   settings: Partial<AppSettings>;
@@ -29,6 +31,8 @@ interface AppState {
   lastActivity: number;
   /** Changes when new messages from Daftarak arrive (home bell refreshes). */
   inboxBump: number;
+  /** Bumped after any posting (sale, purchase, voucher, stock change…): screens with summaries refresh on change. */
+  dataVersion: number;
   /** Data restored from a .kashiro file without the server: view-only until this phone is linked to the account. */
   restoreUnlinked: boolean;
   set: (p: Partial<AppState>) => void;
@@ -40,6 +44,7 @@ interface AppState {
 export const useApp = create<AppState>((set) => ({
   status: 'booting',
   fatal: null,
+  fatalDetail: null,
   device: null,
   business: null,
   settings: {},
@@ -47,6 +52,7 @@ export const useApp = create<AppState>((set) => ({
   user: null,
   lastActivity: Date.now(),
   inboxBump: 0,
+  dataVersion: 0,
   restoreUnlinked: false,
   set: (p) => set(p),
   lock: () => set({ status: 'locked', user: null }),
@@ -81,3 +87,6 @@ export const useOnboarding = create<OnboardingDraft>((set) => ({
   set: (p) => set(p),
   reset: () => set({ phone: '', mode: 'signup', password: null, auth: null, businessForm: null, existingBusinessId: null, registration: null }),
 }));
+
+/** Call after any write that changes money/stock figures (home summary refreshes only when this moved). */
+export const bumpData = () => useApp.setState((s) => ({ dataVersion: s.dataVersion + 1 }));

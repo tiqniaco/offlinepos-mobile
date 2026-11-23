@@ -3,7 +3,7 @@
  * Bearer session token held in the admin SPA's sessionStorage; CORS limited to ADMIN_ORIGIN.
  * Every mutating action is written to admin_audit.
  */
-import { announceSchema, targetSchema, targetSql, type Target } from '../announce/announce';
+import { announceSchema, effectiveStatusSql, targetSchema, targetSql, type Target } from '../announce/announce';
 import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import { DAY_MS, FEATURES, uuidv7, verifyTotp } from '@daftarak/shared';
@@ -13,7 +13,7 @@ import { pbkdf2Hex, randomToken, safeEqual, sha256HexAsync } from '../lib/crypto
 import type { Deps } from '../routes/v1';
 import { defaultDeps } from '../routes/v1';
 import { newActivationCode } from '../routes/phase6';
-import { activatePlan } from '../billing/activate';
+import { activationStatement, planActivation } from '../billing/activate';
 import { receiptContentType } from '../billing/manual';
 import { cairoMonthStart } from '../ocr/scan';
 
@@ -64,8 +64,8 @@ const planSchema = z.object({
   active: z.boolean(),
 });
 
-async function reach(env: Env, t: Target, withTokens = false) {
-  const { where, args } = targetSql(t);
+async function reach(env: Env, t: Target, now: number, withTokens = false) {
+  const { where, args } = targetSql(t, now);
   const n = await env.DB.prepare(
     `SELECT COUNT(DISTINCT b.id) AS businesses, COUNT(d.id) AS devices, COUNT(d.push_token) AS push
      FROM businesses b LEFT JOIN devices d ON d.business_id = b.id AND d.deactivated_at IS NULL WHERE ${where}`,
@@ -156,14 +156,14 @@ export function adminRoutes(deps: Deps = defaultDeps) {
     const page = Math.max(0, Number(c.req.query('page') ?? 0) | 0);
     const like = `%${q}%`;
     const r = await c.env.DB.prepare(
-      `SELECT b.id, b.name, b.country, b.type, b.plan_code, b.status, b.plan_expires_at, b.created_at, b.last_seen_at, b.app_version,
+      `SELECT b.id, b.name, b.country, b.type, b.plan_code, ${effectiveStatusSql('b', '?4')} AS status, b.status AS stored_status, b.plan_expires_at, b.created_at, b.last_seen_at, b.app_version,
               a.phone AS owner_phone,
               (SELECT COUNT(*) FROM devices d WHERE d.business_id = b.id AND d.deactivated_at IS NULL) AS active_devices
        FROM businesses b JOIN accounts a ON a.id = b.owner_account_id
        WHERE (?1 = '' OR b.name LIKE ?2 OR a.phone LIKE ?2)
        ORDER BY b.created_at DESC LIMIT 50 OFFSET ?3`,
     )
-      .bind(q, like, page * 50)
+      .bind(q, like, page * 50, deps.now())
       .all();
     return c.json({ businesses: r.results, page });
   });
@@ -172,10 +172,10 @@ export function adminRoutes(deps: Deps = defaultDeps) {
     await requireAdmin(c, deps.now());
     const id = c.req.param('id');
     const b = await c.env.DB.prepare(
-      `SELECT b.id, b.name, b.country, b.type, b.vat_registered, b.plan_code, b.status, b.plan_expires_at, b.created_at, b.last_seen_at, b.app_version, a.phone AS owner_phone
+      `SELECT b.id, b.name, b.country, b.type, b.vat_registered, b.plan_code, ${effectiveStatusSql('b', '?2')} AS status, b.status AS stored_status, b.plan_source, b.plan_expires_at, b.created_at, b.last_seen_at, b.app_version, a.phone AS owner_phone
        FROM businesses b JOIN accounts a ON a.id = b.owner_account_id WHERE b.id = ?1`,
     )
-      .bind(id)
+      .bind(id, deps.now())
       .first();
     if (!b) throw new ApiError(404, 'not_found');
     const devices = await c.env.DB.prepare(`SELECT id, code, platform, model, app_version, activated_at, deactivated_at, last_checkin_at FROM devices WHERE business_id = ?1 ORDER BY activated_at DESC`)
@@ -201,14 +201,25 @@ export function adminRoutes(deps: Deps = defaultDeps) {
     const adminId = await requireAdmin(c, now);
     const id = c.req.param('id');
     const { days } = await body(c, z.object({ days: z.number().int().min(1).max(365) }));
-    const b = await c.env.DB.prepare(`SELECT status, plan_expires_at FROM businesses WHERE id = ?1`).bind(id).first<{ status: string; plan_expires_at: number }>();
+    const b = await c.env.DB.prepare(
+      `SELECT b.status, b.plan_code, b.plan_expires_at, p.is_free FROM businesses b JOIN plans p ON p.code = b.plan_code WHERE b.id = ?1`,
+    )
+      .bind(id)
+      .first<{ status: string; plan_code: string; plan_expires_at: number; is_free: number }>();
     if (!b) throw new ApiError(404, 'not_found');
     // Extending from "now" if the trial already ended, otherwise from the current end.
     const base = Math.max(now, b.plan_expires_at);
     const until = base + days * DAY_MS;
-    await c.env.DB.prepare(`UPDATE businesses SET status = 'trial', plan_code = 'pro', plan_expires_at = ?2 WHERE id = ?1`).bind(id, until).run();
-    await audit(c.env, adminId, 'extend_trial', id, { days, from: b.plan_expires_at, to: until, previousStatus: b.status }, now);
-    return c.json({ ok: true, planExpiresAt: until });
+    // A paying customer (paid plan still running, or suspended) is never turned back into a trial: the days are a
+    // gift on their current plan and status.
+    const paying = b.status !== 'trial' && !b.is_free && (b.plan_expires_at > now || b.status === 'suspended');
+    if (paying) {
+      await c.env.DB.prepare(`UPDATE businesses SET plan_expires_at = ?2 WHERE id = ?1`).bind(id, until).run();
+    } else {
+      await c.env.DB.prepare(`UPDATE businesses SET status = 'trial', plan_code = 'pro', plan_expires_at = ?2 WHERE id = ?1 AND status != 'suspended'`).bind(id, until).run();
+    }
+    await audit(c.env, adminId, 'extend_trial', id, { days, from: b.plan_expires_at, to: until, previousStatus: b.status, kept: paying ? b.plan_code : null }, now);
+    return c.json({ ok: true, planExpiresAt: until, keptPlan: paying });
   });
 
   app.post('/businesses/:id/plan', async (c) => {
@@ -229,11 +240,21 @@ export function adminRoutes(deps: Deps = defaultDeps) {
     const adminId = await requireAdmin(c, now);
     const id = c.req.param('id');
     const { suspended } = await body(c, z.object({ suspended: z.boolean() }));
-    const b = await c.env.DB.prepare(`SELECT plan_expires_at FROM businesses WHERE id = ?1`).bind(id).first<{ plan_expires_at: number }>();
+    const b = await c.env.DB.prepare(`SELECT status, status_before_suspend, plan_expires_at FROM businesses WHERE id = ?1`)
+      .bind(id)
+      .first<{ status: string; status_before_suspend: string | null; plan_expires_at: number }>();
     if (!b) throw new ApiError(404, 'not_found');
-    const status = suspended ? 'suspended' : b.plan_expires_at > now ? 'active' : 'past_due';
-    await c.env.DB.prepare(`UPDATE businesses SET status = ?2 WHERE id = ?1`).bind(id, status).run();
-    await audit(c.env, adminId, suspended ? 'suspend' : 'unsuspend', id, null, now);
+    let status: string;
+    if (suspended) {
+      status = 'suspended';
+      // Remember what to restore (a second suspend keeps the original).
+      if (b.status !== 'suspended') await c.env.DB.prepare(`UPDATE businesses SET status = 'suspended', status_before_suspend = ?2 WHERE id = ?1`).bind(id, b.status).run();
+    } else {
+      if (b.status !== 'suspended') return c.json({ ok: true, status: b.status });
+      status = b.status_before_suspend ?? (b.plan_expires_at > now ? 'active' : 'past_due');
+      await c.env.DB.prepare(`UPDATE businesses SET status = ?2, status_before_suspend = NULL WHERE id = ?1 AND status = 'suspended'`).bind(id, status).run();
+    }
+    await audit(c.env, adminId, suspended ? 'suspend' : 'unsuspend', id, { from: b.status, to: status }, now);
     return c.json({ ok: true, status });
   });
 
@@ -357,7 +378,7 @@ export function adminRoutes(deps: Deps = defaultDeps) {
   app.post('/announcements/preview', async (c) => {
     await requireAdmin(c, deps.now());
     const t = await body(c, targetSchema);
-    return c.json(await reach(c.env, t));
+    return c.json(await reach(c.env, t, deps.now()));
   });
 
   app.post('/announcements', async (c) => {
@@ -372,7 +393,7 @@ export function adminRoutes(deps: Deps = defaultDeps) {
       .run();
     let sent = 0;
     let failed = 0;
-    const r = await reach(c.env, b.target, true);
+    const r = await reach(c.env, b.target, now, true);
     if (b.push && r.tokens.length && deps.push) {
       [sent, failed] = await deps.push(
         c.env,
@@ -410,8 +431,9 @@ export function adminRoutes(deps: Deps = defaultDeps) {
     if (!['pending', 'approved', 'rejected', 'all'].includes(status)) throw new ApiError(400, 'invalid_request', 'status');
     const r = await c.env.DB.prepare(
       `SELECT r.id, r.business_id, b.name AS business_name, a.phone AS owner_phone, r.plan_code, p.name_ar AS plan_name_ar, r.period, r.amount_minor, r.currency,
-              r.method, r.payer_phone, r.note, r.status, r.reject_reason, r.reviewed_at, u.email AS reviewed_by_email, r.created_at,
-              b.plan_code AS business_plan_code, b.plan_expires_at AS business_plan_expires_at
+              r.method, r.payer_phone, r.note, r.reference, r.receipt_sha256, r.status, r.reject_reason, r.reviewed_at, u.email AS reviewed_by_email, r.created_at,
+              b.plan_code AS business_plan_code, b.plan_expires_at AS business_plan_expires_at, ${effectiveStatusSql('b', '?2')} AS business_status,
+              CASE WHEN r.receipt_sha256 IS NULL THEN 0 ELSE (SELECT COUNT(*) FROM payment_requests x WHERE x.receipt_sha256 = r.receipt_sha256 AND x.id != r.id) END AS duplicate_receipts
        FROM payment_requests r
        JOIN businesses b ON b.id = r.business_id
        JOIN accounts a ON a.id = b.owner_account_id
@@ -420,7 +442,7 @@ export function adminRoutes(deps: Deps = defaultDeps) {
        WHERE (?1 = 'all' OR r.status = ?1)
        ORDER BY CASE WHEN r.status = 'pending' THEN r.created_at END ASC, r.created_at DESC LIMIT 200`,
     )
-      .bind(status)
+      .bind(status, deps.now())
       .all();
     const pending = await c.env.DB.prepare(`SELECT COUNT(*) AS n FROM payment_requests WHERE status = 'pending'`).first<{ n: number }>();
     return c.json({ requests: r.results, pendingCount: pending?.n ?? 0 });
@@ -447,7 +469,7 @@ export function adminRoutes(deps: Deps = defaultDeps) {
     const now = deps.now();
     const adminId = await requireAdmin(c, now);
     const id = c.req.param('id');
-    const b = await body(c, z.object({ days: z.number().int().min(1).max(3660).optional() }));
+    const b = await body(c, z.object({ days: z.number().int().min(1).max(3660).optional(), allowSuspended: z.boolean().optional() }));
     const req = await c.env.DB.prepare(`SELECT business_id, plan_code, period, amount_minor, status FROM payment_requests WHERE id = ?1`).bind(id).first<{
       business_id: string;
       plan_code: string;
@@ -456,12 +478,25 @@ export function adminRoutes(deps: Deps = defaultDeps) {
       status: string;
     }>();
     if (!req) throw new ApiError(404, 'not_found');
-    // Atomic claim: only one approve/reject can win.
-    const upd = await c.env.DB.prepare(`UPDATE payment_requests SET status = 'approved', reviewed_by = ?2, reviewed_at = ?3 WHERE id = ?1 AND status = 'pending'`).bind(id, adminId, now).run();
-    if (upd.meta.changes !== 1) throw new ApiError(409, 'not_pending', 'request already reviewed');
-    const business = await c.env.DB.prepare(`SELECT id, plan_code, plan_expires_at FROM businesses WHERE id = ?1`).bind(req.business_id).first<{ id: string; plan_code: string; plan_expires_at: number }>();
+    if (req.status !== 'pending') throw new ApiError(409, 'not_pending', 'request already reviewed');
+    const business = (await c.env.DB.prepare(`SELECT id, plan_code, plan_expires_at, status, country FROM businesses WHERE id = ?1`)
+      .bind(req.business_id)
+      .first<{ id: string; plan_code: string; plan_expires_at: number; status: string; country: string }>())!;
+    // Never lift (or silently pay into) a suspension: the admin confirms explicitly; the business stays suspended.
+    if (business.status === 'suspended' && !b.allowSuspended) throw new ApiError(409, 'business_suspended', 'business is suspended: confirm to activate the plan anyway (it stays suspended)');
     const days = b.days ?? (req.period === 'yearly' ? 366 : 31);
-    const until = await activatePlan(c.env, business!, req.plan_code, days, 'manual', now, req.period);
+    const { until, creditDays } = await planActivation(c.env, business, req.plan_code, days, now);
+    // Approve + activate in ONE batch (a D1 batch is a transaction): only the call that flipped the request to
+    // approved (its nonce) activates the plan, so a double click or two admins can never activate twice.
+    const nonce = uuidv7(now);
+    const res = await c.env.DB.batch([
+      c.env.DB.prepare(`UPDATE payment_requests SET status = 'approved', reviewed_by = ?2, reviewed_at = ?3, review_nonce = ?4 WHERE id = ?1 AND status = 'pending'`).bind(id, adminId, now, nonce),
+      activationStatement(c.env, business.id, req.plan_code, until, 'manual', req.period, {
+        sql: `EXISTS (SELECT 1 FROM payment_requests WHERE id = ?6 AND review_nonce = ?7)`,
+        args: [id, nonce],
+      }),
+    ]);
+    if (res[0]!.meta.changes !== 1) throw new ApiError(409, 'not_pending', 'request already reviewed');
     const plan = await c.env.DB.prepare(`SELECT name_ar FROM plans WHERE code = ?1`).bind(req.plan_code).first<{ name_ar: string }>();
     const annId = await notifyBusiness(
       c.env,
@@ -471,8 +506,8 @@ export function adminRoutes(deps: Deps = defaultDeps) {
       `استلمنا تحويلك وتم تفعيل باقة «${plan?.name_ar ?? req.plan_code}» (${req.period === 'yearly' ? 'سنوي' : 'شهري'}) لحد ${arDate(until)}. شكراً لثقتك!`,
       now,
     );
-    await audit(c.env, adminId, 'payment_approve', id, { businessId: req.business_id, plan: req.plan_code, period: req.period, amountMinor: req.amount_minor, days, expiresAt: until, announcement: annId }, now);
-    return c.json({ ok: true, planExpiresAt: until });
+    await audit(c.env, adminId, 'payment_approve', id, { businessId: req.business_id, plan: req.plan_code, period: req.period, amountMinor: req.amount_minor, days, creditDays, expiresAt: until, fromPlan: business.plan_code, fromExpiry: business.plan_expires_at, suspended: business.status === 'suspended', announcement: annId }, now);
+    return c.json({ ok: true, planExpiresAt: until, creditDays });
   });
 
   app.post('/payment-requests/:id/reject', async (c) => {
@@ -500,7 +535,7 @@ export function adminRoutes(deps: Deps = defaultDeps) {
     )
       .bind(id, titleAr, bodyAr, JSON.stringify(target), adminId, now, now + 14 * DAY_MS)
       .run();
-    const r = await reach(env, target, true);
+    const r = await reach(env, target, now, true);
     if (r.tokens.length && deps.push) {
       try {
         const [sent, failed] = await deps.push(
@@ -514,6 +549,13 @@ export function adminRoutes(deps: Deps = defaultDeps) {
     }
     return id;
   }
+
+  /** Crash reports sent by the app (read-only, newest first). */
+  app.get('/client-errors', async (c) => {
+    await requireAdmin(c, deps.now());
+    const r = await c.env.DB.prepare(`SELECT id, where_ AS place, message, stack, app_version, platform, at FROM client_errors ORDER BY at DESC LIMIT 200`).all();
+    return c.json({ errors: r.results });
+  });
 
   /** Dashboard: active, trials, paid by plan, MRR (monthly-equivalent), churn (30 days), requests per business/day. */
   app.get('/metrics', async (c) => {
@@ -546,11 +588,12 @@ export function adminRoutes(deps: Deps = defaultDeps) {
     const today = Number(new Date(now).toISOString().slice(0, 10).replace(/-/g, ''));
     const req = await q<{ avg: number | null; max: number | null }>(`SELECT AVG(count) AS avg, MAX(count) AS max FROM request_counters WHERE day >= ?1`, today - 7);
     const pendingPayments = await q<{ n: number }>(`SELECT COUNT(*) AS n FROM payment_requests WHERE status = 'pending'`);
+    const expired = await q<{ n: number }>(`SELECT COUNT(*) AS n FROM businesses b WHERE ${effectiveStatusSql('b', '?1')} = 'expired'`, now);
     const ocr = await q<{ n: number; tin: number | null; tout: number | null }>(
       `SELECT COUNT(*) AS n, SUM(input_tokens) AS tin, SUM(output_tokens) AS tout FROM ocr_scans WHERE status = 'ok' AND created_at >= ?1`,
       cairoMonthStart(now),
     );
-    return c.json({ ocrMonth: { scans: ocr?.n ?? 0, inputTokens: ocr?.tin ?? 0, outputTokens: ocr?.tout ?? 0 }, pendingPayments: pendingPayments?.n ?? 0, total: total?.n ?? 0, active30: active?.n ?? 0, trials: trials?.n ?? 0, paid: paidNow, byPlan, mrrMinor: mrr, churn30: churn, requestsPerBusinessDay: { avg: req?.avg ?? 0, max: req?.max ?? 0 } });
+    return c.json({ ocrMonth: { scans: ocr?.n ?? 0, inputTokens: ocr?.tin ?? 0, outputTokens: ocr?.tout ?? 0 }, pendingPayments: pendingPayments?.n ?? 0, expired: expired?.n ?? 0, total: total?.n ?? 0, active30: active?.n ?? 0, trials: trials?.n ?? 0, paid: paidNow, byPlan, mrrMinor: mrr, churn30: churn, requestsPerBusinessDay: { avg: req?.avg ?? 0, max: req?.max ?? 0 } });
   });
 
   return app;

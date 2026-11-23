@@ -63,6 +63,8 @@ export default function Expenses() {
           ))}
         </Card>
         <ExportBar build={async () => expensesDoc(rows, totals, range.from, range.to, await bizHeader())} kinds={['pdf', 'excel', 'print', 'whatsapp']} />
+        {/* Ad above the list, far from the floating + at the bottom (no accidental taps). */}
+        <AdBanner place="expenses" />
         {rows.length === 0 ? <EmptyState icon="wallet" hue="rose" title={t('expenses.empty')} body={t('expenses.emptyBody')} /> : null}
         {rows.map((r) => (
           <DocRow
@@ -79,7 +81,6 @@ export default function Expenses() {
         ))}
         <View style={{ height: 70 }} />
       </Screen>
-      <AdBanner place="expenses" />
       {!locked ? <Fab testID="expense-add" onPress={() => router.push({ pathname: '/vouchers/new', params: { type: 'EXPENSE' } })} /> : null}
     </View>
   );

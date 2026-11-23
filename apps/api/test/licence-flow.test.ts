@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computeLicenceState, ed25519PublicKey, verifyLicence, DAY_MS, canonicalJson, utf8ToBytes, ed25519Verify, base64urlDecode } from '@daftarak/shared';
-import { makeClient, login, device, BACKUP_KEY, TEST_PK_SK } from './helpers';
+import { makeClient, login, device, stepUp, BACKUP_KEY, TEST_PK_SK } from './helpers';
 
 const keys = { '2026-01': ed25519PublicKey(TEST_PK_SK) };
 const H = 'a'.repeat(64);
@@ -89,6 +89,11 @@ describe('daily check-in', () => {
     const { auth, reg, business } = await onboard(c, '01033333336');
     c.advance(61_000);
     const auth2 = await login(c, '01033333336', 'install-0003');
+    // The shop is active on another phone: attaching needs a fresh SMS step-up.
+    const noStep = await c.call('POST', '/v1/devices/attach', { businessId: business.id, device: device('install-0003') }, { Authorization: `Bearer ${auth2.accessToken}` });
+    expect([noStep.status, noStep.json.error.code]).toEqual([403, 'step_up_required']);
+    c.advance(61_000);
+    await stepUp(c, auth2.accessToken, '201033333336');
     const a = await c.call('POST', '/v1/devices/attach', { businessId: business.id, device: device('install-0003') }, { Authorization: `Bearer ${auth2.accessToken}` });
     expect(a.json.registration.deviceCode).toBe('B');
     const r = await c.call('POST', '/v1/checkin', { refreshToken: auth.refreshToken, deviceId: reg.deviceId, appVersion: '0.1.0', deviceTime: c.clock.now });

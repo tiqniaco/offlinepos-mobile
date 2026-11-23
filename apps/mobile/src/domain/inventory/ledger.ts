@@ -2,8 +2,8 @@
  * Stock ledger (PLAN.md §6): the ONLY code that writes stock_movements and stock_levels.
  * Movements are appended and the cached level is updated in the caller's transaction.
  */
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
-import { applyMovement, businessDay, EMPTY_LEVEL, mulDivRound, uuidv7, type MovementType, type StockLevel } from '@daftarak/shared';
+import { and, eq, isNull, sql } from 'drizzle-orm';
+import { applyMovement, businessDay, EMPTY_LEVEL, uuidv7, type MovementType, type StockLevel } from '@daftarak/shared';
 import { products, stockLevels, stockMovements, warehouses } from '../../db/schema';
 import type { Db } from '../../db/types';
 import { withTx } from '../../db/tx';
@@ -44,8 +44,13 @@ export interface PostedMovement {
   productId: string;
   qtyMilli: number;
   unitCostMinor: number;
-  /** qty × unit cost, signed, minor units. */
+  /**
+   * Change of the stock value caused by this movement, signed, minor units (= the movement's own value + trueUpMinor).
+   * Post THIS to the INVENTORY account so the journal always equals Σ stock_levels.value_minor.
+   */
   valueMinor: number;
+  /** Part of valueMinor that re-values stock sold below zero (average reset); 0 for most movements. */
+  trueUpMinor: number;
 }
 
 export async function postMovements(tx: Db, ctx: Pick<InvCtx, 'device' | 'user' | 'timezone' | 'negativeStock' | 'now'>, warehouseId: string, movements: NewMovement[]): Promise<PostedMovement[]> {
@@ -62,7 +67,7 @@ export async function postMovements(tx: Db, ctx: Pick<InvCtx, 'device' | 'user' 
     if (m.qtyMilli < 0 && ctx.negativeStock === 'block' && product.trackStock && current.qtyMilli + m.qtyMilli < 0) {
       throw new InventoryError('negative_blocked', { productId: m.productId, available: current.qtyMilli });
     }
-    const { level, unitCostMinor } = applyMovement(current, { qtyMilli: m.qtyMilli, unitCostMinor: carries ? m.unitCostMinor! : null }, product.cost);
+    const { level, unitCostMinor, valueMinor, trueUpMinor } = applyMovement(current, { qtyMilli: m.qtyMilli, unitCostMinor: carries ? m.unitCostMinor! : null }, product.cost);
     await tx.insert(stockMovements).values({
       id: uuidv7(now),
       productId: m.productId,
@@ -89,7 +94,7 @@ export async function postMovements(tx: Db, ctx: Pick<InvCtx, 'device' | 'user' 
         target: [stockLevels.productId, stockLevels.warehouseId],
         set: { qtyMilli: level.qtyMilli, avgCostMinor: level.avgCostMinor, valueMinor: level.valueMinor, lastMovementAt: now },
       });
-    posted.push({ productId: m.productId, qtyMilli: m.qtyMilli, unitCostMinor, valueMinor: mulDivRound(m.qtyMilli, unitCostMinor, 1000) });
+    posted.push({ productId: m.productId, qtyMilli: m.qtyMilli, unitCostMinor, valueMinor: valueMinor + trueUpMinor, trueUpMinor });
   }
   return posted;
 }
@@ -101,7 +106,8 @@ export interface RebuildDiff {
   ledger: StockLevel;
 }
 
-/** Recompute every level from the ledger, in ledger order. */
+/** Recompute every level from the ledger, in INSERTION order (rowid) — the order the incremental cache saw them, even if
+ *  the clock moved or several movements share a millisecond. */
 export async function computeLevelsFromLedger(db: Db): Promise<Map<string, StockLevel & { productId: string; warehouseId: string; lastMovementAt: number }>> {
   const rows = await db
     .select({
@@ -113,7 +119,7 @@ export async function computeLevelsFromLedger(db: Db): Promise<Map<string, Stock
       occurredAt: stockMovements.occurredAt,
     })
     .from(stockMovements)
-    .orderBy(asc(stockMovements.occurredAt), asc(stockMovements.id));
+    .orderBy(sql`rowid`);
   const map = new Map<string, StockLevel & { productId: string; warehouseId: string; lastMovementAt: number }>();
   for (const r of rows) {
     const key = `${r.productId}|${r.warehouseId}`;

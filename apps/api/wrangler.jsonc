@@ -5,12 +5,15 @@
   "compatibility_date": "2026-11-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
+  // Daily housekeeping (src/cron/cleanup.ts): old OTP rows / logs / counters / crash reports, stale backups, OCR rows.
+  "triggers": { "crons": ["17 2 * * *"] },
   "d1_databases": [
     // Create with: npx wrangler d1 create daftarak — then paste the id here.
     { "binding": "DB", "database_name": "daftarak", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
   ],
   "r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "daftarak-backups" }],
   "vars": {
+    "ENVIRONMENT": "development",
     "R2_ACCOUNT_ID": "dev",
     "R2_BUCKET": "daftarak-backups",
     "OTP_PROVIDER": "console",
@@ -24,11 +27,14 @@
       "name": "daftarak-api",
       // Served only on the custom domain (no *.workers.dev address).
       "workers_dev": false,
+      "triggers": { "crons": ["17 2 * * *"] },
       "d1_databases": [
         { "binding": "DB", "database_name": "daftarak", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
       ],
       "r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "daftarak-backups" }],
       "vars": {
+        // Turns off every test shortcut (fixed OTP code, console SMS provider). Do not change.
+        "ENVIRONMENT": "production",
         "R2_ACCOUNT_ID": "<cloudflare-account-id>",
         "R2_BUCKET": "daftarak-backups",
         "OTP_PROVIDER": "smsmisr",

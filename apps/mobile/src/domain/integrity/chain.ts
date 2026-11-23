@@ -4,10 +4,12 @@
  * The payload is rebuilt from the stored rows by the SAME builder at posting and at verification, so any
  * later edit of a document, line or payment (even with triggers bypassed on a rooted phone) breaks the chain.
  */
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, gt } from 'drizzle-orm';
 import { chainHash, GENESIS_HASH } from '@daftarak/shared';
 import { integrityChain, inventoryDocs, inventoryLines, payments, purchaseDocs, purchaseLines, salesDocs, salesLines, shifts, vouchers } from '../../db/schema';
 import type { Db } from '../../db/types';
+import { getMeta, setMeta } from '../device';
+import { markDataChanged } from '../../db/tx';
 
 export type ChainDocType = 'SALES_INVOICE' | 'SALES_RETURN' | 'VOID' | 'INVENTORY' | 'PURCHASE' | 'PURCHASE_RETURN' | 'VOUCHER' | 'SHIFT';
 
@@ -187,6 +189,7 @@ export async function appendChain(tx: Db, deviceId: string, docType: ChainDocTyp
   const seq = head.seq + 1;
   const hash = chainHash(await buildPayload(seq), head.hash);
   await tx.insert(integrityChain).values({ deviceId, chainSeq: seq, docType, docId, hash, prevHash: head.hash, postedAt });
+  markDataChanged(); // every posted / voided document passes here
   return { seq, hash, prevHash: head.hash };
 }
 
@@ -243,10 +246,15 @@ async function voidedDoc(db: Db, id: string) {
 }
 
 /** Recompute the whole chain of a device and report the first break (integrity screen + tests). */
-export async function verifyChain(db: Db, deviceId: string, opts: { yieldEvery?: number } = {}): Promise<ChainReport> {
-  const entries = await db.select().from(integrityChain).where(eq(integrityChain.deviceId, deviceId)).orderBy(asc(integrityChain.chainSeq));
-  let prev = GENESIS_HASH;
-  let expected = 1;
+export async function verifyChain(db: Db, deviceId: string, opts: { yieldEvery?: number; from?: ChainCheckpoint } = {}): Promise<ChainReport> {
+  const from = opts.from ?? { seq: 0, hash: GENESIS_HASH };
+  const entries = await db
+    .select()
+    .from(integrityChain)
+    .where(and(eq(integrityChain.deviceId, deviceId), gt(integrityChain.chainSeq, from.seq)))
+    .orderBy(asc(integrityChain.chainSeq));
+  let prev = from.hash;
+  let expected = from.seq + 1;
   let i = 0;
   for (const e of entries) {
     // Optionally give the UI thread a turn every N documents (long histories on slow phones).
@@ -275,4 +283,46 @@ export async function verifyChain(db: Db, deviceId: string, opts: { yieldEvery?:
     expected++;
   }
   return { ok: true, count: entries.length, head: prev, firstBreak: null };
+}
+
+/** Last entry already proven good: the daily check starts from here instead of re-hashing every document. */
+export interface ChainCheckpoint {
+  seq: number;
+  hash: string;
+}
+
+const checkpointKey = (deviceId: string) => `integrity.checkpoint.${deviceId}`;
+
+export async function chainCheckpoint(db: Db, deviceId: string): Promise<ChainCheckpoint | null> {
+  const v = await getMeta(db, checkpointKey(deviceId));
+  if (!v) return null;
+  try {
+    const c = JSON.parse(v) as ChainCheckpoint;
+    return typeof c.seq === 'number' && typeof c.hash === 'string' ? c : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveChainCheckpoint(db: Db, deviceId: string, c: ChainCheckpoint) {
+  await setMeta(db, checkpointKey(deviceId), JSON.stringify(c));
+}
+
+/**
+ * Daily background check, O(new entries): verifies only what was posted since the last verified checkpoint
+ * (and that the checkpoint entry itself still links with the stored hash), then moves the checkpoint to the head.
+ * The full re-verification of every document stays on the Integrity settings screen (verifyChain without `from`).
+ */
+export async function verifyChainSinceCheckpoint(db: Db, deviceId: string, opts: { yieldEvery?: number } = {}): Promise<ChainReport> {
+  let from = await chainCheckpoint(db, deviceId);
+  if (from && from.seq > 0) {
+    const at = (await db.select({ hash: integrityChain.hash }).from(integrityChain).where(and(eq(integrityChain.deviceId, deviceId), eq(integrityChain.chainSeq, from.seq))).limit(1))[0];
+    // The checkpoint entry vanished or changed → distrust it and check everything.
+    if (!at || at.hash !== from.hash) from = null;
+  }
+  const r = await verifyChain(db, deviceId, { ...opts, from: from ?? undefined });
+  // Checkpoint = the last entry actually verified (a sale posted meanwhile is checked next time).
+  const seq = (from?.seq ?? 0) + r.count;
+  if (r.ok) await saveChainCheckpoint(db, deviceId, { seq, hash: r.head });
+  return r.ok ? { ...r, count: seq } : r;
 }

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import type { AppEnv } from './env';
+import type { AppEnv, Env } from './env';
+import { runCleanup } from './cron/cleanup';
 import { ApiError, errorResponse } from './lib/http';
 import { defaultDeps, v1Routes, type Deps } from './routes/v1';
 import { adminRoutes } from './admin/routes';
@@ -28,4 +29,11 @@ export function createApp(deps: Deps = defaultDeps) {
 }
 
 const app = createApp();
-export default app;
+
+/** HTTP via Hono; the daily cron (wrangler.jsonc triggers) runs the cleanup. */
+export default {
+  fetch: app.fetch,
+  scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(runCleanup(env, Date.now()).then((r) => console.log('cleanup', JSON.stringify(r))));
+  },
+} satisfies ExportedHandler<Env>;

@@ -146,6 +146,8 @@ export const checkinResponseSchema = z.object({
     .nullable(),
   backupPut: backupPutSchema.nullable().optional(),
   backupCommitted: z.boolean().optional(),
+  /** Why no backupPut was handed out although backupMeta was sent (e.g. backup_too_large, rate_limited). */
+  backupError: z.string().optional(),
   notices: z.array(z.object({ kind: z.string(), textAr: z.string(), textEn: z.string() })),
   /** Super-admin announcements for the in-app inbox. */
   announcements: z.array(z.object({ id: z.string(), titleAr: z.string(), bodyAr: z.string(), titleEn: z.string().nullable(), bodyEn: z.string().nullable(), url: z.string().nullable(), at: z.number() })).optional(),
@@ -172,6 +174,9 @@ export const manualBillingInfoSchema = z.object({
       nameEn: z.string(),
       monthlyMinor: z.number(),
       yearlyMinor: z.number(),
+      /** Saudi prices (halalas); absent from older servers. */
+      monthlySarMinor: z.number().optional(),
+      yearlySarMinor: z.number().optional(),
       limits: z.record(z.string(), z.number()),
       features: z.array(z.string()),
     }),
@@ -187,6 +192,10 @@ export const createPaymentRequestSchema = z.object({
   /** Egyptian mobile (01xxxxxxxxx; +20 / spaces accepted). */
   payerPhone: z.string().min(10).max(20),
   note: z.string().max(200).optional(),
+  /** Transfer reference number shown on the receipt (رقم العملية), optional. */
+  reference: z.string().trim().max(60).optional(),
+  /** Generated once per upgrade-screen session: a retry with the same key returns the request already created. */
+  idempotencyKey: z.string().min(8).max(64).optional(),
   /** Receipt photo, base64 (a `data:image/...;base64,` prefix is accepted). */
   receipt: z.string().min(8).max(Math.ceil((RECEIPT_MAX_BYTES * 4) / 3) + 100),
 });
@@ -284,5 +293,9 @@ export const API_ERROR_CODES = [
   'ocr_quota_exceeded',
   'ocr_failed',
   'ocr_unavailable',
+  'business_limit_reached',
+  'pdf_unsupported',
+  'business_suspended',
+  'backup_too_large',
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];

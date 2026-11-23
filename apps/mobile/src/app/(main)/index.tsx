@@ -17,7 +17,8 @@ import { dashboard, type Dashboard } from '../../domain/reports/reports';
 import { partyTotals } from '../../domain/parties/parties';
 import { customersDue } from '../../domain/parties/statement';
 import { currentShift } from '../../domain/shifts/shifts';
-import { verifyChain } from '../../domain/integrity/chain';
+import { verifyChainSinceCheckpoint } from '../../domain/integrity/chain';
+import { cloudBackupOverdue } from '../../features/backup/service';
 import { planNotifications } from '../../features/notify/notify';
 import { latestUnread, unreadCount } from '../../domain/inbox/inbox';
 import { addSampleData, hasSampleData, removeSampleData } from '../../domain/sample/sample';
@@ -59,6 +60,11 @@ export default function Home() {
   const [unread, setUnread] = useState(0);
   const [news, setNews] = useState<Awaited<ReturnType<typeof latestUnread>>>(null);
   const [lastFile, setLastFile] = useState<number | null | undefined>(undefined);
+  const [cloudStale, setCloudStale] = useState<{ days: number; never: boolean } | null>(null);
+  const restoreUnlinked = useApp((s) => s.restoreUnlinked);
+  const dataVersion = useApp((s) => s.dataVersion);
+  /** What the figures on screen were loaded for: reload only when data changed, inputs changed, or after 60 s. */
+  const loaded = useRef<{ at: number; version: number; key: string } | null>(null);
   const invCtx = useInvCtx();
   const [bioAvailable, setBioAvailable] = useState<boolean | null>(null);
   useEffect(() => {
@@ -101,11 +107,18 @@ export default function Home() {
 
   useFocusEffect(
     useCallback(() => {
+      // ~14 queries: skip them when nothing changed since the last load (tab switches stay instant).
+      const key = `${tz}|${reminderDays}|${device?.id ?? ''}|${user.id}|${inboxBump}`;
+      const l = loaded.current;
+      if (l && l.key === key && l.version === dataVersion && Date.now() - l.at < 60_000) return;
       // Load after the screen transition finishes, so switching tabs stays smooth.
-      const id = setTimeout(load, 220);
+      const id = setTimeout(() => {
+        loaded.current = { at: Date.now(), version: dataVersion, key };
+        load();
+      }, 220);
       return () => clearTimeout(id);
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [tz, reminderDays, device, user.permissions, inboxBump]),
+    }, [tz, reminderDays, device, user.permissions, inboxBump, dataVersion]),
   );
 
   function load() {
@@ -130,11 +143,14 @@ export default function Home() {
       void unreadCount(db).then(setUnread);
       void latestUnread(db).then(setNews);
       if (roleHas(user.permissions, 'backup.manage')) void lastPortableExport(db).then(setLastFile, () => undefined);
+      // Owners: remind when the automatic cloud backup has not succeeded for 3+ days.
+      if (user.roleKey === 'owner' && !useApp.getState().restoreUnlinked) void cloudBackupOverdue().then(setCloudStale, () => undefined);
       // Daily background integrity check for owners/managers (tamper alert on the home screen).
       if (device && integrityCheckedDay !== day && roleHas(user.permissions, 'settings.manage')) {
         integrityCheckedDay = day;
         // Well after the screen settles, and in chunks that yield to the UI.
-        setTimeout(() => void verifyChain(db, device.id, { yieldEvery: 50 }).then((r) => setTamper(!r.ok), () => undefined), 8000);
+        // Only entries posted since the last verified checkpoint (the full pass is on the Integrity screen).
+        setTimeout(() => void verifyChainSinceCheckpoint(db, device.id, { yieldEvery: 50 }).then((r) => setTamper(!r.ok), () => undefined), 8000);
       }
     }
   }
@@ -174,6 +190,9 @@ export default function Home() {
       {news ? <Banner tone="info" icon="bell" title={(i18n.language === 'en' && news.titleEn) || news.titleAr} text={(i18n.language === 'en' && news.bodyEn) || news.bodyAr} action={t('inbox.open')} onAction={() => router.push('/inbox')} /> : null}
       {fileNudge ? (
         <Banner tone="warn" icon="file" text={fileNudge.days == null ? t('portable.never') : t('portable.lastAgo', { n: fileNudge.days })} action={t('portable.remindAction')} onAction={() => router.push('/settings/backup')} />
+      ) : null}
+      {cloudStale && !restoreUnlinked && inv?.products ? (
+        <Banner tone="warn" icon="cloudOff" text={cloudStale.never ? t('backup.cloudNever') : t('backup.cloudStale', { n: cloudStale.days })} action={t('backup.cloudStaleAction')} onAction={() => router.push('/settings/backup')} />
       ) : null}
       {tamper ? <Banner tone="danger" title={t('integrity.alertTitle')} text={t('integrity.alertBody')} action={t('integrity.open')} onAction={() => router.push('/settings/integrity')} /> : null}
       {requireShift && !shiftOpen && can('sales.create') ? <Banner tone="warn" text={t('shift.mustOpen')} action={t('shift.open')} onAction={() => router.push('/shifts')} /> : null}

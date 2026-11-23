@@ -4,12 +4,13 @@
  */
 import type { Hono } from 'hono';
 import { z } from 'zod';
-import { DAY_MS, attachDeviceSchema, backupUploadSchema, base64urlEncode, uuidv7 } from '@daftarak/shared';
+import { DAY_MS, FREE_PLAN_CODE, attachDeviceSchema, backupUploadSchema, base64urlEncode, uuidv7 } from '@daftarak/shared';
 import type { AppEnv, Env } from '../env';
 import { ApiError, body, clientIp } from '../lib/http';
 import { safeEqual, unwrapSecret } from '../lib/crypto';
 import { requireSession } from '../auth/tokens';
-import { getPlan, type BusinessRow } from '../licence/issue';
+import { effectiveLimits, getPlan, type BusinessRow } from '../licence/issue';
+import { bumpCounter } from '../otp/service';
 import { presign } from '../backups/r2';
 import { activatePlan } from '../billing/activate';
 import type { Deps } from './v1';
@@ -28,11 +29,40 @@ export async function ownedBusiness(env: Env, businessId: string, accountId: str
   return b;
 }
 
+/** Max backup file size per (effective) plan. Unknown paid plans get the basic cap. */
+export const BACKUP_MAX_BYTES: Record<string, number> = { free: 50 * 1024 * 1024, basic: 300 * 1024 * 1024, pro: 1024 * 1024 * 1024 };
+/** Manual "backup now" uploads per business per UTC day (the daily automatic backup rides on the check-in). */
+export const BACKUP_UPLOADS_PER_DAY = 6;
+/** Uncommitted backup rows (and their R2 objects) older than this are garbage. */
+export const UNCOMMITTED_TTL_MS = 2 * DAY_MS;
+
+const totalCount = (json: string | null | undefined): number => {
+  try {
+    return Object.values(JSON.parse(json ?? '{}') as Record<string, number>).reduce((a, b) => a + (Number(b) || 0), 0);
+  } catch {
+    return 0;
+  }
+};
+
+/** Deletes backup rows and their R2 objects (objects first: a row without an object is harmless, the reverse leaks storage). */
+export async function deleteBackups(env: Env, rows: { id: string; r2_key: string }[]) {
+  for (let i = 0; i < rows.length; i += 100) {
+    const part = rows.slice(i, i + 100);
+    await env.BACKUPS.delete(part.map((o) => o.r2_key));
+    await env.DB.batch(part.map((o) => env.DB.prepare(`DELETE FROM backups WHERE id = ?1`).bind(o.id)));
+  }
+}
+
 /** Create a pending backup row + presigned PUT. Used by /backups/upload-url and by check-in (backupMeta). */
 export async function startBackup(env: Env, businessId: string, deviceId: string, meta: { size: number; sha256: string; counts: Record<string, number>; schemaVersion: number }, kind: 'auto' | 'manual', now: number) {
   const dev = await env.DB.prepare(`SELECT id, deactivated_at FROM devices WHERE id = ?1 AND business_id = ?2`).bind(deviceId, businessId).first<{ id: string; deactivated_at: number | null }>();
   if (!dev) throw new ApiError(404, 'not_found', 'device');
   if (dev.deactivated_at) throw new ApiError(403, 'device_deactivated');
+  const business = await env.DB.prepare(`SELECT * FROM businesses WHERE id = ?1`).bind(businessId).first<BusinessRow>();
+  if (!business) throw new ApiError(404, 'not_found');
+  const { plan } = await effectiveLimits(env, business, now);
+  const max = BACKUP_MAX_BYTES[plan] ?? BACKUP_MAX_BYTES.basic!;
+  if (meta.size > max) throw new ApiError(413, 'backup_too_large', `backup must be at most ${Math.round(max / 1024 / 1024)} MB on this plan`);
   const id = uuidv7(now);
   const key = `b/${businessId}/${deviceId}/${id}.obk`;
   await env.DB.prepare(
@@ -44,9 +74,15 @@ export async function startBackup(env: Env, businessId: string, deviceId: string
   return { backupId: id, ...put };
 }
 
-/** Verify the uploaded object (exact size) and apply plan retention (keep the newest N). */
+/**
+ * Verify the uploaded object (exact size) and apply plan retention: keep the newest N per device.
+ * Retention never prunes when the new backup holds far less data (< 50 % of the records) than the newest older
+ * backup of the shop: a wiped / fresh phone must not push the real history out.
+ */
 export async function commitBackup(env: Env, backupId: string, businessId: string, now: number): Promise<boolean> {
-  const row = await env.DB.prepare(`SELECT * FROM backups WHERE id = ?1 AND business_id = ?2`).bind(backupId, businessId).first<{ r2_key: string; size: number; committed_at: number | null }>();
+  const row = await env.DB.prepare(`SELECT * FROM backups WHERE id = ?1 AND business_id = ?2`)
+    .bind(backupId, businessId)
+    .first<{ r2_key: string; size: number; committed_at: number | null; device_id: string; counts_json: string }>();
   if (!row) throw new ApiError(404, 'not_found');
   if (row.committed_at) return true;
   const head = await env.BACKUPS.head(row.r2_key);
@@ -54,17 +90,23 @@ export async function commitBackup(env: Env, backupId: string, businessId: strin
   await env.DB.prepare(`UPDATE backups SET committed_at = ?2 WHERE id = ?1`).bind(backupId, now).run();
   const biz = await env.DB.prepare(`SELECT plan_code FROM businesses WHERE id = ?1`).bind(businessId).first<{ plan_code: string }>();
   const keep = JSON.parse((await getPlan(env, biz!.plan_code)).limits_json).backups_kept as number;
-  if (keep > 0) {
-    const old = await env.DB.prepare(`SELECT id, r2_key FROM backups WHERE business_id = ?1 AND committed_at IS NOT NULL ORDER BY committed_at DESC LIMIT -1 OFFSET ?2`)
-      .bind(businessId, keep)
+  const prev = await env.DB.prepare(`SELECT counts_json FROM backups WHERE business_id = ?1 AND committed_at IS NOT NULL AND id != ?2 ORDER BY committed_at DESC LIMIT 1`)
+    .bind(businessId, backupId)
+    .first<{ counts_json: string }>();
+  const shrunk = !!prev && totalCount(row.counts_json) < totalCount(prev.counts_json) * 0.5;
+  if (keep > 0 && !shrunk) {
+    const old = await env.DB.prepare(
+      `SELECT id, r2_key FROM backups WHERE business_id = ?1 AND device_id = ?2 AND committed_at IS NOT NULL ORDER BY committed_at DESC LIMIT -1 OFFSET ?3`,
+    )
+      .bind(businessId, row.device_id, keep)
       .all<{ id: string; r2_key: string }>();
-    if (old.results.length) {
-      await env.BACKUPS.delete(old.results.map((o) => o.r2_key));
-      await env.DB.batch(old.results.map((o) => env.DB.prepare(`DELETE FROM backups WHERE id = ?1`).bind(o.id)));
-    }
+    if (old.results.length) await deleteBackups(env, old.results);
   }
-  // Uncommitted leftovers older than a day are garbage.
-  await env.DB.prepare(`DELETE FROM backups WHERE business_id = ?1 AND committed_at IS NULL AND created_at < ?2`).bind(businessId, now - DAY_MS).run();
+  // Uncommitted leftovers (row + object) older than the TTL are garbage.
+  const stale = await env.DB.prepare(`SELECT id, r2_key FROM backups WHERE business_id = ?1 AND committed_at IS NULL AND created_at < ?2`)
+    .bind(businessId, now - UNCOMMITTED_TTL_MS)
+    .all<{ id: string; r2_key: string }>();
+  if (stale.results.length) await deleteBackups(env, stale.results);
   return true;
 }
 
@@ -90,11 +132,14 @@ export function addPhase6Routes(app: Hono<AppEnv>, deps: Deps, registerDevice: R
     const s = await requireSession(c.env, c.req.header('Authorization'), now);
     const b = await body(c, backupUploadSchema);
     await ownedBusiness(c.env, b.businessId, s.aid);
+    const n = await bumpCounter(c.env.DB, `backup-upload:${b.businessId}`, DAY_MS, now);
+    if (n > BACKUP_UPLOADS_PER_DAY) throw new ApiError(429, 'rate_limited', 'too many backups today', DAY_MS - (now % DAY_MS));
     const put = await startBackup(c.env, b.businessId, b.deviceId, b.meta, b.kind, now);
     await countRequest(c.env, b.businessId, now);
     return c.json(put);
   });
 
+  /** Commit right after the PUT finished (the app calls this immediately; the next check-in would also commit it). */
   app.post('/backups/:id/commit', async (c) => {
     const now = deps.now();
     const s = await requireSession(c.env, c.req.header('Authorization'), now);
@@ -176,8 +221,13 @@ export function addPhase6Routes(app: Hono<AppEnv>, deps: Deps, registerDevice: R
 
   /**
    * RevenueCat webhook (Authorization header = shared secret). app_user_id = business id.
-   * Idempotent by event id. Purchases/renewals set the plan until the store expiry; billing issues → past_due;
-   * cancellation keeps access until expiry; expiration needs no action (the licence falls to grace → free plan).
+   * Idempotent by event id: the business update and the "seen" row are written in ONE batch, so a failure leaves
+   * the event unseen and RevenueCat's retry applies it.
+   *  - purchases / renewals / product changes set the plan until the store expiry; when the plan came from another
+   *    source (manual / code / admin) the expiry is never shortened (max of both);
+   *  - billing issue → past_due; refund (CANCELLATION with cancel_reason CUSTOMER_SUPPORT) → back to the free plan;
+   *  - EXPIRATION ends a store plan at the store's expiry; other cancellations keep access until expiry;
+   *  - SANDBOX events are recorded but ignored unless REVENUECAT_ALLOW_SANDBOX = "1".
    */
   app.post('/webhooks/revenuecat', async (c) => {
     const now = deps.now();
@@ -191,7 +241,10 @@ export function addPhase6Routes(app: Hono<AppEnv>, deps: Deps, registerDevice: R
           app_user_id: z.string().optional(),
           original_app_user_id: z.string().optional(),
           product_id: z.string().nullish(),
+          new_product_id: z.string().nullish(),
           expiration_at_ms: z.number().nullish(),
+          cancel_reason: z.string().nullish(),
+          environment: z.string().nullish(),
         }).passthrough(),
       }).passthrough(),
     );
@@ -199,13 +252,25 @@ export function addPhase6Routes(app: Hono<AppEnv>, deps: Deps, registerDevice: R
     const businessId = e.app_user_id ?? e.original_app_user_id ?? null;
     const seen = await c.env.DB.prepare(`SELECT id FROM billing_events WHERE id = ?1`).bind(e.id).first();
     if (seen) return c.json({ ok: true, duplicate: true });
-    const mapped = planFromProduct(e.product_id);
-    await c.env.DB.prepare(`INSERT INTO billing_events (id, business_id, type, product_id, plan_code, expires_at, raw_json, received_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`)
-      .bind(e.id, businessId, e.type, e.product_id ?? null, mapped?.plan ?? null, e.expiration_at_ms ?? null, JSON.stringify(payload), now)
-      .run();
-    if (!businessId) return c.json({ ok: true });
-    const biz = await c.env.DB.prepare(`SELECT id FROM businesses WHERE id = ?1`).bind(businessId).first();
-    if (!biz) return c.json({ ok: true, unknownBusiness: true });
+    const productId = e.type === 'PRODUCT_CHANGE' && e.new_product_id ? e.new_product_id : e.product_id;
+    const mapped = planFromProduct(productId);
+    const markSeen = c.env.DB.prepare(`INSERT INTO billing_events (id, business_id, type, product_id, plan_code, expires_at, raw_json, received_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`).bind(
+      e.id,
+      businessId,
+      e.type,
+      productId ?? null,
+      mapped?.plan ?? null,
+      e.expiration_at_ms ?? null,
+      JSON.stringify(payload),
+      now,
+    );
+    const sandboxIgnored = (e.environment ?? '').toUpperCase() === 'SANDBOX' && c.env.REVENUECAT_ALLOW_SANDBOX !== '1';
+    const biz = businessId ? await c.env.DB.prepare(`SELECT id, plan_source, plan_expires_at FROM businesses WHERE id = ?1`).bind(businessId).first<{ id: string; plan_source: string; plan_expires_at: number }>() : null;
+    if (!biz || sandboxIgnored) {
+      await markSeen.run();
+      return c.json({ ok: true, ...(sandboxIgnored ? { ignored: 'sandbox' } : {}), ...(businessId && !biz ? { unknownBusiness: true } : {}) });
+    }
+    const updates: D1PreparedStatement[] = [];
     switch (e.type) {
       case 'INITIAL_PURCHASE':
       case 'RENEWAL':
@@ -213,17 +278,39 @@ export function addPhase6Routes(app: Hono<AppEnv>, deps: Deps, registerDevice: R
       case 'UNCANCELLATION':
       case 'NON_RENEWING_PURCHASE':
         if (mapped && e.expiration_at_ms) {
-          await c.env.DB.prepare(`UPDATE businesses SET plan_code = ?2, status = 'active', plan_expires_at = ?3, plan_source = 'store', billing_period = ?4 WHERE id = ?1`)
-            .bind(businessId, mapped.plan, e.expiration_at_ms, mapped.period)
-            .run();
+          // Another source (manual payment, activation code, admin) may already cover a later date: keep it.
+          const until = biz.plan_source === 'store' ? e.expiration_at_ms : Math.max(biz.plan_expires_at, e.expiration_at_ms);
+          updates.push(
+            c.env.DB.prepare(
+              `UPDATE businesses SET plan_code = ?2, plan_expires_at = ?3, plan_source = 'store', billing_period = ?4,
+                 status = CASE WHEN status = 'suspended' THEN 'suspended' ELSE 'active' END WHERE id = ?1`,
+            ).bind(biz.id, mapped.plan, until, mapped.period),
+          );
         }
         break;
       case 'BILLING_ISSUE':
-        await c.env.DB.prepare(`UPDATE businesses SET status = 'past_due' WHERE id = ?1 AND plan_source = 'store'`).bind(businessId).run();
+        updates.push(c.env.DB.prepare(`UPDATE businesses SET status = 'past_due' WHERE id = ?1 AND plan_source = 'store' AND status != 'suspended'`).bind(biz.id));
+        break;
+      case 'CANCELLATION':
+        // A refund (granted by store support) takes the paid plan away now; a normal cancellation keeps it until expiry.
+        if ((e.cancel_reason ?? '').toUpperCase() === 'CUSTOMER_SUPPORT') {
+          updates.push(
+            c.env.DB.prepare(
+              `UPDATE businesses SET plan_code = ?2, plan_expires_at = ?3, billing_period = NULL,
+                 status = CASE WHEN status = 'suspended' THEN 'suspended' ELSE 'active' END WHERE id = ?1 AND plan_source = 'store'`,
+            ).bind(biz.id, FREE_PLAN_CODE, now),
+          );
+        }
+        break;
+      case 'EXPIRATION':
+        updates.push(
+          c.env.DB.prepare(`UPDATE businesses SET plan_expires_at = MIN(plan_expires_at, ?2) WHERE id = ?1 AND plan_source = 'store'`).bind(biz.id, e.expiration_at_ms ?? now),
+        );
         break;
       default:
-        break; // CANCELLATION / EXPIRATION / TRANSFER / TEST: access ends at plan_expires_at by itself
+        break; // TRANSFER / TEST / SUBSCRIPTION_PAUSED …: nothing to change
     }
+    await c.env.DB.batch([...updates, markSeen]);
     return c.json({ ok: true });
   });
 }

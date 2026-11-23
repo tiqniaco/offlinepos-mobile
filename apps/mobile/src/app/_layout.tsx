@@ -19,7 +19,7 @@ import { modalOptions, stackOptions } from '../ui/motion';
 import { PrintHost } from '../features/printing/PrintHost';
 import { colors, useTheme, applyTheme } from '../ui';
 
-import { CrashScreen, reportClientError } from '../features/errors/CrashScreen';
+import { CrashScreen, persistClientError, reportClientError } from '../features/errors/CrashScreen';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { UpdateGate } from '../features/update/UpdateGate';
 
@@ -30,6 +30,7 @@ const g = globalThis as unknown as { ErrorUtils?: { getGlobalHandler: () => (e: 
 if (g.ErrorUtils) {
   const prev = g.ErrorUtils.getGlobalHandler();
   g.ErrorUtils.setGlobalHandler((e, fatal) => {
+    if (fatal) persistClientError(e, 'fatal'); // the app may die before the request leaves: sent on next launch
     reportClientError(e, fatal ? 'fatal' : 'global');
     prev(e, fatal);
   });

@@ -5,7 +5,11 @@
  *
  * Model strategy (owner decision): read with the cheap model first (OCR_MODEL, default Haiku 5.5); only when that read
  * fails — API error, refusal / max_tokens, invalid JSON, zero lines or totals that do not add up — retry once with
- * OCR_FALLBACK_MODEL (default Opus 5.5, with server-side refusal fallbacks). A scan counts once whatever the retries.
+ * OCR_FALLBACK_MODEL (default Opus 5.5, with server-side refusal fallbacks), on paid plans only and at most
+ * OCR_FALLBACK_PER_MONTH times per business. A scan counts once whatever the retries.
+ *
+ * Cost-abuse guards: the scan row is claimed ('pending') atomically before any model call (quota, rate, concurrency,
+ * daily failed cap), a global daily cap (OCR_DAILY_SCAN_CAP), no SDK retries, a 100 s deadline, and X-Idempotency-Key.
  */
 import type { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
@@ -20,17 +24,34 @@ import { ownedBusiness } from '../routes/phase6';
 import { effectiveLimits } from '../licence/issue';
 import { decodeImage } from '../billing/manual';
 import type { Deps } from '../routes/v1';
+import { bumpCounter } from '../otp/service';
 
 export const DEFAULT_OCR_MODEL = 'claude-haiku-5-5';
 export const DEFAULT_OCR_FALLBACK_MODEL = 'claude-opus-5-5';
 export const OCR_RATE_PER_MINUTE = 10;
+/** Scans of one business running at the same time. */
+export const OCR_MAX_CONCURRENT = 2;
+/** Failed scans per business per day (they cost model calls but not quota). */
+export const OCR_FAILED_PER_DAY = 20;
+/** Expensive retry-model calls per business per Cairo month (paid plans only; never on the trial). */
+export const OCR_FALLBACK_PER_MONTH = 30;
+/** Default for env OCR_DAILY_SCAN_CAP: all businesses together per UTC day (spend circuit breaker). */
+export const OCR_DEFAULT_DAILY_CAP = 2000;
+/** Whole request budget — below the app's 120 s timeout so it never pays for a reply nobody waits for. */
+export const OCR_DEADLINE_MS = 100_000;
+/** A 'pending' row older than this is a dead request (worker killed); it stops counting. */
+const PENDING_STALE_MS = OCR_DEADLINE_MS + 50_000;
+/** Same X-Idempotency-Key within this window returns the stored result without a new model call. */
+export const OCR_IDEMPOTENCY_MS = 10 * 60_000;
+const DAY = 86_400_000;
 
 /** The slice of the SDK client we use; tests inject a fake (never the network). */
 export interface OcrClient {
-  beta: { messages: { create: (params: MessageCreateParamsNonStreaming, options?: { timeout?: number }) => Promise<BetaMessage> } };
+  beta: { messages: { create: (params: MessageCreateParamsNonStreaming, options?: { timeout?: number; maxRetries?: number }) => Promise<BetaMessage> } };
 }
+// No SDK retries (each retry is a paid call; our own fallback logic decides), and a hard per-request timeout.
 export const defaultOcrClient = (env: Env): OcrClient | null =>
-  env.ANTHROPIC_API_KEY ? (new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 1, timeout: 60_000 }) as unknown as OcrClient) : null;
+  env.ANTHROPIC_API_KEY ? (new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 0, timeout: OCR_DEADLINE_MS }) as unknown as OcrClient) : null;
 
 // ≤ 60 words. English instructions; names are copied as written (Arabic stays Arabic).
 export const OCR_SYSTEM =
@@ -157,8 +178,11 @@ export function decodeScanUpload(b: { image?: string; file?: string; mediaType?:
   }
   if (bin.length === 0 || bin.length > OCR_IMAGE_MAX_BYTES) throw new ApiError(400, 'pdf_too_large', 'file must be at most 1.5 MB');
   if (!bin.startsWith('%PDF-')) throw new ApiError(400, 'image_invalid', 'file is not a PDF');
-  // Cheap page count: page objects are "/Type /Page" (not "/Pages"). Compressed object streams can hide them (0 → rely on size).
+  // Cheap page count: page objects are "/Type /Page" (not "/Pages"). Compressed object streams (/ObjStm) can hide
+  // them, so such PDFs (and any where no page is found) are refused: the user uploads photos instead.
+  if (/\/ObjStm/.test(bin)) throw new ApiError(400, 'pdf_unsupported', 'this PDF cannot be checked, upload photos of the pages instead');
   const pages = (bin.match(/\/Type\s*\/Page(?![a-zA-Z])/g) ?? []).length;
+  if (pages === 0) throw new ApiError(400, 'pdf_unsupported', 'this PDF cannot be checked, upload photos of the pages instead');
   if (pages > OCR_PDF_MAX_PAGES) throw new ApiError(400, 'pdf_too_large', `PDF must have at most ${OCR_PDF_MAX_PAGES} pages`);
   return { contentType: 'application/pdf', base64: b64, pages };
 }
@@ -166,7 +190,7 @@ export function decodeScanUpload(b: { image?: string; file?: string; mediaType?:
 export function buildRequest(model: string, upload: Pick<ScanUpload, 'contentType' | 'base64'>, withFallbacks: boolean): MessageCreateParamsNonStreaming {
   return {
     model,
-    max_tokens: 4096,
+    max_tokens: 16000,
     system: OCR_SYSTEM,
     // Thinking is adaptive by default on these models; effort low keeps it short. No temperature (rejected).
     output_config: { effort: 'low', format: { type: 'json_schema', schema: OCR_JSON_SCHEMA as unknown as Record<string, unknown> } },
@@ -186,13 +210,20 @@ export function buildRequest(model: string, upload: Pick<ScanUpload, 'contentTyp
   };
 }
 
-async function readOnce(client: OcrClient, model: string, img: ScanUpload, withFallbacks: boolean): Promise<{ call: OcrCall; extract: OcrExtract | null }> {
+async function readOnce(client: OcrClient, model: string, img: ScanUpload, withFallbacks: boolean, timeoutMs: number): Promise<{ call: OcrCall; extract: OcrExtract | null }> {
   let msg: BetaMessage;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    msg = await client.beta.messages.create(buildRequest(model, img, withFallbacks));
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('ocr deadline')), timeoutMs);
+    });
+    msg = await Promise.race([client.beta.messages.create(buildRequest(model, img, withFallbacks), { timeout: timeoutMs, maxRetries: 0 }), deadline]);
   } catch (e) {
     console.warn('ocr: api error', model, e instanceof Anthropic.APIError ? e.status : (e as Error)?.message);
     return { call: { model, in: 0, out: 0, outcome: 'api_error' }, extract: null };
+  }
+  finally {
+    clearTimeout(timer);
   }
   const base = { model: msg.model || model, in: msg.usage?.input_tokens ?? 0, out: msg.usage?.output_tokens ?? 0 };
   if (msg.stop_reason === 'refusal') return { call: { ...base, outcome: 'refusal' }, extract: null };
@@ -204,13 +235,22 @@ async function readOnce(client: OcrClient, model: string, img: ScanUpload, withF
   return { call: { ...base, outcome: totalsConsistent(extract) ? 'ok' : 'inconsistent' }, extract };
 }
 
-/** Cheap model first, stronger model only when the first read is unusable. */
-export async function extractInvoice(env: Env, client: OcrClient, img: ScanUpload) {
+/**
+ * Cheap model first, stronger model only when the first read is unusable AND the caller allows it (paid plan, monthly
+ * fallback budget left) AND enough of the overall deadline remains.
+ */
+export async function extractInvoice(env: Env, client: OcrClient, img: ScanUpload, opts: { allowFallback?: boolean; deadlineMs?: number } = {}) {
   const calls: OcrCall[] = [];
-  const first = await readOnce(client, env.OCR_MODEL || DEFAULT_OCR_MODEL, img, false);
+  const end = Date.now() + (opts.deadlineMs ?? OCR_DEADLINE_MS);
+  const first = await readOnce(client, env.OCR_MODEL || DEFAULT_OCR_MODEL, img, false, Math.max(1, end - Date.now()));
   calls.push(first.call);
   if (first.call.outcome === 'ok') return { calls, extract: first.extract!, model: first.call.model };
-  const second = await readOnce(client, env.OCR_FALLBACK_MODEL || DEFAULT_OCR_FALLBACK_MODEL, img, true);
+  const left = end - Date.now();
+  if (opts.allowFallback === false || left < 20_000) {
+    if (first.call.outcome === 'inconsistent') return { calls, extract: first.extract!, model: first.call.model };
+    return { calls, extract: null, model: first.call.model, unavailable: first.call.outcome === 'api_error' };
+  }
+  const second = await readOnce(client, env.OCR_FALLBACK_MODEL || DEFAULT_OCR_FALLBACK_MODEL, img, true, left);
   calls.push(second.call);
   if (second.call.outcome === 'ok' || second.call.outcome === 'inconsistent') return { calls, extract: second.extract!, model: second.call.model };
   // The retry failed outright: a readable-but-inconsistent first read is still better than nothing (the user reviews it).
@@ -244,6 +284,45 @@ async function usageOf(env: Env, businessId: string, now: number): Promise<numbe
   return r?.n ?? 0;
 }
 
+const IDEM_RE = /^[A-Za-z0-9_-]{8,64}$/;
+
+/**
+ * Claims a scan slot atomically (one INSERT … SELECT … WHERE): the monthly quota counts 'ok' + live 'pending' rows,
+ * the per-minute rate counts every row, at most OCR_MAX_CONCURRENT live 'pending' rows, at most OCR_FAILED_PER_DAY
+ * failed rows in 24 h. On refusal, works out which limit was hit for the error.
+ */
+async function claimScan(env: Env, a: { id: string; businessId: string; accountId: string; idemKey: string | null; quota: number; now: number }) {
+  const { now } = a;
+  const month = cairoMonthStart(now);
+  const fresh = now - PENDING_STALE_MS;
+  const res = await env.DB.prepare(
+    `INSERT INTO ocr_scans (id, business_id, account_id, created_at, status, idem_key)
+     SELECT ?1, ?2, ?3, ?4, 'pending', ?5
+     WHERE (SELECT COUNT(*) FROM ocr_scans WHERE business_id = ?2 AND created_at > ?4 - 60000) < ?6
+       AND (?7 = -1 OR (SELECT COUNT(*) FROM ocr_scans WHERE business_id = ?2 AND created_at >= ?8 AND (status = 'ok' OR (status = 'pending' AND created_at > ?9))) < ?7)
+       AND (SELECT COUNT(*) FROM ocr_scans WHERE business_id = ?2 AND status = 'pending' AND created_at > ?9) < ?10
+       AND (SELECT COUNT(*) FROM ocr_scans WHERE business_id = ?2 AND status = 'failed' AND created_at > ?4 - ?11) < ?12`,
+  )
+    .bind(a.id, a.businessId, a.accountId, now, a.idemKey, OCR_RATE_PER_MINUTE, a.quota, month, fresh, OCR_MAX_CONCURRENT, DAY, OCR_FAILED_PER_DAY)
+    .run();
+  if (res.meta.changes === 1) return;
+  const r = await env.DB.prepare(
+    `SELECT
+       SUM(CASE WHEN created_at > ?2 - 60000 THEN 1 ELSE 0 END) AS minute,
+       MIN(CASE WHEN created_at > ?2 - 60000 THEN created_at END) AS oldest,
+       SUM(CASE WHEN created_at >= ?3 AND (status = 'ok' OR (status = 'pending' AND created_at > ?4)) THEN 1 ELSE 0 END) AS used,
+       SUM(CASE WHEN status = 'pending' AND created_at > ?4 THEN 1 ELSE 0 END) AS running,
+       SUM(CASE WHEN status = 'failed' AND created_at > ?2 - ?5 THEN 1 ELSE 0 END) AS failed
+     FROM ocr_scans WHERE business_id = ?1 AND created_at > MIN(?3, ?2 - ?5)`,
+  )
+    .bind(a.businessId, now, month, fresh, DAY)
+    .first<{ minute: number | null; oldest: number | null; used: number | null; running: number | null; failed: number | null }>();
+  if (a.quota !== UNLIMITED && (r?.used ?? 0) >= a.quota) throw new ApiError(402, 'ocr_quota_exceeded', `used ${r?.used ?? 0} of ${a.quota} scans this month`);
+  if ((r?.running ?? 0) >= OCR_MAX_CONCURRENT) throw new ApiError(429, 'rate_limited', 'a scan is already running, wait for it', 10_000);
+  if ((r?.failed ?? 0) >= OCR_FAILED_PER_DAY) throw new ApiError(429, 'rate_limited', 'too many unreadable scans today, try tomorrow', DAY);
+  throw new ApiError(429, 'rate_limited', 'too many scans, wait a minute', Math.max(1000, (r?.oldest ?? now) + 60_000 - now));
+}
+
 /** Mounted under /v1 (Bearer session; the caller must own the business — the only account role on the server). */
 export function addOcrRoutes(app: Hono<AppEnv>, deps: Deps) {
   app.get('/purchases/scan/usage', async (c) => {
@@ -269,36 +348,68 @@ export function addOcrRoutes(app: Hono<AppEnv>, deps: Deps) {
     if (quota === 0) throw new ApiError(403, 'ocr_not_in_plan', 'invoice scanning is not in this plan');
     const img = decodeScanUpload(b);
 
-    const recent = await c.env.DB.prepare(`SELECT COUNT(*) AS n, MIN(created_at) AS oldest FROM ocr_scans WHERE business_id = ?1 AND created_at > ?2`)
-      .bind(business.id, now - 60_000)
-      .first<{ n: number; oldest: number | null }>();
-    if ((recent?.n ?? 0) >= OCR_RATE_PER_MINUTE) throw new ApiError(429, 'rate_limited', 'too many scans, wait a minute', (recent?.oldest ?? now) + 60_000 - now);
-    const used = await usageOf(c.env, business.id, now);
-    if (quota !== UNLIMITED && used >= quota) throw new ApiError(402, 'ocr_quota_exceeded', `used ${used} of ${quota} scans this month`);
+    // Retry of the same scan (app timeout / network drop): same key within 10 min → the stored result, no new charge.
+    const rawKey = c.req.header('X-Idempotency-Key');
+    const idemKey = rawKey && IDEM_RE.test(rawKey) ? rawKey : null;
+    if (idemKey) {
+      const prev = await c.env.DB.prepare(
+        `SELECT status, result_json, created_at FROM ocr_scans WHERE business_id = ?1 AND idem_key = ?2 AND created_at > ?3 ORDER BY created_at DESC LIMIT 1`,
+      )
+        .bind(business.id, idemKey, now - OCR_IDEMPOTENCY_MS)
+        .first<{ status: string; result_json: string | null; created_at: number }>();
+      if (prev?.status === 'ok' && prev.result_json) {
+        return c.json({ ...(JSON.parse(prev.result_json) as OcrExtract), used: await usageOf(c.env, business.id, now), limit: quota } satisfies OcrScanResponse);
+      }
+      if (prev?.status === 'pending' && prev.created_at > now - PENDING_STALE_MS) throw new ApiError(429, 'rate_limited', 'this scan is still running', 10_000);
+    }
 
     const client = (deps.ocrClient ?? defaultOcrClient)(c.env);
     if (!client) throw new ApiError(503, 'ocr_unavailable', 'invoice scanning is not configured');
-    const r = await extractInvoice(c.env, client, img);
+
+    const scanId = uuidv7(now);
+    await claimScan(c.env, { id: scanId, businessId: business.id, accountId: s.aid, idemKey, quota, now });
+    // Global spend circuit breaker (all businesses, UTC day).
+    const cap = Number(c.env.OCR_DAILY_SCAN_CAP) > 0 ? Math.floor(Number(c.env.OCR_DAILY_SCAN_CAP)) : OCR_DEFAULT_DAILY_CAP;
+    if ((await bumpCounter(c.env.DB, 'ocr-global', DAY, now)) > cap) {
+      await c.env.DB.prepare(`DELETE FROM ocr_scans WHERE id = ?1`).bind(scanId).run();
+      console.error('ocr: global daily scan cap reached');
+      throw new ApiError(503, 'ocr_unavailable', 'invoice scanning is paused for today, try again tomorrow');
+    }
+
+    let r: Awaited<ReturnType<typeof extractInvoice>>;
+    try {
+      // The expensive retry model only on paid plans (never the trial) and within its monthly budget.
+      let allowFallback = business.status !== 'trial' && business.status !== 'suspended';
+      if (allowFallback) {
+        const fb = await c.env.DB.prepare(`SELECT COUNT(*) AS n FROM ocr_scans WHERE business_id = ?1 AND fallback = 1 AND created_at >= ?2`)
+          .bind(business.id, cairoMonthStart(now))
+          .first<{ n: number }>();
+        allowFallback = (fb?.n ?? 0) < OCR_FALLBACK_PER_MONTH;
+      }
+      r = await extractInvoice(c.env, client, img, { allowFallback });
+    } catch (e) {
+      await c.env.DB.prepare(`UPDATE ocr_scans SET status = 'failed' WHERE id = ?1`).bind(scanId).run();
+      throw e;
+    }
     const ok = !!r.extract && r.extract.lines.length > 0;
     await c.env.DB.prepare(
-      `INSERT INTO ocr_scans (id, business_id, account_id, created_at, status, input_tokens, output_tokens, model, calls_json) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`,
+      `UPDATE ocr_scans SET status = ?2, input_tokens = ?3, output_tokens = ?4, model = ?5, calls_json = ?6, result_json = ?7, fallback = ?8 WHERE id = ?1`,
     )
       .bind(
-        uuidv7(now),
-        business.id,
-        s.aid,
-        now,
+        scanId,
         ok ? 'ok' : 'failed',
         r.calls.reduce((a, x) => a + x.in, 0),
         r.calls.reduce((a, x) => a + x.out, 0),
         r.model,
         JSON.stringify(r.calls),
+        ok ? JSON.stringify(r.extract) : null,
+        r.calls.length > 1 ? 1 : 0,
       )
       .run();
     if (!ok) {
       if ('unavailable' in r && r.unavailable) throw new ApiError(503, 'ocr_unavailable', 'the reading service is not reachable, try again');
       throw new ApiError(422, 'ocr_failed', 'could not read this invoice');
     }
-    return c.json({ ...r.extract!, used: used + 1, limit: quota } satisfies OcrScanResponse);
+    return c.json({ ...r.extract!, used: await usageOf(c.env, business.id, now), limit: quota } satisfies OcrScanResponse);
   });
 }

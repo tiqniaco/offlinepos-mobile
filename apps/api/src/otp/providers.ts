@@ -4,6 +4,9 @@
  */
 import type { Env } from '../env';
 
+/** The SMS provider must answer within this time (the request then fails and does not count against the user). */
+export const SMS_TIMEOUT_MS = 10_000;
+
 export interface SendResult {
   ok: boolean;
   providerRef?: string;
@@ -21,9 +24,11 @@ export interface OtpProvider {
 export class ConsoleProvider implements OtpProvider {
   readonly name = 'console';
   static readonly sent: { phone: string; code: string; at: number }[] = [];
+  /** log = print the code to the console (never in production). */
+  constructor(private readonly log = true) {}
   async send(phone: string, code: string): Promise<SendResult> {
     ConsoleProvider.sent.push({ phone, code, at: Date.now() });
-    console.log(`[otp:console] ${phone} → ${code}`);
+    if (this.log) console.log(`[otp:console] ${phone} → ${code}`);
     return { ok: true, providerRef: 'console' };
   }
   static lastCodeFor(phone: string): string | undefined {
@@ -55,7 +60,7 @@ export class SmsMisrProvider implements OtpProvider {
     url.searchParams.set('template', this.cfg.template);
     url.searchParams.set('otp', code);
     try {
-      const res = await this.fetchFn(url.toString(), { method: 'POST' });
+      const res = await this.fetchFn(url.toString(), { method: 'POST', signal: AbortSignal.timeout(SMS_TIMEOUT_MS) });
       const text = await res.text();
       let codeField: string | undefined;
       try {
@@ -98,7 +103,7 @@ export class SmsMisrSmsProvider implements OtpProvider {
       message: SmsMisrSmsProvider.text(code, locale),
     });
     try {
-      const res = await this.fetchFn(this.cfg.baseUrl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form.toString() });
+      const res = await this.fetchFn(this.cfg.baseUrl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form.toString(), signal: AbortSignal.timeout(SMS_TIMEOUT_MS) });
       const text = await res.text();
       let codeField: string;
       try {
@@ -139,5 +144,7 @@ export function providerFor(env: Env): OtpProvider {
       template: SMSMISR_TEMPLATE,
     });
   }
+  // The console provider never sends SMS and would accept nobody's real phone: refuse it in production.
+  if (env.ENVIRONMENT === 'production') throw new Error('OTP_PROVIDER=console is not allowed in production');
   return new ConsoleProvider();
 }

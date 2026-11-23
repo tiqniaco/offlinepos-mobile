@@ -69,40 +69,81 @@ interface SessionRow {
   account_id: string;
   refresh_hash: string;
   prev_refresh_hash: string | null;
+  prev_rotated_at: number | null;
+  prev_grace_used: number | null;
   expires_at: number;
   revoked_at: number | null;
 }
 
 /**
- * Rotate a refresh token. Presenting the PREVIOUS token again (reuse = likely theft) revokes the session.
+ * A lost response must not cost the shop its session: the token rotated away less than this long ago is accepted
+ * ONCE more (the retry of a check-in whose answer never arrived). Older reuse is treated as theft.
  */
-export async function rotateRefresh(env: Env, refreshToken: string, now: number): Promise<IssuedTokens & { sessionId: string; accountId: string }> {
+export const REFRESH_GRACE_MS = 2 * 60_000;
+
+export interface CheckedRefresh {
+  sessionId: string;
+  accountId: string;
+  /** "current" = the live token; "grace" = the immediately-previous token inside the grace window. */
+  kind: 'current' | 'grace';
+  presentedHash: string;
+}
+
+/**
+ * Validate a refresh token WITHOUT rotating it (so a caller can do its work first and rotate last).
+ * Presenting the previous token after the grace window (or a second time) revokes the session.
+ */
+export async function checkRefresh(env: Env, refreshToken: string, now: number): Promise<CheckedRefresh> {
   const dot = refreshToken.indexOf('.');
   if (dot < 0) throw new ApiError(401, 'unauthorized');
   const sid = refreshToken.slice(0, dot);
   const secretHash = await sha256HexAsync(refreshToken.slice(dot + 1));
-  const s = await env.DB.prepare(`SELECT id, account_id, refresh_hash, prev_refresh_hash, expires_at, revoked_at FROM sessions WHERE id = ?1`)
+  const s = await env.DB.prepare(`SELECT id, account_id, refresh_hash, prev_refresh_hash, prev_rotated_at, prev_grace_used, expires_at, revoked_at FROM sessions WHERE id = ?1`)
     .bind(sid)
     .first<SessionRow>();
   if (!s) throw new ApiError(401, 'unauthorized');
   if (s.revoked_at) throw new ApiError(401, 'session_revoked');
   if (s.expires_at < now) throw new ApiError(401, 'unauthorized', 'session expired');
-  if (!safeEqual(secretHash, s.refresh_hash)) {
-    if (s.prev_refresh_hash && safeEqual(secretHash, s.prev_refresh_hash)) {
-      await revokeSession(env, sid, 'refresh_reuse', now);
-      throw new ApiError(401, 'session_revoked', 'refresh token reuse detected');
+  if (safeEqual(secretHash, s.refresh_hash)) return { sessionId: sid, accountId: s.account_id, kind: 'current', presentedHash: secretHash };
+  if (s.prev_refresh_hash && safeEqual(secretHash, s.prev_refresh_hash)) {
+    if (s.prev_rotated_at != null && now - s.prev_rotated_at <= REFRESH_GRACE_MS && !s.prev_grace_used) {
+      return { sessionId: sid, accountId: s.account_id, kind: 'grace', presentedHash: secretHash };
     }
-    throw new ApiError(401, 'unauthorized');
+    await revokeSession(env, sid, 'refresh_reuse', now);
+    throw new ApiError(401, 'session_revoked', 'refresh token reuse detected');
   }
+  throw new ApiError(401, 'unauthorized');
+}
+
+/** Issue the new pair for a token accepted by checkRefresh (compare-and-set: concurrent use loses). */
+export async function commitRefresh(env: Env, chk: CheckedRefresh, now: number): Promise<IssuedTokens & { sessionId: string; accountId: string }> {
   const secret = randomToken();
-  const res = await env.DB.prepare(
-    `UPDATE sessions SET prev_refresh_hash = refresh_hash, refresh_hash = ?2, last_used_at = ?3, expires_at = ?4
-     WHERE id = ?1 AND refresh_hash = ?5`,
-  )
-    .bind(sid, await sha256HexAsync(secret), now, now + TOKEN_POLICY.refreshTtlMs, s.refresh_hash)
-    .run();
+  const newHash = await sha256HexAsync(secret);
+  const res =
+    chk.kind === 'current'
+      ? await env.DB.prepare(
+          `UPDATE sessions SET prev_refresh_hash = refresh_hash, refresh_hash = ?2, last_used_at = ?3, expires_at = ?4, prev_rotated_at = ?3, prev_grace_used = 0
+           WHERE id = ?1 AND refresh_hash = ?5 AND revoked_at IS NULL`,
+        )
+          .bind(chk.sessionId, newHash, now, now + TOKEN_POLICY.refreshTtlMs, chk.presentedHash)
+          .run()
+      : // Grace retry: the never-delivered token is replaced; the previous one stays "previous" but cannot be used again.
+        await env.DB.prepare(
+          `UPDATE sessions SET refresh_hash = ?2, last_used_at = ?3, expires_at = ?4, prev_grace_used = 1
+           WHERE id = ?1 AND prev_refresh_hash = ?5 AND prev_grace_used = 0 AND revoked_at IS NULL`,
+        )
+          .bind(chk.sessionId, newHash, now, now + TOKEN_POLICY.refreshTtlMs, chk.presentedHash)
+          .run();
   if (res.meta.changes !== 1) throw new ApiError(401, 'unauthorized', 'concurrent refresh');
-  return { sessionId: sid, accountId: s.account_id, refreshToken: `${sid}.${secret}`, ...(await issueAccess(env, sid, s.account_id, now)) };
+  return { sessionId: chk.sessionId, accountId: chk.accountId, refreshToken: `${chk.sessionId}.${secret}`, ...(await issueAccess(env, chk.sessionId, chk.accountId, now)) };
+}
+
+/**
+ * Rotate a refresh token. The previous token is accepted once within REFRESH_GRACE_MS (lost response);
+ * presenting it later (reuse = likely theft) revokes the session.
+ */
+export async function rotateRefresh(env: Env, refreshToken: string, now: number): Promise<IssuedTokens & { sessionId: string; accountId: string }> {
+  return commitRefresh(env, await checkRefresh(env, refreshToken, now), now);
 }
 
 export async function revokeSession(env: Env, sid: string, reason: string, now: number) {

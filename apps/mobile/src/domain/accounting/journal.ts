@@ -48,6 +48,11 @@ export interface JournalLineInput {
   partyId?: string | null;
 }
 
+/** A journal line from a signed amount: positive → debit, negative → credit (0 is dropped by postJournal). */
+export function signedLine(account: AccountKey, amountMinor: number, party?: { partyType: 'C' | 'S'; partyId: string | null }): JournalLineInput {
+  return amountMinor >= 0 ? { account, debit: amountMinor, ...party } : { account, credit: -amountMinor, ...party };
+}
+
 export class UnbalancedJournalError extends Error {}
 
 export async function postJournal(

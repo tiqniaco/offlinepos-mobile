@@ -4,9 +4,17 @@ export interface Env {
   R2_ACCOUNT_ID: string;
   R2_BUCKET: string;
   // vars
+  /** "production" on the deployed Worker (wrangler env.production). Test-only shortcuts are off there. */
+  ENVIRONMENT?: string;
   OTP_PROVIDER: 'console' | 'smsmisr';
-  /** Local E2E runs only (console provider). */
+  /** Local E2E runs only (console provider). Ignored when ENVIRONMENT = production. */
   OTP_FIXED_CODE?: string;
+  /** Global SMS cap per UTC day across all numbers (default 3000). */
+  OTP_DAILY_CAP?: string;
+  /** SMS cap per number range (first 6 digits) per hour (default 100). */
+  OTP_PREFIX_HOURLY_CAP?: string;
+  /** Global invoice-scan cap per UTC day across all businesses (default 2000) — spend circuit breaker. */
+  OCR_DAILY_SCAN_CAP?: string;
   LICENCE_KID: string;
   ADMIN_ORIGIN: string;
   SMSMISR_BASE_URL: string;
@@ -20,6 +28,8 @@ export interface Env {
   R2_ACCESS_KEY_ID: string;
   R2_SECRET_ACCESS_KEY: string;
   REVENUECAT_WEBHOOK_SECRET: string;
+  /** "1" = apply RevenueCat SANDBOX events (test purchases). Off by default: sandbox events are recorded and ignored. */
+  REVENUECAT_ALLOW_SANDBOX?: string;
   INTEGRITY_MODE?: 'off' | 'log' | 'enforce';
   ANDROID_PACKAGE?: string;
   GOOGLE_SERVICE_ACCOUNT_JSON?: string;

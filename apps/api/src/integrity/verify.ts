@@ -21,6 +21,8 @@ export type IntegrityVerdict = { status: 'pass' | 'fail' | 'unverified' | 'skipp
 
 type Fetch = typeof fetch;
 
+export const INTEGRITY_TIMEOUT_MS = 5_000;
+
 function pemToDer(pem: string): ArrayBuffer {
   const b64 = pem.replace(/-----[^-]+-----/g, '').replace(/\s+/g, '');
   const bin = atob(b64);
@@ -51,10 +53,12 @@ export async function verifyIntegrity(env: Env, input: IntegrityInput | undefine
   if (!input) return { status: 'unverified', reason: 'no_token' };
   if (input.platform === 'ios') return { status: 'unverified', reason: 'app_attest_recorded' };
   if (!env.GOOGLE_SERVICE_ACCOUNT_JSON || !env.ANDROID_PACKAGE) return { status: 'unverified', reason: 'not_configured' };
+  // Google must never hold a check-in hostage: each call gets 5 s, a timeout is just "unverified".
+  const timed: Fetch = (url, init) => f(url, { ...init, signal: AbortSignal.timeout(INTEGRITY_TIMEOUT_MS) });
   try {
     const sa = JSON.parse(env.GOOGLE_SERVICE_ACCOUNT_JSON) as { client_email: string; private_key: string; token_uri?: string };
-    const at = await googleAccessToken(sa, now, f);
-    const res = await f(`https://playintegrity.googleapis.com/v1/${env.ANDROID_PACKAGE}:decodeIntegrityToken`, {
+    const at = await googleAccessToken(sa, now, timed);
+    const res = await timed(`https://playintegrity.googleapis.com/v1/${env.ANDROID_PACKAGE}:decodeIntegrityToken`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${at}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ integrity_token: input.token }),
@@ -67,6 +71,8 @@ export async function verifyIntegrity(env: Env, input: IntegrityInput | undefine
     if (!(p.deviceIntegrity?.deviceRecognitionVerdict ?? []).includes('MEETS_DEVICE_INTEGRITY')) return { status: 'fail', reason: 'device' };
     return { status: 'pass' };
   } catch (e) {
+    const name = (e as Error)?.name;
+    if (name === 'TimeoutError' || name === 'AbortError') return { status: 'unverified', reason: 'timeout' };
     return { status: 'unverified', reason: (e as Error).message.slice(0, 60) };
   }
 }

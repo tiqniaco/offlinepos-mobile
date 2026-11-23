@@ -73,7 +73,8 @@ export type CouponError = 'not_found' | 'inactive' | 'expired' | 'not_started' |
 
 export interface OffersResult {
   lines: Record<string, LineOffer>;
-  coupon: { offerId: string; name: string; code: string; discountMinor: number } | null;
+  /** lineKeys: the lines the coupon applies to (its discount is shared only by them). */
+  coupon: { offerId: string; name: string; code: string; discountMinor: number; lineKeys: string[] } | null;
   couponError: CouponError | null;
 }
 
@@ -188,7 +189,7 @@ export function applyOffers(lines: OfferLine[], offers: OfferDef[], opts: { day:
       else if (c.minTotalMinor && base < c.minTotalMinor) result.couponError = 'min_total';
       else {
         const d = c.valueBp ? applyBp(base, Math.min(10_000, c.valueBp)) : Math.min(base, c.valueMinor ?? 0);
-        result.coupon = { offerId: c.id, name: c.name, code: c.couponCode!, discountMinor: d };
+        result.coupon = { offerId: c.id, name: c.name, code: c.couponCode!, discountMinor: d, lineKeys: scoped.map((l) => l.key) };
       }
     }
   }

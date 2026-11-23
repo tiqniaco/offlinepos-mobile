@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import {
   TOKEN_POLICY,
   TRIAL_PLAN_CODE,
+  FREE_PLAN_CODE,
   DAY_MS,
   attachDeviceSchema,
   base64urlDecode,
@@ -20,11 +21,11 @@ import { ApiError, body, clientIp } from '../lib/http';
 import { wrapSecret } from '../lib/crypto';
 import { requestOtp, verifyOtp } from '../otp/service';
 import { providerFor, type OtpProvider } from '../otp/providers';
-import { createSession, requireSession, revokeSession, rotateRefresh } from '../auth/tokens';
+import { checkRefresh, commitRefresh, createSession, requireSession, revokeSession, rotateRefresh } from '../auth/tokens';
 import { buildLicence, getPlan, signAnchorReceipt, type BusinessRow, type DeviceRow } from '../licence/issue';
 import { addPasswordRoutes } from './password';
 import { addReleaseRoutes } from './releases';
-import { matches, sendExpoPush, type PushMessage, type Target } from '../announce/announce';
+import { effectiveStatus, pendingAnnouncements, sendExpoPush, type PushMessage } from '../announce/announce';
 import { addPhase6Routes, commitBackup, setIntegrityChecker, startBackup } from './phase6';
 import { addManualBillingRoutes } from '../billing/manual';
 import { addOcrRoutes, type OcrClient } from '../ocr/scan';
@@ -48,6 +49,9 @@ export interface Deps {
   ocrClient?: (env: Env) => OcrClient | null;
 }
 export const defaultDeps: Deps = { now: () => Date.now(), provider: providerFor, push: sendExpoPush };
+
+/** Anti trial-farming: shops one account may own. */
+export const MAX_BUSINESSES_PER_ACCOUNT = 2;
 
 function utcDay(now: number): number {
   const d = new Date(now);
@@ -122,7 +126,7 @@ export function v1Routes(deps: Deps = defaultDeps) {
     const phone = normalizePhone(b.phone);
     if (!phone) throw new ApiError(400, 'invalid_phone');
     const now = deps.now();
-    await verifyOtp(c.env, { phone, purpose: 'login', code: b.code, now });
+    await verifyOtp(c.env, { phone, purpose: 'login', code: b.code, now, ip: clientIp(c) });
     const acc = await c.env.DB.prepare(
       `INSERT INTO accounts (id, phone, created_at, last_login_at) VALUES (?1, ?2, ?3, ?3)
        ON CONFLICT (phone) DO UPDATE SET last_login_at = ?3 RETURNING id, password_hash`,
@@ -142,7 +146,7 @@ export function v1Routes(deps: Deps = defaultDeps) {
   });
 
   addPasswordRoutes(app, deps, businessesOf);
-  addReleaseRoutes(app);
+  addReleaseRoutes(app, deps);
 
   /** Crash reports from the app (no auth: the app may be signed out). Capped per IP per hour; no personal data. */
   app.post('/client-errors', async (c) => {
@@ -186,7 +190,7 @@ export function v1Routes(deps: Deps = defaultDeps) {
     const s = await requireSession(c.env, c.req.header('Authorization'), now);
     const b = await body(c, z.object({ code: z.string().regex(/^\d{6}$/) }));
     const acc = await c.env.DB.prepare(`SELECT phone FROM accounts WHERE id = ?1`).bind(s.aid).first<{ phone: string }>();
-    await verifyOtp(c.env, { phone: acc!.phone, purpose: 'step_up', code: b.code, now });
+    await verifyOtp(c.env, { phone: acc!.phone, purpose: 'step_up', code: b.code, now, ip: clientIp(c) });
     const until = now + TOKEN_POLICY.stepUpTtlMs;
     await c.env.DB.prepare(`UPDATE sessions SET step_up_until = ?2 WHERE id = ?1`).bind(s.sid, until).run();
     return c.json({ stepUpUntil: until });
@@ -221,7 +225,12 @@ export function v1Routes(deps: Deps = defaultDeps) {
     const b = await body(c, createBusinessSchema);
     const verdict = await checkIntegrity(c.env, b.integrity, 'signup', now);
     if (base64urlDecode(b.backupKey).length !== 32) throw new ApiError(400, 'invalid_request', 'backup key must be 32 bytes');
-    const trial = await getPlan(c.env, TRIAL_PLAN_CODE);
+    // Anti trial-farming: at most MAX_BUSINESSES_PER_ACCOUNT shops per account (= per phone number: accounts are unique
+    // by phone), and only the account's first shop gets the trial; later ones start on the free plan.
+    const owned = await c.env.DB.prepare(`SELECT COUNT(*) AS n FROM businesses WHERE owner_account_id = ?1`).bind(s.aid).first<{ n: number }>();
+    if ((owned?.n ?? 0) >= MAX_BUSINESSES_PER_ACCOUNT) throw new ApiError(403, 'business_limit_reached', `at most ${MAX_BUSINESSES_PER_ACCOUNT} businesses per account`);
+    const withTrial = (owned?.n ?? 0) === 0;
+    const trial = await getPlan(c.env, withTrial ? TRIAL_PLAN_CODE : FREE_PLAN_CODE);
     const id = uuidv7(now);
     const business: BusinessRow = {
       id,
@@ -231,7 +240,7 @@ export function v1Routes(deps: Deps = defaultDeps) {
       type: b.type,
       vat_registered: b.vatRegistered ? 1 : 0,
       plan_code: trial.code,
-      status: 'trial',
+      status: withTrial ? 'trial' : 'active',
       plan_expires_at: now + trial.trial_days * DAY_MS,
       created_at: now,
       last_seen_at: now,
@@ -249,7 +258,7 @@ export function v1Routes(deps: Deps = defaultDeps) {
         b.type,
         business.vat_registered,
         trial.code,
-        'trial',
+        business.status,
         business.plan_expires_at,
         await wrapSecret(base64urlDecode(b.backupKey), c.env.BACKUP_WRAP_KEY),
         now,
@@ -274,6 +283,12 @@ export function v1Routes(deps: Deps = defaultDeps) {
       .bind(b.businessId, s.aid)
       .first<BusinessRow>();
     if (!business) throw new ApiError(404, 'not_found');
+    // Taking a shop away from another phone that is in use needs a fresh SMS step-up (as /devices/activate):
+    // a password alone (or a stolen session) must not silently deactivate the owner's phone.
+    const active = await c.env.DB.prepare(`SELECT session_id FROM devices WHERE business_id = ?1 AND deactivated_at IS NULL LIMIT 1`)
+      .bind(business.id)
+      .first<{ session_id: string | null }>();
+    if (active && active.session_id !== s.sid && (!s.stepUpUntil || s.stepUpUntil < now)) throw new ApiError(403, 'step_up_required');
     const registration = await registerDevice(c.env, business, s.sid, b.device, now);
     await countRequest(c.env, business.id, now);
     return c.json({ business: { id: business.id, name: business.name, country: business.country, type: business.type, role: 'owner' }, registration });
@@ -283,7 +298,9 @@ export function v1Routes(deps: Deps = defaultDeps) {
   app.post('/checkin', async (c) => {
     const now = deps.now();
     const b = await body(c, checkinSchema);
-    const t = await rotateRefresh(c.env, b.refreshToken, now);
+    // Validate only; the token is rotated LAST, after all the work succeeded (a failure never burns the token),
+    // and a retry of a lost response is accepted once within the grace window (auth/tokens.ts).
+    const t = await checkRefresh(c.env, b.refreshToken, now);
     const device = await c.env.DB.prepare(
       `SELECT d.id, d.business_id, d.code, d.deactivated_at FROM devices d
        JOIN businesses bz ON bz.id = d.business_id
@@ -316,38 +333,46 @@ export function v1Routes(deps: Deps = defaultDeps) {
     // Backups ride on the daily check-in (no extra request): commit yesterday's upload, hand out today's PUT URL.
     let backupCommitted: boolean | undefined;
     if (b.committedBackupId) backupCommitted = await commitBackup(c.env, b.committedBackupId, business.id, now).catch(() => false);
-    const backupPut = b.backupMeta && !device.deactivated_at ? await startBackup(c.env, business.id, device.id, b.backupMeta, 'auto', now) : null;
+    let backupError: string | undefined;
+    const backupPut =
+      b.backupMeta && !device.deactivated_at
+        ? await startBackup(c.env, business.id, device.id, b.backupMeta, 'auto', now).catch((e) => {
+            // A refused backup (too large for the plan…) must never fail the licence check-in.
+            backupError = e instanceof ApiError ? e.code : 'backup_failed';
+            return null;
+          })
+        : null;
 
     const notices: { kind: string; textAr: string; textEn: string }[] = [];
     if (Math.abs(b.deviceTime - now) > DAY_MS) {
       notices.push({ kind: 'clock', textAr: 'ساعة الموبايل مش مظبوطة، من فضلك اظبط التاريخ والوقت.', textEn: 'Your phone clock is wrong. Please fix date and time.' });
     }
     // In-app inbox: announcements created since this device's last delivery, still valid, matching this business.
+    // Filtered in SQL by this business's target, so other shops' messages never use up the cap (20 per check-in;
+    // the rest arrive with the next one: the device cursor only moves past what was delivered).
     const since = (await c.env.DB.prepare(`SELECT announcements_until AS u, activated_at AS a FROM devices WHERE id = ?1`).bind(device.id).first<{ u: number; a: number }>())!;
-    const rows = await c.env.DB.prepare(
-      `SELECT id, title_ar, body_ar, title_en, body_en, url, target_json, created_at FROM announcements
-       WHERE created_at > ?1 AND created_at >= ?2 - 14 * 86400000 AND expires_at > ?3 AND cancelled_at IS NULL ORDER BY created_at LIMIT 20`,
-    )
-      .bind(since.u, since.a, now)
-      .all<{ id: string; title_ar: string; body_ar: string; title_en: string | null; body_en: string | null; url: string | null; target_json: string; created_at: number }>();
-    const announcements = rows.results.filter((a) => matches(JSON.parse(a.target_json) as Target, business)).map((a) => ({ id: a.id, titleAr: a.title_ar, bodyAr: a.body_ar, titleEn: a.title_en, bodyEn: a.body_en, url: a.url, at: a.created_at }));
-    if (rows.results.length) {
-      const last = rows.results[rows.results.length - 1]!.created_at;
+    const rows = await pendingAnnouncements(c.env, { ...business, status: effectiveStatus(business, now) }, since.u, since.a, now);
+    const announcements = rows.map((a) => ({ id: a.id, titleAr: a.title_ar, bodyAr: a.body_ar, titleEn: a.title_en, bodyEn: a.body_en, url: a.url, at: a.created_at }));
+    if (rows.length) {
+      const last = rows[rows.length - 1]!.created_at;
       await c.env.DB.batch([
-        c.env.DB.prepare(`UPDATE devices SET announcements_until = ?2 WHERE id = ?1`).bind(device.id, last),
+        c.env.DB.prepare(`UPDATE devices SET announcements_until = MAX(announcements_until, ?2) WHERE id = ?1`).bind(device.id, last),
         ...announcements.map((a) => c.env.DB.prepare(`UPDATE announcements SET delivered = delivered + 1 WHERE id = ?1`).bind(a.id)),
       ]);
     }
+    const licence = await buildLicence(c.env, business, device, now);
+    const tokens = await commitRefresh(c.env, t, now);
     return c.json({
       announcements,
-      licence: await buildLicence(c.env, business, device, now),
+      licence,
       serverTime: now,
-      refreshToken: t.refreshToken,
-      accessToken: t.accessToken,
-      accessExpiresAt: t.accessExpiresAt,
+      refreshToken: tokens.refreshToken,
+      accessToken: tokens.accessToken,
+      accessExpiresAt: tokens.accessExpiresAt,
       anchorReceipt,
       backupPut,
       backupCommitted,
+      ...(backupError ? { backupError } : {}),
       notices,
     });
   });

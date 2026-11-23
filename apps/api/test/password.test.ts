@@ -77,10 +77,11 @@ describe('phone + password login', () => {
     expect((await c.call('POST', '/v1/auth/password/login', { phone: '01066666664', password: 'Lock2026me', device: device('install-x') })).status).toBe(200);
   });
 
-  it('an account created by SMS without a password says so (app offers SMS login / set password)', async () => {
+  it('an SMS-only account answers like a wrong password (no account enumeration; the app hints at SMS login)', async () => {
     const c = makeClient();
     await login(c, '01066666665', 'install-a');
-    expect((await c.call('POST', '/v1/auth/password/login', { phone: '01066666665', password: 'Any2026pass', device: device('install-x') })).json.error.code).toBe('password_not_set');
+    const r = await c.call('POST', '/v1/auth/password/login', { phone: '01066666665', password: 'Any2026pass', device: device('install-x') });
+    expect([r.status, r.json.error.code]).toEqual([401, 'invalid_credentials']);
   });
 });
 

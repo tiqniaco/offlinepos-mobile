@@ -49,6 +49,44 @@ describe('moving average cost', () => {
   });
 });
 
+describe('stock value invariant (journal = Σ stock values)', () => {
+  it('selling into negative then buying: the reset is reported as a true-up', () => {
+    let l = applyMovement(EMPTY_LEVEL, { qtyMilli: 3_000, unitCostMinor: 1000 }).level;
+    const sale = applyMovement(l, { qtyMilli: -5_000, unitCostMinor: null });
+    expect(sale.valueMinor).toBe(-5000);
+    l = sale.level; // −2 @ 10.00, value −20.00
+    const buy = applyMovement(l, { qtyMilli: 10_000, unitCostMinor: 1200 });
+    expect(buy.level).toEqual({ qtyMilli: 8_000, avgCostMinor: 1200, valueMinor: 9600 });
+    expect(buy.valueMinor).toBe(12_000);
+    expect(buy.trueUpMinor).toBe(9600 - -2000 - 12_000); // −400: the 2 oversold units really cost 12.00
+  });
+  it('value stays exact (no avg-rounding drift); emptying the stock leaves exactly zero', () => {
+    let l = applyMovement(EMPTY_LEVEL, { qtyMilli: 3_000, unitCostMinor: 100 }).level;
+    l = applyMovement(l, { qtyMilli: 3_000, unitCostMinor: 101 }).level;
+    expect(l.valueMinor).toBe(603);
+    const a = applyMovement(l, { qtyMilli: -1_000, unitCostMinor: null });
+    const b = applyMovement(a.level, { qtyMilli: -5_000, unitCostMinor: null });
+    expect(a.valueMinor + b.valueMinor).toBe(-603);
+    expect(b.level).toMatchObject({ qtyMilli: 0, valueMinor: 0 });
+  });
+  it('for any stream: Σ (movement value + true-up) = final stock value', () => {
+    const mv = fc.record({ qtyMilli: fc.integer({ min: -50_000, max: 50_000 }).filter((q) => q !== 0), unitCostMinor: fc.option(fc.integer({ min: 0, max: 1_000_000 }), { nil: null }) });
+    fc.assert(
+      fc.property(fc.array(mv, { maxLength: 60 }), (stream) => {
+        let l = EMPTY_LEVEL;
+        let posted = 0;
+        for (const m of stream) {
+          const r = applyMovement(l, m, 137);
+          posted += r.valueMinor + r.trueUpMinor;
+          l = r.level;
+        }
+        expect(posted).toBe(l.valueMinor);
+        if (l.qtyMilli === 0) expect(l.valueMinor).toBe(0);
+      }),
+    );
+  });
+});
+
 describe('units', () => {
   it('converts to base quantity', () => {
     expect(toBaseQty(2_000, 24_000)).toBe(48_000); // 2 cartons × 24

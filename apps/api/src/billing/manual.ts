@@ -72,6 +72,8 @@ export function addManualBillingRoutes(app: Hono<AppEnv>, deps: Deps, countReque
         nameEn: p.name_en,
         monthlyMinor: p.monthly_egp,
         yearlyMinor: p.yearly_egp,
+        monthlySarMinor: p.monthly_sar,
+        yearlySarMinor: p.yearly_sar,
         limits: JSON.parse(p.limits_json) as Record<string, number>,
         features: JSON.parse(p.features_json) as string[],
       })),
@@ -95,7 +97,17 @@ export function addManualBillingRoutes(app: Hono<AppEnv>, deps: Deps, countReque
     const plan = await c.env.DB.prepare(`SELECT * FROM plans WHERE code = ?1 AND is_free = 0 AND active = 1`).bind(b.plan).first<PlanRow>();
     if (!plan) throw new ApiError(400, 'invalid_request', 'unknown plan');
     const amount = b.period === 'yearly' ? plan.yearly_egp : plan.monthly_egp;
+    // Same idempotency key (one per upgrade-screen session) = the retry of a request whose answer was lost.
+    const existing = async () =>
+      b.idempotencyKey
+        ? c.env.DB.prepare(`SELECT id, status, amount_minor, created_at FROM payment_requests WHERE business_id = ?1 AND idempotency_key = ?2`)
+            .bind(business.id, b.idempotencyKey)
+            .first<{ id: string; status: string; amount_minor: number; created_at: number }>()
+        : null;
+    const same = await existing();
+    if (same) return c.json({ id: same.id, status: same.status, amountMinor: same.amount_minor, createdAt: same.created_at }, 200);
     const receipt = decodeReceipt(b.receipt);
+    const receiptSha = [...new Uint8Array(await crypto.subtle.digest('SHA-256', receipt.bytes as Uint8Array<ArrayBuffer>))].map((x) => x.toString(16).padStart(2, '0')).join('');
 
     const counts = await c.env.DB.prepare(
       `SELECT SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending, SUM(CASE WHEN created_at > ?2 THEN 1 ELSE 0 END) AS today, MIN(CASE WHEN created_at > ?2 THEN created_at END) AS oldest
@@ -109,12 +121,20 @@ export function addManualBillingRoutes(app: Hono<AppEnv>, deps: Deps, countReque
     const id = uuidv7(now);
     const key = `receipts/${business.id}/${id}.${receipt.ext}`;
     await c.env.BACKUPS.put(key, receipt.bytes, { httpMetadata: { contentType: receipt.contentType } });
-    await c.env.DB.prepare(
-      `INSERT INTO payment_requests (id, business_id, account_id, plan_code, period, amount_minor, currency, method, payer_phone, note, receipt_key, status, created_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'EGP', ?7, ?8, ?9, ?10, 'pending', ?11)`,
-    )
-      .bind(id, business.id, s.aid, plan.code, b.period, amount, b.method, payerPhone, b.note?.trim() || null, key, now)
-      .run();
+    try {
+      await c.env.DB.prepare(
+        `INSERT INTO payment_requests (id, business_id, account_id, plan_code, period, amount_minor, currency, method, payer_phone, note, receipt_key, status, created_at, idempotency_key, receipt_sha256, reference)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'EGP', ?7, ?8, ?9, ?10, 'pending', ?11, ?12, ?13, ?14)`,
+      )
+        .bind(id, business.id, s.aid, plan.code, b.period, amount, b.method, payerPhone, b.note?.trim() || null, key, now, b.idempotencyKey ?? null, receiptSha, b.reference?.trim() || null)
+        .run();
+    } catch (e) {
+      // Two concurrent sends with the same key: the loser answers with the winner's request.
+      const won = await existing();
+      if (!won) throw e;
+      await c.env.BACKUPS.delete(key);
+      return c.json({ id: won.id, status: won.status, amountMinor: won.amount_minor, createdAt: won.created_at }, 200);
+    }
     await countRequest(c.env, business.id, now);
     return c.json({ id, status: 'pending', amountMinor: amount, createdAt: now }, 201);
   });

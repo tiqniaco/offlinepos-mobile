@@ -54,8 +54,14 @@ describe('portable .kashiro backup', () => {
     expect(Object.keys(h).sort()).toEqual(['appVersion', 'businessName', 'counts', 'createdAt', 'format', 'kdf', 'nonce', 'salt', 'schemaVersion', 'v', 'wrappedKey']);
   });
 
-  it('default KDF is scrypt N=2^15 r=8 p=1', async () => {
-    expect(PORTABLE_KDF).toEqual({ name: 'scrypt', N: 32768, r: 8, p: 1 });
+  it('files from earlier versions (scrypt N=2^15) still open', async () => {
+    const old = { name: 'scrypt' as const, N: 2 ** 15, r: 8, p: 1 };
+    const { header } = await sealPortable(PASS, meta, { kdf: old });
+    await expect(openPortable(header, PASS)).resolves.toHaveLength(32);
+  });
+
+  it('default KDF is scrypt N=2^14 r=8 p=1', async () => {
+    expect(PORTABLE_KDF).toEqual({ name: 'scrypt', N: 16384, r: 8, p: 1 });
     const { header } = await sealPortable(PASS, meta);
     expect(header.kdf).toEqual(PORTABLE_KDF);
     await expect(openPortable(header, PASS)).resolves.toHaveLength(32);
@@ -105,5 +111,7 @@ describe('portable .kashiro backup', () => {
     const { file, header } = await build(payload);
     void file;
     await expect(openPortable({ ...header, kdf: { name: 'scrypt', N: 2 ** 24, r: 8, p: 1 } }, PASS)).rejects.toMatchObject({ code: 'header' });
+    await expect(openPortable({ ...header, kdf: { name: 'scrypt', N: 2 ** 16, r: 8, p: 1 } }, PASS)).rejects.toMatchObject({ code: 'header' });
+    await expect(openPortable({ ...header, kdf: { name: 'scrypt', N: 2 ** 14, r: 16, p: 1 } }, PASS)).rejects.toMatchObject({ code: 'header' });
   });
 });

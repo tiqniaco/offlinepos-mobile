@@ -14,7 +14,7 @@ export const targetSchema = z.object({
   all: z.boolean().optional(),
   countries: z.array(z.enum(['EG', 'SA'])).optional(),
   plans: z.array(z.string()).optional(),
-  statuses: z.array(z.enum(['trial', 'active', 'past_due', 'suspended'])).optional(),
+  statuses: z.array(z.enum(['trial', 'active', 'past_due', 'suspended', 'expired'])).optional(),
   businessIds: z.array(z.string()).max(500).optional(),
 });
 export type Target = z.infer<typeof targetSchema>;
@@ -31,8 +31,21 @@ export const announceSchema = z.object({
   days: z.number().int().min(1).max(60).default(14),
 });
 
-/** SQL WHERE (on businesses b) for a target + its bound values. */
-export function targetSql(t: Target): { where: string; args: unknown[] } {
+/**
+ * Status as the admin should see it: a trial / paid plan whose expiry passed is "expired" (the stored status only
+ * changes on events). Free-plan shops never expire; a suspension wins.
+ */
+export function effectiveStatus(b: { status: string; plan_code: string; plan_expires_at: number }, now: number): string {
+  return b.status !== 'suspended' && b.plan_code !== 'free' && b.plan_expires_at <= now ? 'expired' : b.status;
+}
+
+/** SQL expression for effectiveStatus on businesses `alias` (binds `now` at ?nowParam). */
+export function effectiveStatusSql(alias: string, nowParam: string): string {
+  return `CASE WHEN ${alias}.status != 'suspended' AND ${alias}.plan_code != 'free' AND ${alias}.plan_expires_at <= ${nowParam} THEN 'expired' ELSE ${alias}.status END`;
+}
+
+/** SQL WHERE (on businesses b) for a target + its bound values. Statuses are effective statuses (see effectiveStatus). */
+export function targetSql(t: Target, now = Date.now()): { where: string; args: unknown[] } {
   if (t.all) return { where: '1 = 1', args: [] };
   const parts: string[] = [];
   const args: unknown[] = [];
@@ -43,7 +56,10 @@ export function targetSql(t: Target): { where: string; args: unknown[] } {
   };
   list('b.country', t.countries);
   list('b.plan_code', t.plans);
-  list('b.status', t.statuses);
+  if (t.statuses?.length) {
+    parts.push(`${effectiveStatusSql('b', '?')} IN (${t.statuses.map(() => '?').join(', ')})`);
+    args.push(now, ...t.statuses);
+  }
   list('b.id', t.businessIds);
   return { where: parts.length ? parts.join(' AND ') : '0 = 1', args };
 }
@@ -88,4 +104,50 @@ export async function sendExpoPush(env: Env, messages: PushMessage[], f: typeof 
     }
   }
   return [ok, bad];
+}
+
+/**
+ * SQL filter (on announcements a) matching `matches()` for one business, so non-targeted rows never consume the
+ * per-check-in cap (a backlog of other shops' messages can never push this shop's message out).
+ * Bind order: ?country, ?plan, ?status, ?businessId at positions given by `base`.
+ */
+export function targetFilterSql(base: number): string {
+  const [co, pl, st, id] = [base, base + 1, base + 2, base + 3];
+  const has = (k: string) => `COALESCE(json_array_length(a.target_json, '$.${k}'), 0) > 0`;
+  const inList = (k: string, p: number) => `(NOT ${has(k)} OR EXISTS (SELECT 1 FROM json_each(a.target_json, '$.${k}') WHERE value = ?${p}))`;
+  return `(json_extract(a.target_json, '$.all') = 1 OR (
+    (${has('countries')} OR ${has('plans')} OR ${has('statuses')} OR ${has('businessIds')})
+    AND ${inList('countries', co)} AND ${inList('plans', pl)} AND ${inList('statuses', st)} AND ${inList('businessIds', id)}))`;
+}
+
+export interface AnnouncementRow {
+  id: string;
+  title_ar: string;
+  body_ar: string;
+  title_en: string | null;
+  body_en: string | null;
+  url: string | null;
+  target_json: string;
+  created_at: number;
+}
+
+/** Announcements for this business created after `since` (and not older than 14 days before `activatedAt`), oldest first, capped. */
+export async function pendingAnnouncements(
+  env: Env,
+  business: { id: string; country: string; plan_code: string; status: string },
+  since: number,
+  activatedAt: number,
+  now: number,
+  limit = 20,
+): Promise<AnnouncementRow[]> {
+  const r = await env.DB.prepare(
+    `SELECT a.id, a.title_ar, a.body_ar, a.title_en, a.body_en, a.url, a.target_json, a.created_at FROM announcements a
+     WHERE a.created_at > ?1 AND a.created_at >= ?2 - 14 * 86400000 AND a.expires_at > ?3 AND a.cancelled_at IS NULL
+       AND ${targetFilterSql(5)}
+     ORDER BY a.created_at, a.id LIMIT ?4`,
+  )
+    .bind(since, activatedAt, now, limit, business.country, business.plan_code, business.status, business.id)
+    .all<AnnouncementRow>();
+  // Belt and braces: the JS matcher is the reference definition.
+  return r.results.filter((a) => matches(JSON.parse(a.target_json) as Target, business));
 }

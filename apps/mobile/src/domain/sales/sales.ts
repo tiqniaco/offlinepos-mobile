@@ -18,11 +18,16 @@ import {
   type PaymentInput,
   type PricedCart,
   applyOffers,
+  allocate,
+  divRound,
+  mulDivRound,
+  splitInclusive,
+  taxExclusive,
   type OfferDef,
   type OffersResult,
 } from '@daftarak/shared';
-import { loadOffers } from '../offers/offers';
-import { products, productUnits, salesDocs, salesLines, payments, units, journalEntries, journalLines, accounts } from '../../db/schema';
+import { loadOffers, toDef } from '../offers/offers';
+import { products, productUnits, salesDocs, salesLines, payments, units, journalEntries, journalLines, accounts, customers, offers as offersTable } from '../../db/schema';
 import type { Db } from '../../db/types';
 import { withTx } from '../../db/tx';
 import { appendAudit } from '../audit/audit';
@@ -33,8 +38,8 @@ import type { InvCtx } from '../inventory/context';
 import { defaultWarehouseId, postMovements } from '../inventory/ledger';
 import { nextDocNumber } from '../inventory/numbering';
 import { appendChain, chainHead, salesPayload, voidPayload } from '../integrity/chain';
-import { METHOD_ACCOUNT, postJournal, type JournalLineInput } from '../accounting/journal';
-import { postPartyLedger } from '../parties/customers';
+import { METHOD_ACCOUNT, postJournal, signedLine, type JournalLineInput } from '../accounting/journal';
+import { partyBalance, postPartyLedger } from '../parties/customers';
 import { shiftIdFor } from '../shifts/shifts';
 import { assertVoidWindow } from '../vouchers/vouchers';
 import { rollupDoc } from '../reports/rollup';
@@ -95,7 +100,8 @@ export type SalesErrorCode =
   | 'return_too_much'
   | 'refund_mismatch'
   | 'credit_refund_without_customer'
-  | 'coupon_invalid';
+  | 'coupon_invalid'
+  | 'credit_limit';
 
 export class SalesError extends Error {
   constructor(
@@ -155,7 +161,16 @@ export function priceDraft(draft: SaleDraft, s: SalesSettings, oc?: OfferCtx | n
         )
       : null;
   const cart = priceCart({
-    lines: draft.lines.map((l) => ({ key: l.key, qtyMilli: l.qtyMilli, unitPriceMinor: l.unitPriceMinor, taxRateBp: l.taxRateBp, discount: l.discount, offerDiscountMinor: res?.lines[l.key]?.discountMinor, offerId: res?.lines[l.key]?.offerId })),
+    lines: draft.lines.map((l) => ({
+      key: l.key,
+      qtyMilli: l.qtyMilli,
+      unitPriceMinor: l.unitPriceMinor,
+      taxRateBp: l.taxRateBp,
+      discount: l.discount,
+      offerDiscountMinor: res?.lines[l.key]?.discountMinor,
+      offerId: res?.lines[l.key]?.offerId,
+      couponEligible: res?.coupon ? res.coupon.lineKeys.includes(l.key) : true,
+    })),
     pricesIncludeVat: s.pricesIncludeVat,
     invoiceDiscount: draft.invoiceDiscount,
     couponMinor: res?.coupon?.discountMinor,
@@ -206,6 +221,28 @@ export async function postSale(ctx: SalesCtx, draft: SaleDraft, pays: PaymentInp
     if (t < head.postedAt) throw new SalesError('clock_behind');
     const day = businessDay(t, ctx.timezone);
     await assertInvoiceLimit(tx, day);
+    // Coupon uses are counted again INSIDE the transaction (the offers were loaded before it began).
+    const coupon = priced.offers?.coupon;
+    if (coupon) {
+      const row = (await tx.select({ maxUses: offersTable.maxUses }).from(offersTable).where(eq(offersTable.id, coupon.offerId)).limit(1))[0];
+      if (row?.maxUses != null) {
+        const used = Number((await tx.select({ n: sql<number>`count(*)` }).from(salesDocs).where(and(eq(salesDocs.couponOfferId, coupon.offerId), eq(salesDocs.type, 'INVOICE'), eq(salesDocs.status, 'POSTED'))))[0]?.n ?? 0);
+        if (used >= row.maxUses) throw new SalesError('coupon_invalid', { reason: 'used_up' });
+      }
+    }
+    // Credit limit (حد الائتمان): new balance may not pass it unless a manager approves.
+    let creditOverride = false;
+    if (settlement.creditMinor > 0 && draft.customerId) {
+      const c = (await tx.select({ limit: customers.creditLimitMinor }).from(customers).where(eq(customers.id, draft.customerId)).limit(1))[0];
+      const limit = c?.limit ?? null;
+      if (limit != null && limit > 0) {
+        const balance = await partyBalance(tx, 'C', draft.customerId);
+        if (balance + settlement.creditMinor > limit) {
+          if (!(approver && roleHas(approver.permissions, 'doc.void'))) throw new SalesError('credit_limit', { limit, balance, credit: settlement.creditMinor });
+          creditOverride = true;
+        }
+      }
+    }
     const shiftId = await shiftIdFor(tx, ctx.device.id, !!ctx.settings.requireShift);
     const number = await nextDocNumber(tx, ctx.device, 'SALES_INVOICE', 'INV');
     const docId = uuidv7(t);
@@ -241,7 +278,7 @@ export async function postSale(ctx: SalesCtx, draft: SaleDraft, pays: PaymentInp
       priceTier: draft.priceTier,
       cashierId: ctx.user.id,
       shiftId,
-      approvedBy: approver && (need.priceChanges.length || need.violations.length) ? approver.id : null,
+      approvedBy: approver && (need.priceChanges.length || need.violations.length || creditOverride) ? approver.id : null,
       issuedAt: t,
       businessDay: day,
       pricesIncludeVat: ctx.settings.pricesIncludeVat,
@@ -320,7 +357,7 @@ export async function postSale(ctx: SalesCtx, draft: SaleDraft, pays: PaymentInp
     jl.push({ account: 'SALES', credit: priced.netMinor }, { account: 'VAT_OUT', credit: priced.taxMinor });
     if (priced.roundingMinor > 0) jl.push({ account: 'ROUNDING', credit: priced.roundingMinor });
     if (priced.roundingMinor < 0) jl.push({ account: 'ROUNDING', debit: -priced.roundingMinor });
-    if (cogs > 0) jl.push({ account: 'COGS', debit: cogs }, { account: 'INVENTORY', credit: cogs });
+    if (cogs !== 0) jl.push(signedLine('COGS', cogs), signedLine('INVENTORY', -cogs));
     await postJournal(tx, ctx, { sourceType: 'sales_doc', sourceId: docId, businessDay: day, memo: number, lines: jl, at: t });
 
     await sealSalesDoc(tx, ctx, docId, 'SALES_INVOICE', t);
@@ -335,6 +372,9 @@ export async function postSale(ctx: SalesCtx, draft: SaleDraft, pays: PaymentInp
       }
     }
     await appendAudit(tx, { action: 'sale.post', entity: 'sales_docs', entityId: docId, after: { number, total: priced.totalMinor, lines: draft.lines.length }, userId: ctx.user.id, deviceId: ctx.device.id, at: t });
+    if (creditOverride) {
+      await appendAudit(tx, { action: 'override.manager_pin', entity: 'sales_docs', entityId: docId, after: { kind: 'credit_limit', credit: settlement.creditMinor, cashier: ctx.user.id }, userId: approver!.id, deviceId: ctx.device.id, at: t });
+    }
     if (approver && (need.priceChanges.length || need.violations.length)) {
       await appendAudit(tx, {
         action: need.violations.length ? 'sale.discount_override' : 'sale.price_override',
@@ -456,8 +496,20 @@ export async function listDrafts(db: Db, type: 'INVOICE' | 'QUOTATION') {
     .orderBy(desc(salesDocs.createdAt));
 }
 
-/** Load a parked sale or quotation back into a cart. Prices are refreshed from the catalog for parked sales only. */
-export async function loadDraft(db: Db, id: string): Promise<SaleDraft> {
+/** What changed when a held sale was resumed at today's prices. */
+export interface Repriced {
+  /** Lines whose catalog price / VAT rate changed since the sale was held. */
+  changed: number;
+  /** Manual price changes dropped because the current user may not change prices. */
+  reverted: number;
+}
+
+/**
+ * Load a parked sale or quotation back into a cart. With `opts.settings`, a PARKED sale is re-priced from the
+ * catalog (current price for its tier and current VAT rate); a manual price on a line is kept only when `opts.user`
+ * has price.change, otherwise it goes back to the catalog price (`repriced.reverted`). Quotations keep their prices.
+ */
+export async function loadDraft(db: Db, id: string, opts: { settings?: SalesSettings; user?: SessionUser | null } = {}): Promise<SaleDraft & { repriced?: Repriced }> {
   const doc = (await db.select().from(salesDocs).where(eq(salesDocs.id, id)).limit(1))[0];
   if (!doc) throw new SalesError('not_found');
   // Category is not stored on the line: take it from the product (category-scoped offers need it).
@@ -467,21 +519,47 @@ export async function loadDraft(db: Db, id: string): Promise<SaleDraft> {
     .leftJoin(products, eq(products.id, salesLines.productId))
     .where(eq(salesLines.docId, id))
     .orderBy(asc(salesLines.lineNo));
+  let lines: CartLine[] = rows.map(({ l, categoryId }) => ({
+    key: `${l.productId}:${l.productUnitId}`,
+    productId: l.productId,
+    productUnitId: l.productUnitId,
+    name: l.nameSnapshot,
+    unitName: l.unitNameSnapshot,
+    qtyMilli: l.qtyMilli,
+    factorMilli: l.factorMilli,
+    unitPriceMinor: l.unitPriceMinor,
+    catalogPriceMinor: l.catalogPriceMinor,
+    taxRateBp: l.taxRateBp,
+    discount: l.discountJson ? (JSON.parse(l.discountJson) as Discount) : null,
+    categoryId: categoryId ?? null,
+  }));
+  let repriced: Repriced | undefined;
+  if (opts.settings && doc.type === 'INVOICE' && doc.status === 'PARKED') {
+    repriced = { changed: 0, reverted: 0 };
+    const mayChange = !!opts.user && roleHas(opts.user.permissions, 'price.change');
+    const out: CartLine[] = [];
+    for (const old of lines) {
+      let fresh: CartLine;
+      try {
+        fresh = await cartLineFor(db, opts.settings, old.productId, old.productUnitId, doc.priceTier, old.qtyMilli);
+      } catch {
+        out.push(old);
+        continue;
+      }
+      // The unit row was removed since: keep the held line as it was (its quantity is in that unit).
+      if (fresh.productUnitId !== old.productUnitId || fresh.factorMilli !== old.factorMilli) {
+        out.push(old);
+        continue;
+      }
+      if (fresh.catalogPriceMinor !== old.catalogPriceMinor || fresh.taxRateBp !== old.taxRateBp) repriced.changed++;
+      const overridden = old.unitPriceMinor !== old.catalogPriceMinor;
+      if (overridden && !mayChange) repriced.reverted++;
+      out.push({ ...fresh, discount: old.discount ?? null, unitPriceMinor: overridden && mayChange ? old.unitPriceMinor : fresh.unitPriceMinor });
+    }
+    lines = out;
+  }
   return {
-    lines: rows.map(({ l, categoryId }) => ({
-      key: `${l.productId}:${l.productUnitId}`,
-      productId: l.productId,
-      productUnitId: l.productUnitId,
-      name: l.nameSnapshot,
-      unitName: l.unitNameSnapshot,
-      qtyMilli: l.qtyMilli,
-      factorMilli: l.factorMilli,
-      unitPriceMinor: l.unitPriceMinor,
-      catalogPriceMinor: l.catalogPriceMinor,
-      taxRateBp: l.taxRateBp,
-      discount: l.discountJson ? (JSON.parse(l.discountJson) as Discount) : null,
-      categoryId: categoryId ?? null,
-    })),
+    lines,
     customerId: doc.customerId,
     customerName: doc.customerName,
     priceTier: doc.priceTier,
@@ -490,6 +568,7 @@ export async function loadDraft(db: Db, id: string): Promise<SaleDraft> {
     note: doc.note,
     quotationId: doc.type === 'QUOTATION' ? doc.id : null,
     sourceId: doc.type === 'INVOICE' && doc.status === 'PARKED' ? doc.id : null,
+    ...(repriced ? { repriced } : {}),
   };
 }
 
@@ -579,13 +658,44 @@ export async function returnableLines(db: Db, invoiceId: string): Promise<Return
   }));
 }
 
-/** Total refund for the selected items (preview in the return screen). */
-export async function previewReturn(db: Db, invoiceId: string, items: { lineId: string; qtyMilli: number }[]): Promise<number> {
-  const plan = await planReturn(db, invoiceId, items);
-  return plan.reduce((s, p) => s + p.amounts.totalMinor, 0);
+/** Total refund for the selected items (preview in the return screen), cash rounding included. */
+export async function previewReturn(db: Db, invoiceId: string, items: { lineId: string; qtyMilli: number }[], opts: { cashRoundingMinor?: number } = {}): Promise<number> {
+  return (await planReturn(db, invoiceId, items, opts)).totalMinor;
 }
 
-async function planReturn(db: Db, invoiceId: string, items: { lineId: string; qtyMilli: number }[]) {
+/** What the customer may still get back in cash/card…: what was paid on the invoice minus earlier non-credit refunds. */
+export async function refundablePaid(db: Db, invoiceId: string): Promise<{ paidMinor: number; refundedMinor: number; leftMinor: number; hadCredit: boolean }> {
+  const inv = (await db.select({ paid: salesDocs.paidMinor, credit: salesDocs.creditMinor }).from(salesDocs).where(eq(salesDocs.id, invoiceId)).limit(1))[0];
+  if (!inv) throw new SalesError('not_found');
+  const r = (await db
+    .select({ s: sql<number>`coalesce(sum(${payments.amountMinor}), 0)` })
+    .from(payments)
+    .innerJoin(salesDocs, eq(salesDocs.id, payments.docId))
+    .where(and(eq(salesDocs.originalDocId, invoiceId), eq(salesDocs.type, 'RETURN'), eq(salesDocs.status, 'POSTED'), eq(payments.kind, 'REFUND'), sql`${payments.method} <> 'credit'`, eq(payments.voided, false))))[0];
+  const refunded = Number(r?.s ?? 0);
+  return { paidMinor: inv.paid, refundedMinor: refunded, leftMinor: Math.max(0, inv.paid - refunded), hadCredit: inv.credit > 0 };
+}
+
+type SalesLineRow = typeof salesLines.$inferSelect;
+interface ReturnPlan {
+  lines: { line: SalesLineRow; amounts: { qtyMilli: number; netMinor: number; taxMinor: number; totalMinor: number } }[];
+  /** Σ line totals of this return. */
+  linesTotalMinor: number;
+  /** Cash rounding of this return (the last return reverses what is left of the invoice's rounding). */
+  roundingMinor: number;
+  totalMinor: number;
+}
+
+/**
+ * Plan a return: proportional amounts per line (the last return of a line takes the exact remainder), then
+ * - offers (BUY_X_GET_Y, quantity prices…): the units the customer KEEPS are re-priced with the same offers; a discount
+ *   they no longer qualify for is deducted from the refund (and given back when the rest is returned later);
+ * - cash rounding: partial returns are rounded to the same step as the invoice; the return that completes the invoice
+ *   reverses what is left of the invoice's rounding, so a full return refunds exactly what was paid.
+ */
+async function planReturn(db: Db, invoiceId: string, items: { lineId: string; qtyMilli: number }[], opts: { cashRoundingMinor?: number } = {}): Promise<ReturnPlan> {
+  const inv = (await db.select().from(salesDocs).where(eq(salesDocs.id, invoiceId)).limit(1))[0];
+  if (!inv) throw new SalesError('not_found');
   const orig = await db.select().from(salesLines).where(eq(salesLines.docId, invoiceId));
   const prior = await db
     .select({ orig: salesLines.originalLineId, qty: sql<number>`sum(${salesLines.qtyMilli})`, net: sql<number>`sum(${salesLines.netMinor})`, tax: sql<number>`sum(${salesLines.taxMinor})`, total: sql<number>`sum(${salesLines.totalMinor})` })
@@ -594,54 +704,143 @@ async function planReturn(db: Db, invoiceId: string, items: { lineId: string; qt
     .where(and(eq(salesDocs.originalDocId, invoiceId), eq(salesDocs.type, 'RETURN'), eq(salesDocs.status, 'POSTED')))
     .groupBy(salesLines.originalLineId);
   const priorBy = new Map(prior.map((p) => [p.orig, { qtyMilli: Number(p.qty), netMinor: Number(p.net), taxMinor: Number(p.tax), totalMinor: Number(p.total) }]));
-  return items
+  const zero = { qtyMilli: 0, netMinor: 0, taxMinor: 0, totalMinor: 0 };
+  const thisQty = new Map<string, number>();
+  const lines = items
     .filter((i) => i.qtyMilli > 0)
     .map((i) => {
       const line = orig.find((o) => o.id === i.lineId);
       if (!line) throw new SalesError('not_found');
-      const done = priorBy.get(line.id) ?? { qtyMilli: 0, netMinor: 0, taxMinor: 0, totalMinor: 0 };
-      if (i.qtyMilli > line.qtyMilli - done.qtyMilli) throw new SalesError('return_too_much', { lineId: line.id });
+      const done = priorBy.get(line.id) ?? zero;
+      if (i.qtyMilli > line.qtyMilli - done.qtyMilli - (thisQty.get(line.id) ?? 0)) throw new SalesError('return_too_much', { lineId: line.id });
+      thisQty.set(line.id, (thisQty.get(line.id) ?? 0) + i.qtyMilli);
       return { line, amounts: returnAmounts({ qtyMilli: line.qtyMilli, netMinor: line.netMinor, taxMinor: line.taxMinor, totalMinor: line.totalMinor }, done, i.qtyMilli) };
     });
+  if (!lines.length) return { lines, linesTotalMinor: 0, roundingMinor: 0, totalMinor: 0 };
+
+  const returnedAfter = (l: SalesLineRow) => (priorBy.get(l.id)?.qtyMilli ?? 0) + (thisQty.get(l.id) ?? 0);
+  const offerIds = [...new Set(orig.filter((l) => l.offerId && l.offerDiscountMinor > 0).map((l) => l.offerId!))];
+  if (offerIds.length) {
+    // The offers as they are defined (even if ended since), evaluated on the invoice's day.
+    const defs = (await db.select().from(offersTable).where(inArray(offersTable.id, offerIds)))
+      .map((r) => toDef(r))
+      .filter((o) => o.type !== 'COUPON')
+      .map((o) => ({ ...o, active: true, startsDay: null, endsDay: null }));
+    const catOf = new Map((await db.select({ id: products.id, cat: products.categoryId }).from(products).where(inArray(products.id, orig.map((l) => l.productId)))).map((r) => [r.id, r.cat]));
+    const kept = orig.map((l) => ({ l, qty: l.qtyMilli - returnedAfter(l) })).filter((k) => k.qty > 0);
+    const entitled = applyOffers(
+      kept.map(({ l, qty }) => ({ key: l.id, productId: l.productId, categoryId: catOf.get(l.productId) ?? null, qtyMilli: qty, factorMilli: l.factorMilli, unitPriceMinor: l.unitPriceMinor, priceOverridden: l.unitPriceMinor !== l.catalogPriceMinor })),
+      defs,
+      { day: inv.businessDay ?? 0 },
+    );
+    // Discount the kept units still carry (by proportion) minus what they are entitled to on their own.
+    let claw = 0;
+    for (const { l, qty } of kept) {
+      let d = mulDivRound(l.offerDiscountMinor, qty, l.qtyMilli) - (entitled.lines[l.id]?.discountMinor ?? 0);
+      if (!inv.pricesIncludeVat && d !== 0) d += Math.sign(d) * taxExclusive(Math.abs(d), l.taxRateBp);
+      claw += d;
+    }
+    // Cumulative refund the customer is due after this return, minus what earlier returns already refunded.
+    let propAfter = 0;
+    for (const l of orig) {
+      const back = returnedAfter(l);
+      propAfter += back >= l.qtyMilli ? l.totalMinor : mulDivRound(l.totalMinor, back, l.qtyMilli);
+    }
+    claw = Math.min(Math.max(0, claw), Math.max(0, propAfter));
+    const refundedBefore = [...priorBy.values()].reduce((s, p) => s + p.totalMinor, 0);
+    const due = Math.max(0, propAfter - claw - refundedBefore);
+    const base = lines.reduce((s, x) => s + x.amounts.totalMinor, 0);
+    if (due !== base) {
+      const weights = base > 0 ? lines.map((x) => x.amounts.totalMinor) : lines.map((x) => x.amounts.qtyMilli);
+      const shares = allocate(due, weights);
+      lines.forEach((x, i) => {
+        const total = shares[i]!;
+        const tax = x.line.totalMinor > 0 ? mulDivRound(total, x.line.taxMinor, x.line.totalMinor) : splitInclusive(total, x.line.taxRateBp).tax;
+        x.amounts = { qtyMilli: x.amounts.qtyMilli, netMinor: total - tax, taxMinor: tax, totalMinor: total };
+      });
+    }
+  }
+
+  const linesTotal = lines.reduce((s, x) => s + x.amounts.totalMinor, 0);
+  const completes = orig.every((l) => returnedAfter(l) >= l.qtyMilli);
+  let rounding = 0;
+  if (completes) {
+    const r = (await db
+      .select({ s: sql<number>`coalesce(sum(${salesDocs.roundingMinor}), 0)` })
+      .from(salesDocs)
+      .where(and(eq(salesDocs.originalDocId, invoiceId), eq(salesDocs.type, 'RETURN'), eq(salesDocs.status, 'POSTED'))))[0];
+    rounding = inv.roundingMinor - Number(r?.s ?? 0);
+  } else if ((opts.cashRoundingMinor ?? 0) > 0) {
+    const step = opts.cashRoundingMinor!;
+    rounding = divRound(linesTotal, step) * step - linesTotal;
+  }
+  if (linesTotal + rounding < 0) rounding = -linesTotal;
+  return { lines, linesTotalMinor: linesTotal, roundingMinor: rounding, totalMinor: linesTotal + rounding };
 }
 
 /**
- * Sales return linked to the original invoice (SPEC §5). Refund methods must add up to the return
- * total exactly; 'credit' reduces the customer's balance (only when the invoice had a customer).
+ * Sales return linked to the original invoice (SPEC §5). Refund methods must add up to the return total exactly;
+ * 'credit' reduces the customer's balance (only when the invoice had a customer). Money back (cash, card…) is capped
+ * at what the customer actually paid on the invoice (minus earlier refunds): the rest of a credit (آجل) invoice is
+ * taken off the customer's balance instead (result.creditMinor says how much).
  */
-export async function postReturn(ctx: SalesCtx, invoiceId: string, items: { lineId: string; qtyMilli: number }[], refunds: PaymentInput[], reason: string): Promise<PostResult> {
+export async function postReturn(ctx: SalesCtx, invoiceId: string, items: { lineId: string; qtyMilli: number }[], refunds: PaymentInput[], reason: string): Promise<PostResult & { creditMinor: number }> {
   requirePermission(ctx.user, 'sales.return');
   assertCanWrite();
   return withTx(ctx.db, async (tx) => {
     const t = now(ctx);
     const inv = (await tx.select().from(salesDocs).where(eq(salesDocs.id, invoiceId)).limit(1))[0];
     if (!inv || inv.type !== 'INVOICE' || inv.status !== 'POSTED') throw new SalesError('not_found');
-    const plan = await planReturn(tx, invoiceId, items);
+    const planned = await planReturn(tx, invoiceId, items, { cashRoundingMinor: ctx.settings.cashRoundingMinor });
+    const plan = planned.lines;
     if (!plan.length) throw new SalesError('empty_cart');
     const head = await chainHead(tx, ctx.device.id);
     if (t < head.postedAt) throw new SalesError('clock_behind');
-    const total = plan.reduce((s, p) => s + p.amounts.totalMinor, 0);
+    const total = planned.totalMinor;
+    const rounding = planned.roundingMinor;
     const net = plan.reduce((s, p) => s + p.amounts.netMinor, 0);
     const tax = plan.reduce((s, p) => s + p.amounts.taxMinor, 0);
     const refundSum = refunds.reduce((s, r) => s + r.amountMinor, 0);
     if (refundSum !== total || refunds.some((r) => r.amountMinor < 0)) throw new SalesError('refund_mismatch', { total });
     if (refunds.some((r) => r.method === 'credit' && r.amountMinor > 0) && !inv.customerId) throw new SalesError('credit_refund_without_customer');
+    // Money back never exceeds what was paid: the excess of a credit invoice comes off the customer's balance.
+    let room = (await refundablePaid(tx, invoiceId)).leftMinor;
+    let excess = 0;
+    const applied: PaymentInput[] = [];
+    for (const r of refunds.filter((x) => x.amountMinor > 0)) {
+      if (r.method === 'credit') {
+        applied.push(r);
+        continue;
+      }
+      const take = Math.min(r.amountMinor, room);
+      room -= take;
+      excess += r.amountMinor - take;
+      if (take > 0) applied.push({ ...r, amountMinor: take });
+    }
+    if (excess > 0) {
+      if (!inv.customerId) throw new SalesError('refund_mismatch', { total, paid: inv.paidMinor });
+      const c = applied.find((r) => r.method === 'credit');
+      if (c) c.amountMinor += excess;
+      else applied.push({ method: 'credit', amountMinor: excess });
+    }
 
     const day = businessDay(t, ctx.timezone);
-    const shiftId = await shiftIdFor(tx, ctx.device.id, !!ctx.settings.requireShift && refunds.some((r) => r.method === 'cash' && r.amountMinor > 0));
+    const shiftId = await shiftIdFor(tx, ctx.device.id, !!ctx.settings.requireShift && applied.some((r) => r.method === 'cash' && r.amountMinor > 0));
     const number = await nextDocNumber(tx, ctx.device, 'SALES_RETURN', 'RET');
     const docId = uuidv7(t);
     const base = { createdAt: t, updatedAt: t, createdBy: ctx.user.id, deviceId: ctx.device.id };
     const warehouseId = await defaultWarehouseId(tx);
+    // Only products that track stock NOW get a movement (tracking may have been switched off since the sale).
+    const tracked = new Set((await tx.select({ id: products.id }).from(products).where(and(inArray(products.id, plan.map((p) => p.line.productId)), eq(products.trackStock, true)))).map((r) => r.id));
     let cogs = 0;
     const lineIds = plan.map(() => uuidv7(t));
     for (const [i, p] of plan.entries()) {
       const baseQty = toBaseQty(p.amounts.qtyMilli, p.line.factorMilli);
-      if (p.line.unitCostMinor == null || baseQty === 0) continue;
+      if (p.line.unitCostMinor == null || baseQty === 0 || !tracked.has(p.line.productId)) continue;
       const [mv] = await postMovements(tx, ctx, warehouseId, [{ productId: p.line.productId, qtyMilli: baseQty, type: 'SALE_RETURN', unitCostMinor: p.line.unitCostMinor, sourceType: 'sales_doc', sourceId: docId, sourceLineId: lineIds[i] }]);
       cogs += mv!.valueMinor;
     }
-    const credit = refunds.filter((r) => r.method === 'credit').reduce((s, r) => s + r.amountMinor, 0);
+    const credit = applied.filter((r) => r.method === 'credit').reduce((s, r) => s + r.amountMinor, 0);
     await tx.insert(salesDocs).values({
       id: docId,
       ...base,
@@ -657,9 +856,10 @@ export async function postReturn(ctx: SalesCtx, invoiceId: string, items: { line
       issuedAt: t,
       businessDay: day,
       pricesIncludeVat: inv.pricesIncludeVat,
-      grossMinor: total,
+      grossMinor: planned.linesTotalMinor,
       netMinor: net,
       taxMinor: tax,
+      roundingMinor: rounding,
       totalMinor: total,
       paidMinor: total - credit,
       creditMinor: credit,
@@ -688,23 +888,26 @@ export async function postReturn(ctx: SalesCtx, invoiceId: string, items: { line
         netMinor: p.amounts.netMinor,
         taxMinor: p.amounts.taxMinor,
         totalMinor: p.amounts.totalMinor,
-        unitCostMinor: p.line.unitCostMinor,
+        // No stock came back (tracking off): no cost either, so profit reports don't count a phantom cost.
+        unitCostMinor: tracked.has(p.line.productId) ? p.line.unitCostMinor : null,
         originalLineId: p.line.id,
         businessDay: day,
       });
     }
-    for (const r of refunds.filter((x) => x.amountMinor > 0)) {
+    for (const r of applied) {
       await tx.insert(payments).values({ id: uuidv7(t), ...base, kind: 'REFUND', direction: 'OUT', method: r.method, label: r.label ?? null, amountMinor: r.amountMinor, partyType: inv.customerId ? 'C' : null, partyId: inv.customerId, docType: 'sales_doc', docId, shiftId, businessDay: day, postedAt: t });
     }
     if (credit > 0) await postPartyLedger(tx, ctx, { partyType: 'C', partyId: inv.customerId!, sourceType: 'sales_doc', sourceId: docId, debitMinor: 0, creditMinor: credit, businessDay: day, at: t });
     const jl: JournalLineInput[] = [{ account: 'SALES_RETURNS', debit: net }, { account: 'VAT_OUT', debit: tax }];
-    for (const r of refunds.filter((x) => x.amountMinor > 0)) jl.push({ account: METHOD_ACCOUNT[r.method], credit: r.amountMinor, ...(r.method === 'credit' ? { partyType: 'C' as const, partyId: inv.customerId } : {}) });
-    if (cogs > 0) jl.push({ account: 'INVENTORY', debit: cogs }, { account: 'COGS', credit: cogs });
+    // Reverse the rounding: the invoice credited ROUNDING with +r, the refund debits it back (signed).
+    if (rounding !== 0) jl.push(signedLine('ROUNDING', rounding));
+    for (const r of applied) jl.push({ account: METHOD_ACCOUNT[r.method], credit: r.amountMinor, ...(r.method === 'credit' ? { partyType: 'C' as const, partyId: inv.customerId } : {}) });
+    if (cogs !== 0) jl.push(signedLine('INVENTORY', cogs), signedLine('COGS', -cogs));
     await postJournal(tx, ctx, { sourceType: 'sales_doc', sourceId: docId, businessDay: day, memo: number, lines: jl, at: t });
     await sealSalesDoc(tx, ctx, docId, 'SALES_RETURN', t);
     await rollupDoc(tx, docId, 1);
-    await appendAudit(tx, { action: 'sale.return', entity: 'sales_docs', entityId: docId, after: { number, of: inv.number, total }, reason, userId: ctx.user.id, deviceId: ctx.device.id, at: t });
-    return { docId, number, totalMinor: total, changeMinor: 0 };
+    await appendAudit(tx, { action: 'sale.return', entity: 'sales_docs', entityId: docId, after: { number, of: inv.number, total, ...(excess > 0 ? { movedToCredit: excess } : {}) }, reason, userId: ctx.user.id, deviceId: ctx.device.id, at: t });
+    return { docId, number, totalMinor: total, changeMinor: 0, creditMinor: credit };
   });
 }
 
@@ -723,6 +926,7 @@ export async function voidSale(ctx: SalesCtx, docId: string, reason: string): Pr
     const t = now(ctx);
     const doc = (await tx.select().from(salesDocs).where(eq(salesDocs.id, docId)).limit(1))[0];
     if (!doc || doc.type !== 'INVOICE' || doc.status !== 'POSTED') throw new SalesError('not_voidable');
+    if (t < (await chainHead(tx, ctx.device.id)).postedAt) throw new SalesError('clock_behind');
     const day = businessDay(t, ctx.timezone);
     try {
       await assertVoidWindow(tx, doc.shiftId, doc.businessDay, t, ctx.timezone);
@@ -734,9 +938,12 @@ export async function voidSale(ctx: SalesCtx, docId: string, reason: string): Pr
 
     const lines = await tx.select().from(salesLines).where(eq(salesLines.docId, docId));
     const warehouseId = await defaultWarehouseId(tx);
+    const tracked = new Set((await tx.select({ id: products.id }).from(products).where(and(inArray(products.id, lines.map((l) => l.productId)), eq(products.trackStock, true)))).map((r) => r.id));
+    let back = 0;
     for (const l of lines) {
-      if (l.unitCostMinor == null || l.baseQtyMilli === 0) continue;
-      await postMovements(tx, ctx, warehouseId, [{ productId: l.productId, qtyMilli: l.baseQtyMilli, type: 'VOID_REVERSAL', unitCostMinor: l.unitCostMinor, sourceType: 'sales_void', sourceId: docId, sourceLineId: l.id, reason }]);
+      if (l.unitCostMinor == null || l.baseQtyMilli === 0 || !tracked.has(l.productId)) continue;
+      const [mv] = await postMovements(tx, ctx, warehouseId, [{ productId: l.productId, qtyMilli: l.baseQtyMilli, type: 'VOID_REVERSAL', unitCostMinor: l.unitCostMinor, sourceType: 'sales_void', sourceId: docId, sourceLineId: l.id, reason }]);
+      back += mv!.valueMinor;
     }
     if (doc.creditMinor > 0 && doc.customerId) await postPartyLedger(tx, ctx, { partyType: 'C', partyId: doc.customerId, sourceType: 'sales_void', sourceId: docId, debitMinor: 0, creditMinor: doc.creditMinor, businessDay: day, at: t });
     // Mirror the original journal entry.
@@ -751,6 +958,11 @@ export async function voidSale(ctx: SalesCtx, docId: string, reason: string): Pr
         at: t,
         lines: jl.map((x) => ({ account: x.key as never, debit: x.c, credit: x.d, ...(x.pt ? { partyType: x.pt as 'C', partyId: x.pid } : {}) })),
       });
+      // The mirror put back the cost the sale took out; the stock value actually changed by `back`
+      // (average reset on negative stock, tracking switched off…): post the difference so INVENTORY = Σ stock values.
+      const mirrored = jl.filter((x) => x.key === 'INVENTORY').reduce((s, x) => s + x.c - x.d, 0);
+      const diff = back - mirrored;
+      if (diff !== 0) await postJournal(tx, ctx, { sourceType: 'sales_void', sourceId: docId, businessDay: day, memo: `void ${doc.number} cost`, at: t, lines: [signedLine('INVENTORY', diff), signedLine('COGS', -diff)] });
     }
     await tx.update(payments).set({ voided: true }).where(eq(payments.docId, docId));
     await rollupDoc(tx, docId, -1);

@@ -5,7 +5,7 @@
  * Units: quantities in milli-units of the product's BASE unit; money in minor units;
  * avg cost is per ONE base unit (minor units).
  */
-import { assertInt, divRound, mulDivRound, QTY_ONE } from './money';
+import { assertInt, mulDivRound, QTY_ONE } from './money';
 
 export const MOVEMENT_TYPES = [
   'OPENING',
@@ -44,29 +44,45 @@ function valueOf(qtyMilli: number, avg: number): number {
   return mulDivRound(qtyMilli, avg, QTY_ONE);
 }
 
+export interface AppliedMovement {
+  level: StockLevel;
+  /** Unit cost the movement is valued at (stored on the movement row). */
+  unitCostMinor: number;
+  /** The movement's own value (signed): qty × unit cost (an outbound movement that empties the stock takes exactly the remaining value). */
+  valueMinor: number;
+  /**
+   * Value correction on top of the movement's own value: non-zero only when an inbound movement with its own cost
+   * arrives while stock is zero/negative (the average resets, so units sold "below zero" are re-valued at the new cost,
+   * and any rounding residue left at zero is cleared). Invariant: level.value − old.value = valueMinor + trueUpMinor.
+   * Callers post it (COGS / stock adjustment) so the journal INVENTORY account always equals Σ stock values.
+   */
+  trueUpMinor: number;
+}
+
 /**
- * Apply one movement to a level (moving weighted average):
- * - inbound with cost, stock > 0: avg = (oldValue + qty × cost) / (oldQty + qty)
- * - inbound with cost, stock ≤ 0: avg resets to the inbound cost
- * - inbound without cost / outbound: avg unchanged
- * Returns the new level and the unit cost the movement is valued at (stored on the movement row).
+ * Apply one movement to a level (moving weighted average). The stock VALUE is kept exact (old value + movement value),
+ * the average is derived from it, so the stock value never drifts from the sum of the posted movement values:
+ * - inbound with cost, stock > 0: value += qty × cost; avg = value / qty
+ * - inbound with cost, stock ≤ 0: avg resets to the inbound cost; value = qty × cost (difference = trueUpMinor)
+ * - inbound without cost / outbound: avg unchanged, valued at the average; emptying the stock takes the exact value
  */
-export function applyMovement(level: StockLevel, m: MovementInput, fallbackCostMinor = 0): { level: StockLevel; unitCostMinor: number } {
+export function applyMovement(level: StockLevel, m: MovementInput, fallbackCostMinor = 0): AppliedMovement {
   assertInt(m.qtyMilli, 'qtyMilli');
   const qty = level.qtyMilli + m.qtyMilli;
   if (m.qtyMilli > 0 && m.unitCostMinor != null) {
     assertInt(m.unitCostMinor, 'unitCostMinor');
-    let avg: number;
+    const mvValue = valueOf(m.qtyMilli, m.unitCostMinor);
     if (level.qtyMilli <= 0) {
-      avg = m.unitCostMinor;
-    } else {
-      const totalValue = level.valueMinor + valueOf(m.qtyMilli, m.unitCostMinor);
-      avg = divRound(totalValue * QTY_ONE, qty);
+      const value = valueOf(qty, m.unitCostMinor);
+      return { level: { qtyMilli: qty, avgCostMinor: m.unitCostMinor, valueMinor: value }, unitCostMinor: m.unitCostMinor, valueMinor: mvValue, trueUpMinor: value - level.valueMinor - mvValue };
     }
-    return { level: { qtyMilli: qty, avgCostMinor: avg, valueMinor: valueOf(qty, avg) }, unitCostMinor: m.unitCostMinor };
+    const value = level.valueMinor + mvValue;
+    const avg = Math.max(0, mulDivRound(value, QTY_ONE, qty));
+    return { level: { qtyMilli: qty, avgCostMinor: avg, valueMinor: value }, unitCostMinor: m.unitCostMinor, valueMinor: mvValue, trueUpMinor: 0 };
   }
   const avg = level.avgCostMinor > 0 ? level.avgCostMinor : fallbackCostMinor;
-  return { level: { qtyMilli: qty, avgCostMinor: avg, valueMinor: valueOf(qty, avg) }, unitCostMinor: avg };
+  const mvValue = qty === 0 ? -level.valueMinor : valueOf(m.qtyMilli, avg);
+  return { level: { qtyMilli: qty, avgCostMinor: avg, valueMinor: level.valueMinor + mvValue }, unitCostMinor: avg, valueMinor: mvValue, trueUpMinor: 0 };
 }
 
 /** Replay a whole ledger (in order) from zero. Used by the rebuild and by tests. */

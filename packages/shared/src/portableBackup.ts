@@ -4,7 +4,7 @@
  * frames whose AAD includes SHA-256 of the header), but the data key is random per file and travels in the header,
  * wrapped with a key derived from a passphrase the owner chose at export time:
  *
- *   KEK        = scrypt(NFC(passphrase), salt, N = 2^15, r = 8, p = 1, dkLen = 32)
+ *   KEK        = scrypt(NFC(passphrase), salt, N = 2^14, r = 8, p = 1, dkLen = 32)   (files made before: N = 2^15)
  *   wrappedKey = AES-256-GCM(KEK, nonce, AAD = "kashiro-portable/1").encrypt(dataKey)    (32 + 16 bytes)
  *
  * The header is readable without the passphrase and holds NO customer data: business name, date, counts, schema
@@ -29,7 +29,10 @@ export interface PortableKdf {
   r: number;
   p: number;
 }
-export const PORTABLE_KDF: PortableKdf = { name: 'scrypt', N: 2 ** 15, r: 8, p: 1 };
+/** 2^14 (16 MB) keeps export/restore to a few seconds on low-end phones; 2^15 files from earlier versions still open. */
+export const PORTABLE_KDF: PortableKdf = { name: 'scrypt', N: 2 ** 14, r: 8, p: 1 };
+/** Largest work factor accepted when reading a file (memory = 128·N·r bytes = 32 MB at the cap). */
+export const PORTABLE_KDF_MAX_N = 2 ** 15;
 
 export interface PortableHeader {
   format: typeof PORTABLE_FORMAT;
@@ -63,7 +66,7 @@ const pow2 = (n: number) => Number.isInteger(n) && n >= 2 && (n & (n - 1)) === 0
 /** Bounds so a crafted file cannot make the phone run a huge KDF (memory = 128·N·r bytes). */
 function validKdf(k: unknown): k is PortableKdf {
   const x = k as PortableKdf;
-  return !!x && x.name === 'scrypt' && pow2(x.N) && x.N <= 2 ** 17 && Number.isInteger(x.r) && x.r >= 1 && x.r <= 16 && Number.isInteger(x.p) && x.p >= 1 && x.p <= 4;
+  return !!x && x.name === 'scrypt' && pow2(x.N) && x.N <= PORTABLE_KDF_MAX_N && Number.isInteger(x.r) && x.r >= 1 && x.r <= 8 && Number.isInteger(x.p) && x.p >= 1 && x.p <= 4;
 }
 
 function b64(s: unknown, len: number): boolean {

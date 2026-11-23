@@ -57,6 +57,11 @@ async function shop(c: ReturnType<typeof makeClient>, phone: string) {
   return { h, businessId: r.json.business.id as string };
 }
 
+/** Paid (non-trial) plan: the only case where the expensive retry model may be used. */
+async function paid(c: ReturnType<typeof makeClient>, businessId: string) {
+  await c.env.DB.prepare(`UPDATE businesses SET status = 'active', plan_expires_at = ?2 WHERE id = ?1`).bind(businessId, c.clock.now + 90 * 86_400_000).run();
+}
+
 function setup(replies: Reply[] = []) {
   const fake = fakeClaude(replies);
   const c = makeClient(1_800_000_000_000, { ocrClient: () => fake.client });
@@ -77,7 +82,7 @@ describe('invoice scan (OCR)', () => {
     expect(fake.sent).toHaveLength(1);
     const p = fake.sent[0];
     expect(p.model).toBe('claude-haiku-5-5');
-    expect(p.max_tokens).toBe(4096);
+    expect(p.max_tokens).toBe(16000);
     expect(p.output_config.effort).toBe('low');
     expect(p.output_config.format.type).toBe('json_schema');
     expect(p.output_config.format.schema.additionalProperties).toBe(false);
@@ -94,9 +99,10 @@ describe('invoice scan (OCR)', () => {
     expect(u1.json).toEqual({ used: 1, limit: 150 });
   });
 
-  it('Haiku fails (refusal) → Opus retry with server-side fallbacks; counted once, both usages recorded', async () => {
+  it('paid plan: Haiku fails (refusal) → Opus retry with server-side fallbacks; counted once, both usages recorded', async () => {
     const { c, fake } = setup([{ stop: 'refusal', text: '', inTok: 1500, outTok: 5 }, { json: GOOD, inTok: 1700, outTok: 400 }]);
     const s = await shop(c, '01088888802');
+    await paid(c, s.businessId);
     const r = await c.call('POST', '/v1/purchases/scan', { businessId: s.businessId, image: JPEG }, s.h);
     expect(r.status).toBe(200);
     expect(r.json.used).toBe(1);
@@ -108,12 +114,13 @@ describe('invoice scan (OCR)', () => {
     expect(JSON.parse(rows.results[0].calls_json).map((x: any) => x.outcome)).toEqual(['refusal', 'ok']);
   });
 
-  it('Haiku inconsistent totals / bad JSON / API error each trigger the Opus retry', async () => {
+  it('paid plan: Haiku inconsistent totals / bad JSON / API error each trigger the Opus retry', async () => {
     const bad = { ...GOOD, total: 5000, subtotal: 5000 };
     const firsts: Reply[] = [{ json: bad }, { text: 'not json' }, { throws: true }, { json: { ...GOOD, lines: [] } }, { stop: 'max_tokens' }];
     for (const [i, first] of firsts.entries()) {
       const { c, fake } = setup([first, { json: GOOD }]);
       const s = await shop(c, `0109999990${i}`);
+      await paid(c, s.businessId);
       const r = await c.call('POST', '/v1/purchases/scan', { businessId: s.businessId, image: JPEG }, s.h);
       expect(r.status).toBe(200);
       expect(fake.sent.map((x) => x.model)).toEqual(['claude-haiku-5-5', 'claude-opus-5-5']);
@@ -123,6 +130,7 @@ describe('invoice scan (OCR)', () => {
   it('both models refuse → 422 ocr_failed, not counted against the quota', async () => {
     const { c } = setup([{ stop: 'refusal', text: '' }, { stop: 'refusal', text: '' }]);
     const s = await shop(c, '01088888803');
+    await paid(c, s.businessId);
     const r = await c.call('POST', '/v1/purchases/scan', { businessId: s.businessId, image: JPEG }, s.h);
     expect(r.status).toBe(422);
     expect(r.json.error.code).toBe('ocr_failed');

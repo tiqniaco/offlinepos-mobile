@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { asc } from 'drizzle-orm';
 import { Screen, Text, Button, Card, Banner, IconBadge } from '../../ui';
 import { getDb } from '../../db/client';
-import { verifyChain, type ChainReport } from '../../domain/integrity/chain';
+import { saveChainCheckpoint, verifyChain, type ChainReport } from '../../domain/integrity/chain';
 import { verifyAuditRowsChunked, type ChainCheck } from '../../domain/audit/audit';
 import { errorMessage } from '../../lib/errors';
 import { auditLog } from '../../db/schema';
@@ -30,7 +30,10 @@ export default function Integrity() {
       void (async () => {
         try {
           const db = getDb();
-          setDoc(await verifyChain(db, device.id, { yieldEvery: 50 }));
+          const r = await verifyChain(db, device.id, { yieldEvery: 50 });
+          setDoc(r);
+          // A full pass that came out clean is the new starting point for the daily (incremental) check.
+          if (r.ok) await saveChainCheckpoint(db, device.id, { seq: r.count, hash: r.head });
           setAudit(await verifyAuditRowsChunked(await db.select().from(auditLog).orderBy(asc(auditLog.seq))));
           setAnchors(await verifyAnchors(db, device.id));
         } catch (e) {

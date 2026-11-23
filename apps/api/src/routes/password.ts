@@ -1,6 +1,7 @@
 /**
  * Phone + password login for the owner account.
- *  - login: generic "invalid_credentials" (never says whether the phone exists); 5 failures → 15 min lock, doubling.
+ *  - login: generic "invalid_credentials" (never says whether the phone exists or has a password); 5 failures → 15 min
+ *    lock, doubling. Attempts are claimed atomically before PBKDF2; per-IP / per-phone hourly caps on top.
  *  - set: allowed right after an SMS code (the OTP login opens a 10-minute window on that session) or with the
  *    current password. Every change signs out all OTHER sessions (lost / stolen phone after a reset).
  */
@@ -10,6 +11,7 @@ import type { AppEnv } from '../env';
 import { ApiError, body, clientIp } from '../lib/http';
 import { pbkdf2Hex, safeEqual, PBKDF2_ITERATIONS } from '../lib/crypto';
 import { createSession, requireSession } from '../auth/tokens';
+import { bumpCounter } from '../otp/service';
 import type { Deps } from './v1';
 
 const FREE_FAILS = 5;
@@ -30,31 +32,67 @@ async function check(acc: AccRow, password: string) {
   return safeEqual(await pbkdf2Hex(password, acc.password_salt, acc.password_iters ?? PBKDF2_ITERATIONS), acc.password_hash);
 }
 
+const HOUR = 3_600_000;
+/** Password attempts per IP / per phone per hour (on top of the per-account lock). */
+export const PASSWORD_PER_IP_HOUR = 30;
+export const PASSWORD_PER_PHONE_HOUR = 20;
+const lockedError = (until: number, now: number) => new ApiError(429, 'password_locked', String(Math.ceil((until - now) / 1000)));
+
+/**
+ * Claims one password attempt atomically BEFORE the (slow) PBKDF2 check: password_failed is bumped and, from the
+ * FREE_FAILS-th attempt on, a provisional lock is written in the same statement, so parallel guesses cannot get past
+ * the limit. Returns null when the account has no password; throws password_locked when it is locked.
+ */
+async function claimAttempt(env: AppEnv['Bindings'], where: { phone: string } | { id: string }, now: number): Promise<AccRow | null> {
+  const [col, val] = 'phone' in where ? ['phone', where.phone] : ['id', where.id];
+  const row = await env.DB.prepare(
+    `UPDATE accounts SET password_failed = password_failed + 1,
+       password_locked_until = CASE WHEN password_failed + 1 >= ?3 THEN ?4 ELSE password_locked_until END
+     WHERE ${col} = ?1 AND password_hash IS NOT NULL AND (password_locked_until IS NULL OR password_locked_until <= ?2)
+     RETURNING id, phone, password_hash, password_salt, password_iters, password_failed, password_locked_until`,
+  )
+    .bind(val, now, FREE_FAILS, now + lockMs(FREE_FAILS))
+    .first<AccRow>();
+  if (row) return row;
+  const acc = await env.DB.prepare(`SELECT password_hash, password_locked_until FROM accounts WHERE ${col} = ?1`).bind(val).first<{ password_hash: string | null; password_locked_until: number | null }>();
+  if (acc?.password_hash && acc.password_locked_until && acc.password_locked_until > now) throw lockedError(acc.password_locked_until, now);
+  return null;
+}
+
+/** After the check: success clears the counter; a failure sets the real (doubling) lock when due. */
+async function settleAttempt(env: AppEnv['Bindings'], acc: AccRow, ok: boolean, now: number): Promise<number | null> {
+  if (ok) {
+    await env.DB.prepare(`UPDATE accounts SET password_failed = 0, password_locked_until = NULL WHERE id = ?1`).bind(acc.id).run();
+    return null;
+  }
+  const failed = acc.password_failed; // already counted by claimAttempt
+  if (failed < FREE_FAILS) return null;
+  const until = now + lockMs(failed);
+  await env.DB.prepare(`UPDATE accounts SET password_locked_until = MAX(COALESCE(password_locked_until, 0), ?2) WHERE id = ?1`).bind(acc.id, until).run();
+  return until;
+}
+
 export function addPasswordRoutes(app: Hono<AppEnv>, deps: Deps, businessesOf: (env: AppEnv['Bindings'], accountId: string) => Promise<unknown[]>) {
   app.post('/auth/password/login', async (c) => {
     const b = await body(c, passwordLoginSchema);
     const phone = normalizePhone(b.phone);
     if (!phone) throw new ApiError(401, 'invalid_credentials');
     const now = deps.now();
-    const acc = await c.env.DB.prepare(`SELECT id, phone, password_hash, password_salt, password_iters, password_failed, password_locked_until FROM accounts WHERE phone = ?1`)
-      .bind(phone)
-      .first<AccRow>();
-    if (acc?.password_locked_until && acc.password_locked_until > now) {
-      throw new ApiError(429, 'password_locked', String(Math.ceil((acc.password_locked_until - now) / 1000)));
-    }
-    if (!acc || !acc.password_hash) {
-      // Same work as a real check so timing does not reveal which phones have accounts.
+    if ((await bumpCounter(c.env.DB, `pw-ip:${clientIp(c)}`, HOUR, now)) > PASSWORD_PER_IP_HOUR) throw new ApiError(429, 'rate_limited', 'too many attempts from this network');
+    if ((await bumpCounter(c.env.DB, `pw-phone:${phone}`, HOUR, now)) > PASSWORD_PER_PHONE_HOUR) throw new ApiError(429, 'rate_limited', 'too many attempts for this number');
+    const acc = await claimAttempt(c.env, { phone }, now);
+    if (!acc) {
+      // Unknown phone or an SMS-only account: same answer and the same work, so neither is revealed.
       await pbkdf2Hex(b.password, '00'.repeat(16));
-      throw new ApiError(401, acc ? 'password_not_set' : 'invalid_credentials');
-    }
-    if (!(await check(acc, b.password))) {
-      const failed = acc.password_failed + 1;
-      const until = failed >= FREE_FAILS ? now + lockMs(failed) : null;
-      await c.env.DB.prepare(`UPDATE accounts SET password_failed = ?2, password_locked_until = ?3 WHERE id = ?1`).bind(acc.id, failed, until).run();
-      if (until) throw new ApiError(429, 'password_locked', String(Math.ceil((until - now) / 1000)));
       throw new ApiError(401, 'invalid_credentials');
     }
-    await c.env.DB.prepare(`UPDATE accounts SET password_failed = 0, password_locked_until = NULL, last_login_at = ?2 WHERE id = ?1`).bind(acc.id, now).run();
+    const ok = await check(acc, b.password);
+    const until = await settleAttempt(c.env, acc, ok, now);
+    if (!ok) {
+      if (until) throw lockedError(until, now);
+      throw new ApiError(401, 'invalid_credentials');
+    }
+    await c.env.DB.prepare(`UPDATE accounts SET last_login_at = ?2 WHERE id = ?1`).bind(acc.id, now).run();
     const tokens = await createSession(c.env, { accountId: acc.id, device: b.device, ip: clientIp(c), now });
     return c.json({
       accessToken: tokens.accessToken,
@@ -78,10 +116,19 @@ export function addPasswordRoutes(app: Hono<AppEnv>, deps: Deps, businessesOf: (
     const fresh = (win?.r ?? 0) > now || (s.stepUpUntil ?? 0) > now;
     if (!fresh) {
       if (!b.currentPassword) throw new ApiError(403, 'step_up_required');
-      if (acc.password_locked_until && acc.password_locked_until > now) throw new ApiError(429, 'password_locked', String(Math.ceil((acc.password_locked_until - now) / 1000)));
-      if (!(await check(acc, b.currentPassword))) {
-        const failed = acc.password_failed + 1;
-        await c.env.DB.prepare(`UPDATE accounts SET password_failed = ?2, password_locked_until = ?3 WHERE id = ?1`).bind(acc.id, failed, failed >= FREE_FAILS ? now + lockMs(failed) : null).run();
+      // A password alone must not take over a shop that is in use on another phone: that needs an SMS step-up.
+      const other = await c.env.DB.prepare(
+        `SELECT 1 AS x FROM devices d JOIN businesses z ON z.id = d.business_id
+         WHERE z.owner_account_id = ?1 AND d.deactivated_at IS NULL AND (d.session_id IS NULL OR d.session_id != ?2) LIMIT 1`,
+      )
+        .bind(acc.id, s.sid)
+        .first();
+      if (other) throw new ApiError(403, 'step_up_required');
+      const claimed = await claimAttempt(c.env, { id: acc.id }, now);
+      const ok = !!claimed && (await check(claimed, b.currentPassword));
+      const until = claimed ? await settleAttempt(c.env, claimed, ok, now) : null;
+      if (!ok) {
+        if (until) throw lockedError(until, now);
         throw new ApiError(401, 'invalid_credentials');
       }
     }

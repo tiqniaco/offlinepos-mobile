@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { portablePassphraseOk } from '@daftarak/shared';
+import { businessDay, portablePassphraseOk } from '@daftarak/shared';
+import { DateRangeBar, type RangeKey } from '../../features/common/DateRange';
 import { useTranslation } from 'react-i18next';
 import { NoScreenshots } from '../../features/NoScreenshots';
 import { Screen, Text, Card, Button, Banner, IconBadge, SectionTitle, PasswordField, colors, fonts } from '../../ui';
@@ -34,6 +35,9 @@ export default function BackupScreen() {
   const [pass, setPass] = useState('');
   const [pass2, setPass2] = useState('');
   const [passErr, setPassErr] = useState<string | null>(null);
+  const tz = useApp((s) => s.settings.timezone ?? 'Africa/Cairo');
+  const today = businessDay(Date.now(), tz);
+  const [xRange, setXRange] = useState<{ key: RangeKey; from: number; to: number }>({ key: 'all', from: 20000101, to: today });
 
   const load = useCallback(() => {
     void lastBackup().then(setLast);
@@ -56,7 +60,7 @@ export default function BackupScreen() {
         setForm(false);
         setPass('');
         setPass2('');
-      } else await exportAllToExcel();
+      } else await exportAllToExcel({ range: xRange.key === 'all' ? null : { from: xRange.from, to: xRange.to }, onProgress: (v) => setP({ v, stage: 'excel' }) });
       fx.success();
       if (kind === 'cloud') setMsg({ tone: 'success', text: t('backup.done') });
       if (kind === 'local') setMsg({ tone: 'success', text: t('portable.done') });
@@ -96,7 +100,7 @@ export default function BackupScreen() {
       <Banner tone="info" text={t('backup.autoHint')} />
       {busy ? (
         <Card>
-          <Text variant="subtitle">{p.stage === 'upload' ? t('backup.uploading') : p.stage === 'key' ? t('portable.securing') : t('backup.building')}</Text>
+          <Text variant="subtitle">{p.stage === 'upload' ? t('backup.uploading') : p.stage === 'key' ? t('portable.securing') : p.stage === 'excel' ? t('backup.excelBuilding') : t('backup.building')}</Text>
           <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.paper.sunk, marginTop: 8, overflow: 'hidden' }}>
             <View style={{ width: `${Math.round((p.stage === 'upload' ? 0.97 : p.v) * 100)}%`, height: 8, backgroundColor: colors.primary[500] }} />
           </View>
@@ -134,6 +138,8 @@ export default function BackupScreen() {
         <Button testID="portable-start" kind="secondary" icon="file" title={t('portable.exportTitle')} disabled={!!busy} onPress={() => setForm(true)} />
       )}
       <SectionTitle>{t('backup.offline')}</SectionTitle>
+      <Text variant="caption">{t('backup.excelRange')}</Text>
+      <DateRangeBar value={xRange} today={today} onChange={setXRange} presets={['all', 'month', 'lastMonth', 'year', 'custom']} />
       <Button kind="secondary" icon="sheet" title={t('backup.excel')} loading={busy === 'excel'} disabled={!!busy} onPress={() => void run('excel')} />
       <Text variant="caption">{t('backup.privacy')}</Text>
       {docs ? <Text variant="caption">{t('portable.restoreHasDocs')}</Text> : <Button kind="ghost" icon="download" title={t('portable.restoreTitle')} disabled={!!busy} onPress={() => router.push('/settings/restore-file')} />}

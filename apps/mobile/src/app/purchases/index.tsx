@@ -76,6 +76,8 @@ export default function Purchases() {
             onEndReached={loadMore}
             onEndReachedThreshold={0.5}
             contentContainerStyle={{ paddingBottom: 90 }}
+            // The ad sits at the TOP of the list, far from the floating + (no accidental taps).
+            ListHeaderComponent={<AdBanner place="purchases" />}
             ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
             renderItem={({ item }) => (
               <DocRow
@@ -93,7 +95,6 @@ export default function Purchases() {
           />
         )}
       </Screen>
-      <AdBanner place="purchases" />
       <Fab testID="purchase-add" onPress={() => router.push('/purchases/new')} />
     </View>
   );

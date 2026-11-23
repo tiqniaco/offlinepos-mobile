@@ -23,6 +23,8 @@ export interface PricingLineInput {
   /** Automatic offer discount for this line (from applyOffers), applied BEFORE the manual discount. */
   offerDiscountMinor?: number;
   offerId?: string | null;
+  /** Whether the coupon applies to this line (product/category-scoped coupons). Default true. */
+  couponEligible?: boolean;
 }
 
 export interface PricingInput {
@@ -110,10 +112,15 @@ export function priceCart(input: PricingInput): PricedCart {
   });
 
   const afterTotal = pre.reduce((s, x) => s + x.after, 0);
-  const coupon = Math.min(Math.max(0, input.couponMinor ?? 0), afterTotal);
+  // A scoped coupon is shared only by the lines it applies to (never by out-of-scope lines).
+  const couponWeights = pre.map((x) => (x.l.couponEligible === false ? 0 : x.after));
+  const couponBase = couponWeights.reduce((s, w) => s + w, 0);
+  const coupon = Math.min(Math.max(0, input.couponMinor ?? 0), couponBase);
   assertInt(coupon, 'coupon');
+  const couponShares = coupon > 0 ? allocate(coupon, couponWeights) : pre.map(() => 0);
   const invoiceDiscount = discountAmount(afterTotal - coupon, input.invoiceDiscount);
-  const shares = allocate(coupon + invoiceDiscount, pre.map((x) => x.after));
+  const invoiceShares = allocate(invoiceDiscount, pre.map((x, i) => x.after - couponShares[i]!));
+  const shares = pre.map((_, i) => couponShares[i]! + invoiceShares[i]!);
 
   const lines: PricedLine[] = pre.map((x, i) => {
     const amount = x.after - shares[i]!;
