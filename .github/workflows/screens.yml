@@ -1,0 +1,80 @@
+# Real-device screen tour: release APK (x86_64) on an Android emulator (KVM), local Worker with a fixed OTP,
+# Maestro visits every screen and takes screenshots (also with the keyboard open). Artifacts: screens + timings.
+name: screens
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: screens
+  cancel-in-progress: true
+jobs:
+  tour:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: gradle/actions/setup-gradle@v4
+      - run: pnpm install --frozen-lockfile
+
+      - name: Local API (D1 + fixed OTP 123456)
+        working-directory: apps/api
+        run: |
+          cp .dev.vars.example .dev.vars && echo "OTP_FIXED_CODE=123456" >> .dev.vars
+          npx wrangler d1 migrations apply daftarak --local
+          nohup npx wrangler dev --port 8787 --ip 0.0.0.0 > /tmp/api.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:8787/health && break; sleep 2; done
+
+      - name: Build release APK for the emulator (x86_64)
+        working-directory: apps/mobile
+        env:
+          E2E: '1'
+          NODE_ENV: production
+          EXPO_PUBLIC_API_URL: http://10.0.2.2:8787
+          # Dev licence key (local Worker signs with the dev key in .dev.vars.example)
+          EXPO_PUBLIC_LICENCE_PUBLIC_KEY: dev:9266fb073a85bb00d2e8df5a408c6186cfcf525f3a630cec0b849f0eed5f8e17
+        run: |
+          npx expo prebuild --platform android --clean --no-install
+          cd android && ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=x86_64 -Dorg.gradle.jvmargs="-Xmx6g -XX:MaxMetaspaceSize=1g"
+
+      - run: curl -fsSL https://get.maestro.mobile.dev | bash && echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+
+      - name: Emulator + screen tour
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          profile: pixel_6
+          ram-size: 4096M
+          disable-animations: false
+          emulator-options: -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: |
+            adb install -r apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+            adb shell settings put system locale ar-EG || true
+            mkdir -p tour-out && cd tour-out && maestro test ../apps/mobile/.maestro/tour/tour.yaml --debug-output debug --format junit --output report.xml || true
+            adb logcat -d -s ReactNativeJS:V AndroidRuntime:E > logcat.txt || true
+
+      - name: API log
+        if: always()
+        run: tail -200 /tmp/api.log > tour-out/api.log || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screens
+          path: |
+            tour-out/shots/
+            tour-out/report.xml
+            tour-out/logcat.txt
+            tour-out/api.log
+            tour-out/debug/**/commands-*.json
+          retention-days: 7

@@ -1,0 +1,11 @@
+# Open one screen by its link, wait, screenshot the top and (after a scroll) the rest, then go back.
+appId: app.daftarak
+---
+- openLink: "daftarak://${ROUTE}"
+- waitForAnimationToEnd: { timeout: 4000 }
+- takeScreenshot: shots/${NAME}
+- scroll
+- waitForAnimationToEnd: { timeout: 2000 }
+- takeScreenshot: shots/${NAME}-b
+- back
+- waitForAnimationToEnd: { timeout: 2000 }

@@ -69,6 +69,7 @@ const config: ExpoConfig = {
     './plugins/withReleaseSigning',
     './plugins/withLibraryBuildConfig',
     './plugins/withLegacyLocationOnly',
+    './plugins/withE2ECleartext',
     ['expo-splash-screen', { image: './assets/splash-icon.png', imageWidth: 160, backgroundColor: '#0F4CC7' }],
   ],
   experiments: { typedRoutes: true },

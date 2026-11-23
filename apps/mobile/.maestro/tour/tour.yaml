@@ -1,0 +1,166 @@
+# Screen tour on a real Android emulator: sign up, then visit EVERY screen (top + scrolled) with screenshots,
+# including keyboard-open states on forms. Run by .github/workflows/screens.yml; screenshots are uploaded.
+appId: app.daftarak
+---
+- launchApp: { clearState: true }
+- waitForAnimationToEnd: { timeout: 8000 }
+- takeScreenshot: shots/a01-welcome
+- tapOn: { id: welcome-start }
+- takeScreenshot: shots/a02-phone
+- tapOn: { id: phone-input }
+- inputText: "01000000001"
+- takeScreenshot: shots/a03-phone-keyboard
+- tapOn: { id: phone-send }
+- waitForAnimationToEnd: { timeout: 6000 }
+- takeScreenshot: shots/a04-otp
+- tapOn: { id: otp-input }
+- inputText: "123456"
+- waitForAnimationToEnd: { timeout: 6000 }
+- takeScreenshot: shots/a05-password
+- tapOn: { id: password-1 }
+- inputText: "Test2026ok"
+- tapOn: { id: password-2 }
+- inputText: "Test2026ok"
+- takeScreenshot: shots/a06-password-keyboard
+- hideKeyboard
+- tapOn: { id: password-save }
+- waitForAnimationToEnd: { timeout: 6000 }
+- takeScreenshot: shots/a07-business
+- tapOn: { id: business-name }
+- inputText: "سوبر ماركت النور"
+- takeScreenshot: shots/a08-business-keyboard
+- hideKeyboard
+- tapOn: { id: business-next }
+- waitForAnimationToEnd: { timeout: 4000 }
+- takeScreenshot: shots/a09-owner
+- tapOn: { id: owner-name }
+- inputText: "أحمد"
+- hideKeyboard
+- tapOn: { id: owner-finish }
+- extendedWaitUntil: { visible: { id: home-sell }, timeout: 60000 }
+- takeScreenshot: shots/b01-home
+- scroll
+- takeScreenshot: shots/b02-home-scrolled
+# Sample data so lists, invoices and reports have content
+- scrollUntilVisible: { element: { text: "جرّب ببيانات تجريبية.*" }, direction: DOWN, timeout: 10000, optional: true }
+- tapOn: { text: "جرّب ببيانات تجريبية.*", optional: true }
+- waitForAnimationToEnd: { timeout: 8000 }
+- scroll
+- takeScreenshot: shots/b03-home-after-sample
+# Tabs
+- tapOn: { text: "البيع" }
+- waitForAnimationToEnd
+- takeScreenshot: shots/c01-sell-empty
+- tapOn: { id: pos-search, optional: true }
+- inputText: "شاي"
+- takeScreenshot: shots/c02-sell-search-keyboard
+- tapOn: { text: "شاي.*", index: 1, optional: true }
+- hideKeyboard
+- tapOn: { id: pos-search, optional: true }
+- inputText: "أرز"
+- tapOn: { text: "أرز.*", index: 1, optional: true }
+- hideKeyboard
+- takeScreenshot: shots/c03-sell-cart
+- tapOn: { id: pos-pay, optional: true }
+- waitForAnimationToEnd
+- takeScreenshot: shots/c04-pay
+- tapOn: { id: pay-confirm, optional: true }
+- waitForAnimationToEnd: { timeout: 6000 }
+- takeScreenshot: shots/c05-done
+- back
+- tapOn: { text: "المنتجات" }
+- waitForAnimationToEnd
+- takeScreenshot: shots/d01-products
+- scroll
+- takeScreenshot: shots/d02-products-scrolled
+- tapOn: { text: "العملاء" }
+- waitForAnimationToEnd
+- takeScreenshot: shots/e01-parties
+- tapOn: { text: "الموردين", optional: true }
+- takeScreenshot: shots/e02-suppliers
+- tapOn: { text: "المزيد" }
+- waitForAnimationToEnd
+- takeScreenshot: shots/f01-more
+- scroll
+- takeScreenshot: shots/f02-more-scrolled
+- tapOn: { text: "الرئيسية" }
+# Forms with the keyboard open (the field at the bottom must stay visible)
+- openLink: "daftarak://products/form"
+- waitForAnimationToEnd
+- takeScreenshot: shots/g01-product-form
+- tapOn: { text: "مثلاً.*", optional: true }
+- inputText: "منتج اختبار"
+- takeScreenshot: shots/g02-product-form-keyboard
+- scroll
+- scroll
+- takeScreenshot: shots/g03-product-form-bottom-keyboard
+- hideKeyboard
+- back
+- back
+- openLink: "daftarak://parties/form?type=C"
+- waitForAnimationToEnd
+- takeScreenshot: shots/g04-customer-form
+- scroll
+- scroll
+- takeScreenshot: shots/g05-customer-form-bottom
+- back
+# Every other screen (top + scrolled)
+- runFlow: { file: visit.yaml, env: { ROUTE: "search", NAME: "h01-search" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "inbox", NAME: "h02-inbox" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "sales", NAME: "h03-sales" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "sales/drafts", NAME: "h04-drafts" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "purchases", NAME: "h05-purchases" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "purchases/new", NAME: "h06-purchase-new" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "vouchers", NAME: "h07-vouchers" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "vouchers/new?type=RECEIPT", NAME: "h08-voucher-receipt" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "vouchers/new?type=EXPENSE", NAME: "h09-voucher-expense" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "expenses", NAME: "h10-expenses" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "expenses/categories", NAME: "h11-expense-categories" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "shifts", NAME: "h12-shifts" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "offers", NAME: "h13-offers" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "offers/form", NAME: "h14-offer-form" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "products/categories", NAME: "h15-categories" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "products/import", NAME: "h16-import" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "products/count", NAME: "h17-stock-count" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "products/bulk", NAME: "h18-bulk" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "products/check", NAME: "h19-price-check" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "reports", NAME: "i00-reports" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "reports/sales_day", NAME: "i01-r-sales-day" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "reports/sales_product", NAME: "i02-r-sales-product" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "reports/sales_category", NAME: "i03-r-sales-category" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "reports/sales_customer", NAME: "i04-r-sales-customer" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "reports/sales_user", NAME: "i05-r-sales-user" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "reports/pnl", NAME: "i06-r-pnl" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "reports/stock_valuation", NAME: "i07-r-stock" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "reports/slow_stock", NAME: "i08-r-slow" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "reports/expiring", NAME: "i09-r-expiring" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "reports/aging_c", NAME: "i10-r-aging-c" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "reports/aging_s", NAME: "i11-r-aging-s" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "reports/purchases", NAME: "i12-r-purchases" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "reports/expenses", NAME: "i13-r-expenses" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "reports/shifts", NAME: "i14-r-shifts" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "reports/discounts_user", NAME: "i15-r-discounts" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "settings/users", NAME: "j01-users" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "settings/user-form", NAME: "j02-user-form" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "settings/subscription", NAME: "j03-subscription" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "settings/security", NAME: "j04-security" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "settings/password", NAME: "j05-password" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "settings/appearance", NAME: "j06-appearance" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "settings/language", NAME: "j07-language" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "settings/printers", NAME: "j08-printers" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "settings/receipt", NAME: "j09-receipt" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "settings/backup", NAME: "j10-backup" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "settings/sessions", NAME: "j11-sessions" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "settings/integrity", NAME: "j12-integrity" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "settings/audit", NAME: "j13-audit" } }
+# Lock screen and unlock with the password
+- tapOn: { text: "الرئيسية", optional: true }
+- tapOn: { id: home-lock, optional: true }
+- waitForAnimationToEnd
+- takeScreenshot: shots/k01-lock
+- tapOn: { id: lock-password, optional: true }
+- inputText: "Test2026ok"
+- takeScreenshot: shots/k02-lock-keyboard
+- tapOn: { id: pin-ok, optional: true }
+- waitForAnimationToEnd: { timeout: 8000 }
+- takeScreenshot: shots/k03-after-unlock
