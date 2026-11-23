@@ -21,6 +21,8 @@ export interface PlanLimits {
   parties: number;
   invoices_month: number;
   backups_kept: number;
+  /** Supplier-invoice photo scans (OCR) per calendar month. 0 = not in the plan. Old licences without it read as 0. */
+  ocr_month: number;
 }
 
 export interface PlanDefinition {
@@ -45,7 +47,7 @@ export const DEFAULT_PLANS: PlanDefinition[] = [
     nameEn: 'Free',
     monthly: { EGP: 0, SAR: 0 },
     yearly: { EGP: 0, SAR: 0 },
-    limits: { users: 1, products: 100, parties: 50, invoices_month: 150, backups_kept: 3 },
+    limits: { users: 1, products: 100, parties: 50, invoices_month: 150, backups_kept: 3, ocr_month: 0 },
     features: [],
     isFree: true,
     trialDays: 0,
@@ -56,7 +58,7 @@ export const DEFAULT_PLANS: PlanDefinition[] = [
     nameEn: 'Basic',
     monthly: { EGP: 14_900, SAR: 3_900 },
     yearly: { EGP: 149_000, SAR: 39_000 },
-    limits: { users: 3, products: 3000, parties: UNLIMITED, invoices_month: 3000, backups_kept: 7 },
+    limits: { users: 3, products: 3000, parties: UNLIMITED, invoices_month: 3000, backups_kept: 7, ocr_month: 30 },
     features: ['no_ads', 'multi_unit', 'offers', 'expenses_shifts'],
     isFree: false,
     trialDays: 0,
@@ -67,7 +69,7 @@ export const DEFAULT_PLANS: PlanDefinition[] = [
     nameEn: 'Pro',
     monthly: { EGP: 29_900, SAR: 7_900 },
     yearly: { EGP: 299_000, SAR: 79_000 },
-    limits: { users: 10, products: UNLIMITED, parties: UNLIMITED, invoices_month: UNLIMITED, backups_kept: 30 },
+    limits: { users: 10, products: UNLIMITED, parties: UNLIMITED, invoices_month: UNLIMITED, backups_kept: 30, ocr_month: 150 },
     features: ['no_ads', 'multi_unit', 'offers', 'expenses_shifts', 'expiry', 'adv_reports', 'custom_roles'],
     isFree: false,
     trialDays: 14,

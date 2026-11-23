@@ -20,6 +20,8 @@ const limitsSchema = z.object({
   parties: z.number().int(),
   invoices_month: z.number().int(),
   backups_kept: z.number().int(),
+  /** Added later: licences signed before it existed have no OCR (0). */
+  ocr_month: z.number().int().default(0),
 });
 
 const featureSchema = z.enum(FEATURES);
@@ -105,7 +107,7 @@ export interface LicenceState {
   graceDaysLeft: number | null;
 }
 
-const READ_ONLY_LIMITS: PlanLimits = { users: 0, products: 0, parties: 0, invoices_month: 0, backups_kept: 0 };
+const READ_ONLY_LIMITS: PlanLimits = { users: 0, products: 0, parties: 0, invoices_month: 0, backups_kept: 0, ocr_month: 0 };
 
 export interface LicenceContext {
   now: number;

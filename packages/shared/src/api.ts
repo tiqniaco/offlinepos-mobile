@@ -209,6 +209,38 @@ export const paymentRequestSummarySchema = z.object({
 export type PaymentRequestSummary = z.infer<typeof paymentRequestSummarySchema>;
 export const paymentRequestListSchema = z.object({ requests: z.array(paymentRequestSummarySchema) });
 
+// ── Supplier invoice scan (OCR via Claude; paid plans, monthly quota `ocr_month`) ──
+/** Max decoded image size for a scan (the app sends a ~1280 px JPEG, usually 150-400 KB). */
+export const OCR_IMAGE_MAX_BYTES = 1.5 * 1024 * 1024;
+export const OCR_MAX_LINES = 100;
+
+export const ocrScanRequestSchema = z.object({
+  businessId: z.string().min(1),
+  /** base64 JPEG / PNG (a `data:image/...;base64,` prefix is accepted). */
+  image: z.string().min(8).max(Math.ceil((OCR_IMAGE_MAX_BYTES * 4) / 3) + 100),
+});
+export type OcrScanRequest = z.infer<typeof ocrScanRequestSchema>;
+
+/** Money is in major units (EGP) as printed on the invoice; the app converts to minor units. */
+export const ocrLineSchema = z.object({ name: z.string(), qty: z.number(), unitPrice: z.number().nullable(), total: z.number().nullable() });
+export type OcrLine = z.infer<typeof ocrLineSchema>;
+export const ocrUsageSchema = z.object({ used: z.number(), limit: z.number() });
+export type OcrUsage = z.infer<typeof ocrUsageSchema>;
+export const ocrScanResponseSchema = z.object({
+  supplierName: z.string().nullable(),
+  invoiceNo: z.string().nullable(),
+  date: z.string().nullable(),
+  currency: z.string().nullable(),
+  lines: z.array(ocrLineSchema),
+  subtotal: z.number().nullable(),
+  discount: z.number().nullable(),
+  tax: z.number().nullable(),
+  total: z.number().nullable(),
+  used: z.number(),
+  limit: z.number(),
+});
+export type OcrScanResponse = z.infer<typeof ocrScanResponseSchema>;
+
 export const apiErrorSchema = z.object({
   error: z.object({ code: z.string(), message: z.string(), retryAfterMs: z.number().optional() }),
 });
@@ -242,5 +274,9 @@ export const API_ERROR_CODES = [
   'too_many_pending',
   'rate_limited',
   'not_pending',
+  'ocr_not_in_plan',
+  'ocr_quota_exceeded',
+  'ocr_failed',
+  'ocr_unavailable',
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];

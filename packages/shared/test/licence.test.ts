@@ -6,7 +6,7 @@ import {
   DAY_MS,
   type LicencePayload,
 } from '../src/licence';
-import { ed25519GenerateSecretKey, ed25519PublicKey, base64urlEncode, utf8ToBytes } from '../src/crypto';
+import { ed25519GenerateSecretKey, ed25519PublicKey, ed25519Sign, base64urlEncode, utf8ToBytes } from '../src/crypto';
 import { DEFAULT_PLANS } from '../src/plans';
 
 const sk = ed25519GenerateSecretKey();
@@ -45,6 +45,22 @@ const ctx = (now: number, over: Partial<{ deviceId: string; maxSeenTime: number 
 const state = (p: LicencePayload, now: number, over = {}) => computeLicenceState(verifyLicence(signLicence(p, sk), keys), ctx(now, over));
 
 describe('licence token', () => {
+  it('plans carry the monthly OCR quota (free has none)', () => {
+    expect(DEFAULT_PLANS.map((p) => [p.code, p.limits.ocr_month])).toEqual([['free', 0], ['basic', 30], ['pro', 150]]);
+  });
+  it('an old licence signed before ocr_month existed still verifies and reads OCR as 0', () => {
+    const strip = ({ ocr_month: _o, ...rest }: typeof pro.limits) => rest;
+    const old = { ...payload(), limits: strip(pro.limits), fallback: { plan: 'free', limits: strip(free.limits), features: [] } };
+    const body = base64urlEncode(utf8ToBytes(JSON.stringify(old)));
+    const token = `lic1.${body}.${base64urlEncode(ed25519Sign(utf8ToBytes(`lic1.${body}`), sk))}`;
+    const v = verifyLicence(token, keys);
+    expect(v.ok).toBe(true);
+    if (v.ok) {
+      expect(v.payload.limits.ocr_month).toBe(0);
+      expect(v.payload.fallback.limits.ocr_month).toBe(0);
+    }
+    expect(computeLicenceState(v, ctx(NOW)).limits.ocr_month).toBe(0);
+  });
   it('signs and verifies offline', () => {
     const v = verifyLicence(signLicence(payload(), sk), keys);
     expect(v.ok).toBe(true);
