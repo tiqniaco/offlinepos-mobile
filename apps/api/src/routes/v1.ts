@@ -138,6 +138,19 @@ export function v1Routes(deps: Deps = defaultDeps) {
 
   addPasswordRoutes(app, deps, businessesOf);
 
+  /** Crash reports from the app (no auth: the app may be signed out). Capped per IP per hour; no personal data. */
+  app.post('/client-errors', async (c) => {
+    const b = await body(c, z.object({ where: z.string().max(40), message: z.string().max(500), stack: z.string().max(1500).optional(), appVersion: z.string().max(40).optional(), platform: z.string().max(20).optional() }));
+    const now = deps.now();
+    const ip = clientIp(c);
+    const n = await c.env.DB.prepare(`SELECT COUNT(*) AS n FROM client_errors WHERE ip = ?1 AND at > ?2`).bind(ip, now - 3_600_000).first<{ n: number }>();
+    if ((n?.n ?? 0) >= 20) return c.json({ ok: true });
+    await c.env.DB.prepare(`INSERT INTO client_errors (id, where_, message, stack, app_version, platform, ip, at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`)
+      .bind(uuidv7(now), b.where, b.message, b.stack ?? null, b.appVersion ?? null, b.platform ?? null, ip, now)
+      .run();
+    return c.json({ ok: true });
+  });
+
   /** Public licence verification key (the app embeds it at build time). Public by design, like a JWKS. */
   app.get('/licence/public-key', (c) => c.json({ kid: c.env.LICENCE_KID, publicKey: ed25519PublicKey(c.env.LICENCE_SIGNING_KEY) }));
 

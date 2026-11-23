@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, Switch, View } from 'react-native';
+import { Alert, Switch, View } from 'react-native';
+import { Pressable } from '../../ui/Press';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { OFFER_TYPES, type OfferDef, type OfferType } from '@daftarak/shared';

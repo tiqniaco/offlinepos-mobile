@@ -1,4 +1,5 @@
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, ScrollView, View } from 'react-native';
+import { Pressable } from './Press';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { fonts } from './fonts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

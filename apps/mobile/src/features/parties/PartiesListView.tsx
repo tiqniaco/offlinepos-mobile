@@ -1,5 +1,6 @@
 /** Customers / suppliers list (pure view; container: app/(main)/parties.tsx). */
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
+import { Pressable } from '../../ui/Press';
 import { FlashList } from '@shopify/flash-list';
 import { useTranslation } from 'react-i18next';
 import { Text, TextField, Chip, Avatar, Icon, EmptyState, Fab, colors, fonts, shadow } from '../../ui';

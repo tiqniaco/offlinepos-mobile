@@ -93,3 +93,12 @@ describe('licence public key endpoint', () => {
     expect(r.json.kid).toBeTruthy();
   });
 });
+
+describe('client error reports', () => {
+  it('stores a report and caps per IP', async () => {
+    const c = makeClient();
+    for (let i = 0; i < 22; i++) expect((await c.call('POST', '/v1/client-errors', { where: 'main', message: `boom ${i}`, stack: 'at Home', appVersion: '1.0.0', platform: 'android' })).status).toBe(200);
+    const n = await c.env.DB.prepare(`SELECT COUNT(*) AS n FROM client_errors`).first<any>();
+    expect(n.n).toBe(20);
+  });
+});

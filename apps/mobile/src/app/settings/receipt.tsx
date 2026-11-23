@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Image, Pressable, Switch, View } from 'react-native';
+import { Image, Switch, View } from 'react-native';
+import { Pressable } from '../../ui/Press';
 import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';
 import { uuidv7 } from '@daftarak/shared';

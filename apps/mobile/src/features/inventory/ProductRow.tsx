@@ -1,4 +1,5 @@
-import { Image, Pressable, View } from 'react-native';
+import { Image, View } from 'react-native';
+import { Pressable } from '../../ui/Press';
 import { fonts } from '../../ui/fonts';
 import { useTranslation } from 'react-i18next';
 import { Text, Icon, colors, shadow } from '../../ui';

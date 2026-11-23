@@ -1,5 +1,5 @@
 # Shows the last SMS deliveries (masked phone, provider, provider reply). No codes or credentials are stored.
-name: otp-diagnose
+name: otp-diagnose (SMS + app crashes)
 on:
   workflow_dispatch:
 permissions:
@@ -27,3 +27,6 @@ jobs:
           sed -i "s/00000000-0000-0000-0000-000000000000/$ID/g" wrangler.jsonc
           npx wrangler d1 execute daftarak --remote --env production --command \
             "SELECT datetime(at/1000,'unixepoch') AS time, phone_masked, provider, ok, detail FROM otp_send_log ORDER BY at DESC LIMIT 15"
+          echo "===== App crash reports ====="
+          npx wrangler d1 execute daftarak --remote --env production --command \
+            "SELECT datetime(at/1000,'unixepoch') AS time, where_, app_version, platform, message, substr(stack,1,700) AS stack FROM client_errors ORDER BY at DESC LIMIT 10"

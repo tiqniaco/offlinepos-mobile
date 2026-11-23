@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
+import { Pressable } from './Press';
 import { useTranslation } from 'react-i18next';
 import { TextField } from './TextField';
 import { Text } from './Text';

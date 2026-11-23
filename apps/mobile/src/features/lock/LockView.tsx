@@ -1,4 +1,5 @@
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
+import { Pressable } from '../../ui/Press';
 import { fonts } from '../../ui/fonts';
 import { useTranslation } from 'react-i18next';
 import { Text, Hero, Avatar, PinDots, PinPad, PasswordField, Button, Logo, shadow, colors } from '../../ui';

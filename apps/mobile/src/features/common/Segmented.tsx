@@ -1,4 +1,5 @@
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
+import { Pressable } from '../../ui/Press';
 import { Text, colors, fonts } from '../../ui';
 import { haptic } from '../../ui/haptics';
 

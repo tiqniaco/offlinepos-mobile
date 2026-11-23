@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
+import { Pressable } from './Press';
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 import { haptic } from './haptics';
 import { fx } from './fx';

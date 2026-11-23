@@ -1,6 +1,7 @@
 import { useRef, useState, type ComponentRef } from 'react';
 import { fonts } from './fonts';
-import { Platform, Pressable, TextInput, View } from 'react-native';
+import { Platform, TextInput, View } from 'react-native';
+import { Pressable } from './Press';
 import { digitsOnly } from '@daftarak/shared';
 import { Text } from './Text';
 import colors from './colors';

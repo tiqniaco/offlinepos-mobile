@@ -8,7 +8,7 @@ import { deleteCategory, listCategories, saveCategory, CATEGORY_COLORS } from '.
 import { useInvCtx } from '../../features/inventory/useInvCtx';
 import { invErrorMessage } from '../../features/inventory/errors';
 import { toast } from '../../state/toast';
-import { Pressable } from 'react-native';
+import { Pressable } from '../../ui/Press';
 
 type Cat = Awaited<ReturnType<typeof listCategories>>[number];
 

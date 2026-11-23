@@ -1,4 +1,5 @@
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
+import { Pressable } from './Press';
 import { fonts } from './fonts';
 import { Text } from './Text';
 import { IconBadge, type Hue } from './IconBadge';

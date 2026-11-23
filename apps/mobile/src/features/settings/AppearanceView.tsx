@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Pressable, Switch, View } from 'react-native';
+import { Switch, View } from 'react-native';
+import { Pressable } from '../../ui/Press';
 import { fonts } from '../../ui/fonts';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';

@@ -1,5 +1,6 @@
 /** First-use tip: shown once per screen until dismissed (stored per phone in settings.tipsSeen). */
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
+import { Pressable } from '../ui/Press';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import { Text, Icon, colors, fonts } from '../ui';

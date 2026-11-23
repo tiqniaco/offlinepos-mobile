@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { fonts } from '../../ui/fonts';
-import { Alert, Pressable, TextInput, View, Platform } from 'react-native';
+import { Alert, TextInput, View, Platform } from 'react-native';
+import { Pressable } from '../../ui/Press';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { normalizeBarcode, normalizeDigits } from '@daftarak/shared';

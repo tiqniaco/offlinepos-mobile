@@ -1,4 +1,5 @@
-import { Image, Pressable, ScrollView, View } from 'react-native';
+import { Image, ScrollView, View } from 'react-native';
+import { Pressable } from '../../ui/Press';
 import { fonts } from '../../ui/fonts';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

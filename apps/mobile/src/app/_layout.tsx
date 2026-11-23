@@ -19,7 +19,24 @@ import { modalOptions, stackOptions } from '../ui/motion';
 import { PrintHost } from '../features/printing/PrintHost';
 import { colors, useTheme, applyTheme } from '../ui';
 
+import { CrashScreen, reportClientError } from '../features/errors/CrashScreen';
+
 void SplashScreen.preventAutoHideAsync();
+
+// Errors outside rendering (promises, handlers) are reported too.
+const g = globalThis as unknown as { ErrorUtils?: { getGlobalHandler: () => (e: unknown, fatal?: boolean) => void; setGlobalHandler: (h: (e: unknown, fatal?: boolean) => void) => void } };
+if (g.ErrorUtils) {
+  const prev = g.ErrorUtils.getGlobalHandler();
+  g.ErrorUtils.setGlobalHandler((e, fatal) => {
+    reportClientError(e, fatal ? 'fatal' : 'global');
+    prev(e, fatal);
+  });
+}
+
+/** Any render error anywhere: show it (with retry) instead of a black screen, and report it. */
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Promise<void> }) {
+  return <CrashScreen error={error} retry={retry} where="root" />;
+}
 
 export default function RootLayout() {
   const status = useApp((s) => s.status);

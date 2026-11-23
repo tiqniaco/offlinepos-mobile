@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
+import { Pressable } from '../../ui/Press';
 import { useTranslation } from 'react-i18next';
 import { roleHas } from '@daftarak/shared';
 import { Sheet, Text, Avatar, PinDots, PinPad, Button, colors, fonts } from '../../ui';

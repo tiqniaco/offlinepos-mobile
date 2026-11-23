@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { fonts } from '../../ui/fonts';
-import { Image, Pressable, Switch, View } from 'react-native';
+import { Image, Switch, View } from 'react-native';
+import { Pressable } from '../../ui/Press';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';

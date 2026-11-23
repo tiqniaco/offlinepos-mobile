@@ -1,4 +1,5 @@
-import { Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
+import { Pressable } from '../../ui/Press';
 import { fonts } from '../../ui/fonts';
 import { useTranslation } from 'react-i18next';
 import { Text, Hero, Avatar, Card, IconBadge, Icon, Button, SectionTitle, colors, type IconName, type Hue } from '../../ui';

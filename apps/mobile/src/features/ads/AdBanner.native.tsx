@@ -2,7 +2,8 @@
  * Anchored adaptive banner for allowed places only (PLAN.md §18). Renders nothing for paid plans, offline,
  * or in a place that is not on the allow-list — no empty box, nothing blocks work. Small "remove ads" link.
  */
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
+import { Pressable } from '../../ui/Press';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';

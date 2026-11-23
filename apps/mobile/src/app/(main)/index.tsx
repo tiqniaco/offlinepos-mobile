@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
+import { Pressable } from '../../ui/Press';
 import { router, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_PLANS, businessDay, roleHas } from '@daftarak/shared';

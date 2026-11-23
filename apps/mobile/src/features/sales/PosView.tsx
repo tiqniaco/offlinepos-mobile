@@ -1,4 +1,5 @@
-import { Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Platform, ScrollView, TextInput, View } from 'react-native';
+import { Pressable } from '../../ui/Press';
 import { useTranslation } from 'react-i18next';
 import Animated, { FadeInUp, FadeOutLeft, LinearTransition } from 'react-native-reanimated';
 import { normalizeDigits, type PricedCart } from '@daftarak/shared';

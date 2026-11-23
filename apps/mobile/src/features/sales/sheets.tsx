@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
+import { Pressable } from '../../ui/Press';
 import { useTranslation } from 'react-i18next';
 import type { Discount } from '@daftarak/shared';
 import { Sheet, Text, Button, QtyField, MoneyField, TextField, Chip, ListGroup, ListRow, Icon, Avatar, colors, fonts } from '../../ui';

@@ -1,4 +1,5 @@
-import { Pressable, ScrollView, TextInput, View, Platform } from 'react-native';
+import { ScrollView, TextInput, View, Platform } from 'react-native';
+import { Pressable } from '../../ui/Press';
 import { fonts } from '../../ui/fonts';
 import { FlashList } from '@shopify/flash-list';
 import { useTranslation } from 'react-i18next';

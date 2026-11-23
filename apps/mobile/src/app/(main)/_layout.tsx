@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, colors, type IconName } from '../../ui';
 import { haptic } from '../../ui/haptics';
+import { CrashScreen } from '../../features/errors/CrashScreen';
 
 function TabIcon({ name, focused }: { name: IconName; focused: boolean }) {
   return (
@@ -12,6 +13,10 @@ function TabIcon({ name, focused }: { name: IconName; focused: boolean }) {
       <Icon name={name} size={21} color={focused ? colors.primary[700] : colors.ink.mute} />
     </View>
   );
+}
+
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Promise<void> }) {
+  return <CrashScreen error={error} retry={retry} where="main" />;
 }
 
 export default function MainLayout() {
