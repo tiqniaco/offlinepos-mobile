@@ -23,6 +23,7 @@ import { providerFor, type OtpProvider } from '../otp/providers';
 import { createSession, requireSession, revokeSession, rotateRefresh } from '../auth/tokens';
 import { buildLicence, getPlan, signAnchorReceipt, type BusinessRow, type DeviceRow } from '../licence/issue';
 import { addPasswordRoutes } from './password';
+import { addReleaseRoutes } from './releases';
 import { matches, sendExpoPush, type PushMessage, type Target } from '../announce/announce';
 import { addPhase6Routes, commitBackup, setIntegrityChecker, startBackup } from './phase6';
 import { blocks, verifyIntegrity, type IntegrityInput } from '../integrity/verify';
@@ -137,6 +138,7 @@ export function v1Routes(deps: Deps = defaultDeps) {
   });
 
   addPasswordRoutes(app, deps, businessesOf);
+  addReleaseRoutes(app);
 
   /** Crash reports from the app (no auth: the app may be signed out). Capped per IP per hour; no personal data. */
   app.post('/client-errors', async (c) => {

@@ -1392,5 +1392,15 @@
   },
   "unlockReset": {
     "body": "Needs internet. We'll text a code to the account's number"
+  },
+  "update": {
+    "title": "Update available {{v}}",
+    "forcedTitle": "Update required",
+    "forcedBody": "A new version ({{v}}) must be installed to continue.",
+    "now": "Update now",
+    "later": "Later",
+    "downloading": "Downloading update… {{p}}%",
+    "failed": "The download didn't finish. Check the connection and try again.",
+    "safe": "All your data and sales stay as they are."
   }
 }

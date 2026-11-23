@@ -38,7 +38,8 @@ const config: ExpoConfig = {
     // Data stays on the phone and in our own encrypted backups (Phase 6), never in Google auto-backup.
     allowBackup: false,
     // Location only for Bluetooth scanning on Android ≤ 11 (added by react-native-ble-plx with maxSdkVersion 30).
-    permissions: ['CAMERA', 'BLUETOOTH', 'BLUETOOTH_ADMIN', 'BLUETOOTH_CONNECT', 'BLUETOOTH_SCAN'],
+    // REQUEST_INSTALL_PACKAGES: in-app updates outside the store (removed from Play builds: STORE_BUILD=1).
+    permissions: ['CAMERA', 'BLUETOOTH', 'BLUETOOTH_ADMIN', 'BLUETOOTH_CONNECT', 'BLUETOOTH_SCAN', ...(process.env.STORE_BUILD === '1' ? [] : ['REQUEST_INSTALL_PACKAGES'])],
     // Never ask for what the app does not use (store review + customer trust).
     blockedPermissions: ['android.permission.RECORD_AUDIO', 'android.permission.SYSTEM_ALERT_WINDOW', 'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK'],
   },

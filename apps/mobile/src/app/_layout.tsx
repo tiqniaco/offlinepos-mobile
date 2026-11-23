@@ -21,6 +21,7 @@ import { colors, useTheme, applyTheme } from '../ui';
 
 import { CrashScreen, reportClientError } from '../features/errors/CrashScreen';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { UpdateGate } from '../features/update/UpdateGate';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -114,6 +115,7 @@ export default function RootLayout() {
           </Stack.Protected>
         </Stack>
         <ToastHost />
+        <UpdateGate />
         {status === 'ready' ? (
           <>
             <PrintHost />
