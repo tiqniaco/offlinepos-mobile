@@ -22,6 +22,8 @@
   "env": {
     "production": {
       "name": "daftarak-api",
+      // Served only on the custom domain (no *.workers.dev address).
+      "workers_dev": false,
       "d1_databases": [
         { "binding": "DB", "database_name": "daftarak", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
       ],
