@@ -1,0 +1,16 @@
+appId: app.daftarak
+name: Printing never loses a sale (no printer → sale saved, toast offers reprint)
+---
+- launchApp
+- runFlow: { file: subflows/unlock.yaml }
+- tapOn: { id: home-sell }
+- tapOn: { id: pos-search }
+- inputText: "مياه"
+- tapOn: { text: "مياه 1.5 لتر" }
+- tapOn: { id: pos-pay }
+- tapOn: { id: pay-confirm }
+- assertVisible: { id: done-new }
+- tapOn: { text: "اطبع.*" }
+- assertVisible: { text: ".*طابعة.*" }
+- tapOn: { id: done-new }
+- tapOn: { id: tab-home, optional: true }

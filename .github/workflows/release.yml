@@ -1,0 +1,32 @@
+# Signed store builds on EAS (PLAN.md Phase 7). Triggered by a version tag (v1.2.3) or manually.
+# Secrets: EXPO_TOKEN (EAS), plus build-time env in EAS secrets: ADMOB_*, REVENUECAT_*, GCP_PROJECT_NUMBER,
+# SUPPORT_WHATSAPP, EAS_PROJECT_ID. Signing keys are managed by EAS (Play upload key / Apple distribution).
+name: release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: android | ios | all
+        default: all
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r --if-present typecheck
+      - run: pnpm --filter @daftarak/shared test && pnpm --filter @daftarak/mobile test
+      - uses: expo/expo-github-action@v8
+        with: { eas-version: latest, token: '${{ secrets.EXPO_TOKEN }}' }
+      - name: EAS production build (signed AAB / IPA)
+        working-directory: apps/mobile
+        env:
+          APP_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          export APP_VERSION="${APP_VERSION#v}"
+          eas build --platform ${{ inputs.platform || 'all' }} --profile production --non-interactive --no-wait

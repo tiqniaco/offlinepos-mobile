@@ -10,3 +10,5 @@ SMSMISR_USERNAME=
 SMSMISR_PASSWORD=
 SMSMISR_SENDER=
 SMSMISR_TEMPLATE=
+# E2E (Maestro) only — console provider: every OTP is this code.
+# OTP_FIXED_CODE=123456

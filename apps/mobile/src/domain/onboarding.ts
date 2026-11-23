@@ -9,6 +9,7 @@ import { buildInitialSettings, COUNTRY_PROFILES, uuidv7, type AuthResponse, type
 import type { Db as AppDb } from '../db/types';
 import { withTx } from '../db/tx';
 import { business, devices, docSequences } from '../db/schema';
+import { integrityToken } from '../features/integrity/integrity';
 import { api } from '../api/client';
 import { APP_VERSION } from '../config/env';
 import { SECURE_KEYS, getOrCreateBackupKey, getOrCreateInstallId, setSecret } from '../lib/secure';
@@ -110,6 +111,7 @@ export async function createBusinessOnline(db: AppDb, auth: AuthResponse, form: 
     vatRegistered: form.vatRegistered,
     backupKey: await getOrCreateBackupKey(),
     device: await deviceInfo(),
+    integrity: await integrityToken('signup'),
   });
   await writeLocal(db, auth, reg, form, owner);
 }
@@ -119,7 +121,7 @@ export async function createBusinessOnline(db: AppDb, auth: AuthResponse, form: 
  * Until backup/restore ships (Phase 6) this starts with empty data — the UI says so clearly first.
  */
 export async function attachExistingBusiness(db: AppDb, auth: AuthResponse, businessId: string, owner: OwnerForm, vatNumber: string | null) {
-  const reg = await api.attachDevice(auth.accessToken, businessId, await deviceInfo());
+  const reg = await api.attachDevice(auth.accessToken, businessId, await deviceInfo(), await integrityToken('attach'));
   const b = reg.business;
   await writeLocal(db, auth, reg, { name: b.name, country: b.country, type: b.type, vatRegistered: vatNumber != null, vatNumber }, owner);
 }

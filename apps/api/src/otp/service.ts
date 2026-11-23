@@ -64,7 +64,8 @@ export async function requestOtp(
     throw new ApiError(429, 'otp_rate_limited', 'too many codes from this network');
   }
 
-  const code = randomDigits(OTP_POLICY.digits);
+  // E2E only: a fixed code with the console provider (never set in production; the console provider can't send SMS).
+  const code = env.OTP_PROVIDER === 'console' && env.OTP_FIXED_CODE ? env.OTP_FIXED_CODE : randomDigits(OTP_POLICY.digits);
   // Older unused codes for this phone/purpose become invalid: only the latest one is checked.
   await db
     .prepare(`UPDATE otp_codes SET consumed_at = ?3 WHERE phone = ?1 AND purpose = ?2 AND consumed_at IS NULL`)

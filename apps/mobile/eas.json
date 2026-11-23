@@ -1,0 +1,42 @@
+{
+  "cli": { "version": ">= 16.0.0", "appVersionSource": "remote" },
+  "build": {
+    "base": {
+      "node": "22.12.0",
+      "pnpm": "10.28.0",
+      "env": { "EXPO_PUBLIC_API_URL": "https://api.daftarak.app" }
+    },
+    "development": {
+      "extends": "base",
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": { "EXPO_PUBLIC_API_URL": "https://api-staging.daftarak.app" },
+      "android": { "buildType": "apk" }
+    },
+    "preview": {
+      "extends": "base",
+      "distribution": "internal",
+      "channel": "preview",
+      "env": { "EXPO_PUBLIC_API_URL": "https://api-staging.daftarak.app" },
+      "android": { "buildType": "apk" }
+    },
+    "e2e": {
+      "extends": "preview",
+      "channel": "e2e",
+      "env": { "EXPO_PUBLIC_API_URL": "http://10.0.2.2:8787", "E2E": "1" }
+    },
+    "production": {
+      "extends": "base",
+      "channel": "production",
+      "autoIncrement": true,
+      "android": { "buildType": "app-bundle" },
+      "ios": { "resourceClass": "m-medium" }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": { "track": "internal", "releaseStatus": "draft" },
+      "ios": { "ascAppId": "<App Store Connect app id>" }
+    }
+  }
+}

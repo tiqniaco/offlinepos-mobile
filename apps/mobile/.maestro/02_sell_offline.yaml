@@ -1,0 +1,18 @@
+appId: app.daftarak
+name: Sell 2 items in airplane mode (sample data, search, pay cash)
+---
+- launchApp
+- runFlow: { file: subflows/unlock.yaml }
+- tapOn: { text: "جرّب ببيانات تجريبية.*", optional: true }
+- setAirplaneMode: enabled
+- tapOn: { id: home-sell }
+- tapOn: { id: pos-search }
+- inputText: "شاي"
+- tapOn: { text: "شاي 250 جم" }
+- tapOn: { id: pos-search }
+- inputText: "أرز"
+- tapOn: { text: "أرز 1 كيلو" }
+- tapOn: { id: pos-pay }
+- tapOn: { id: pay-confirm }
+- assertVisible: { id: done-new }
+- setAirplaneMode: disabled

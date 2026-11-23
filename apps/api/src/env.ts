@@ -5,6 +5,8 @@ export interface Env {
   R2_BUCKET: string;
   // vars
   OTP_PROVIDER: 'console' | 'smsmisr';
+  /** Local E2E runs only (console provider). */
+  OTP_FIXED_CODE?: string;
   LICENCE_KID: string;
   ADMIN_ORIGIN: string;
   SMSMISR_BASE_URL: string;
@@ -18,6 +20,9 @@ export interface Env {
   R2_ACCESS_KEY_ID: string;
   R2_SECRET_ACCESS_KEY: string;
   REVENUECAT_WEBHOOK_SECRET: string;
+  INTEGRITY_MODE?: 'off' | 'log' | 'enforce';
+  ANDROID_PACKAGE?: string;
+  GOOGLE_SERVICE_ACCOUNT_JSON?: string;
   SMSMISR_USERNAME?: string;
   SMSMISR_PASSWORD?: string;
   SMSMISR_SENDER?: string;

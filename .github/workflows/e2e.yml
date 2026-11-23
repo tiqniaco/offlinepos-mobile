@@ -1,0 +1,41 @@
+# Maestro end-to-end flows on an Android emulator (manual / nightly). Uses a local Worker for the API.
+name: e2e
+on:
+  workflow_dispatch:
+  schedule: [{ cron: '0 2 * * *' }]
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - run: pnpm install --frozen-lockfile
+      - name: Start local API (D1 + console OTP)
+        working-directory: apps/api
+        run: |
+          cp .dev.vars.example .dev.vars && echo "OTP_FIXED_CODE=123456" >> .dev.vars
+          npx wrangler d1 migrations apply daftarak --local
+          nohup npx wrangler dev --port 8787 > /tmp/api.log 2>&1 &
+      - name: Build release APK (e2e profile, local)
+        working-directory: apps/mobile
+        env: { EXPO_PUBLIC_API_URL: 'http://10.0.2.2:8787', E2E: '1' }
+        run: |
+          npx expo prebuild --platform android --no-install
+          cd android && ./gradlew assembleRelease -PreactNativeArchitectures=x86_64
+      - run: curl -fsSL https://get.maestro.mobile.dev | bash && echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+      - name: Run Maestro on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          script: |
+            adb install apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+            maestro test apps/mobile/.maestro --format junit --output maestro-report.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: maestro-report, path: maestro-report.xml }

@@ -1,0 +1,9 @@
+# Maestro E2E suite (PLAN.md Phase 7). Run: maestro test apps/mobile/.maestro
+# Needs the e2e build (EXPO_PUBLIC_API_URL → local Worker) and OTP_FIXED_CODE=123456 on the Worker.
+flows:
+  - 01_onboarding.yaml
+  - 02_sell_offline.yaml
+  - 03_return.yaml
+  - 04_print_fail.yaml
+  - 05_report.yaml
+  - 06_lock_switch.yaml

@@ -18,6 +18,8 @@ import { useAccessToken, withRefreshLock } from '../../lib/session';
 export const hooks: {
   prepareBackup?: () => Promise<{ size: number; sha256: string; counts: Record<string, number>; schemaVersion: number } | undefined>;
   pendingBackupId?: () => Promise<string | undefined>;
+  /** Weekly device-integrity token (Play Integrity / App Attest). */
+  integrity?: () => Promise<{ platform: 'android' | 'ios'; token: string; requestHash: string; keyId?: string } | undefined>;
   afterCheckin?: (put: { backupId: string; url: string; headers: Record<string, string> } | null, committed: boolean | undefined) => Promise<void>;
 } = {};
 
@@ -84,9 +86,10 @@ export async function runCheckin(db: AppDb): Promise<{ outcome: CheckinOutcome; 
     const anchor = await currentAnchor(db, device.id);
     const backupMeta = hooks.prepareBackup ? await hooks.prepareBackup() : undefined;
     const committedBackupId = hooks.pendingBackupId ? await hooks.pendingBackupId() : undefined;
+    const integrity = hooks.integrity ? await hooks.integrity() : undefined;
     const r = await withRefreshLock(async () => {
       const token = (await getSecret(SECURE_KEYS.refreshToken)) ?? refreshToken;
-      const res = await api.checkin({ refreshToken: token, deviceId: device.id, appVersion: APP_VERSION, deviceTime: Date.now(), anchor, backupMeta, committedBackupId });
+      const res = await api.checkin({ refreshToken: token, deviceId: device.id, appVersion: APP_VERSION, deviceTime: Date.now(), anchor, backupMeta, committedBackupId, integrity });
       await setSecret(SECURE_KEYS.refreshToken, res.refreshToken);
       return res;
     });

@@ -15,6 +15,8 @@ import {
 } from '@daftarak/shared';
 import { API_URL } from '../config/env';
 
+type Integrity = { platform: 'android' | 'ios'; token: string; requestHash: string; keyId?: string };
+
 export class ApiError extends Error {
   constructor(public readonly code: ApiErrorCode | 'network', message: string, public readonly retryAfterMs?: number) {
     super(message);
@@ -53,11 +55,11 @@ export const api = {
   verifyOtp: (phone: string, code: string, device: DeviceInfo) => request('/v1/auth/otp/verify', authResponseSchema, { body: { phone, code, device } }),
   createBusiness: (
     token: string,
-    b: { name: string; country: 'EG' | 'SA'; type: 'shop' | 'trading'; vatRegistered: boolean; backupKey: string; device: DeviceInfo },
+    b: { name: string; country: 'EG' | 'SA'; type: 'shop' | 'trading'; vatRegistered: boolean; backupKey: string; device: DeviceInfo; integrity?: Integrity },
   ) => request('/v1/businesses', createBusinessResponseSchema, { body: b, token }),
-  attachDevice: (token: string, businessId: string, device: DeviceInfo) =>
-    request('/v1/devices/attach', createBusinessResponseSchema, { body: { businessId, device }, token }),
-  checkin: (b: { refreshToken: string; deviceId: string; appVersion: string; deviceTime: number; anchor?: { chainSeq: number; chainHead: string; auditSeq: number; auditHead: string }; backupMeta?: BackupMeta; committedBackupId?: string }) =>
+  attachDevice: (token: string, businessId: string, device: DeviceInfo, integrity?: Integrity) =>
+    request('/v1/devices/attach', createBusinessResponseSchema, { body: { businessId, device, integrity }, token }),
+  checkin: (b: { refreshToken: string; deviceId: string; appVersion: string; deviceTime: number; anchor?: { chainSeq: number; chainHead: string; auditSeq: number; auditHead: string }; backupMeta?: BackupMeta; committedBackupId?: string; integrity?: Integrity }) =>
     request('/v1/checkin', checkinResponseSchema, { body: b }),
   refresh: (refreshToken: string) => request('/v1/auth/refresh', z.object({ accessToken: z.string(), refreshToken: z.string(), accessExpiresAt: z.number() }), { body: { refreshToken } }),
   stepUpRequest: (token: string) => request('/v1/auth/step-up/request', z.object({ phone: z.string(), resendAfterMs: z.number(), expiresInMs: z.number() }), { body: {}, token }),
@@ -72,7 +74,7 @@ export const api = {
     ),
   backupDownloadUrl: (token: string, id: string) => request(`/v1/backups/${id}/download-url`, z.object({ url: z.string(), sha256: z.string(), size: z.number() }), { body: {}, token }),
   backupKey: (token: string, businessId: string) => request('/v1/backups/key', z.object({ backupKey: z.string() }), { body: { businessId }, token }),
-  activateDevice: (token: string, businessId: string, device: DeviceInfo, backupId?: string) => request('/v1/devices/activate', createBusinessResponseSchema, { body: { businessId, device, backupId }, token }),
+  activateDevice: (token: string, businessId: string, device: DeviceInfo, backupId?: string, integrity?: Integrity) => request('/v1/devices/activate', createBusinessResponseSchema, { body: { businessId, device, backupId, integrity }, token }),
   redeemCode: (token: string, businessId: string, code: string) => request('/v1/licence/activation-code', z.object({ plan: z.string(), expiresAt: z.number() }), { body: { businessId, code }, token }),
   sessions: (token: string) =>
     request('/v1/sessions', z.object({ sessions: z.array(z.object({ id: z.string(), created_at: z.number(), last_used_at: z.number().nullable(), platform: z.string().nullable(), model: z.string().nullable(), app_version: z.string().nullable(), current: z.boolean() })) }), { token }),

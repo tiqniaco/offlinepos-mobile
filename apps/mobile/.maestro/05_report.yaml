@@ -1,0 +1,12 @@
+appId: app.daftarak
+name: Open a report offline and export it
+---
+- launchApp
+- runFlow: { file: subflows/unlock.yaml }
+- setAirplaneMode: enabled
+- tapOn: { id: tile-reports }
+- tapOn: { id: report-sales_day }
+- assertVisible: { text: "المبيعات" }
+- tapOn: { id: tile-pdf }
+- back
+- setAirplaneMode: disabled

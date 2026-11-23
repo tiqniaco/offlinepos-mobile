@@ -56,8 +56,8 @@ export default function Return() {
     }
   };
   return (
-    <Screen back title={t('ret.title', { number })} footer={<Button title={t('ret.confirm', { amount: fmt(total) })} loading={busy} disabled={!items.length} onPress={submit} />}>
-      {lines.map((l) => (
+    <Screen back title={t('ret.title', { number })} footer={<Button testID="return-confirm" title={t('ret.confirm', { amount: fmt(total) })} loading={busy} disabled={!items.length} onPress={submit} />}>
+      {lines.map((l, i) => (
         <Card key={l.lineId}>
           <View style={{ gap: 8, opacity: l.remainingQtyMilli > 0 ? 1 : 0.5 }}>
             <Text variant="subtitle">{l.name}</Text>
@@ -67,7 +67,7 @@ export default function Return() {
             {l.remainingQtyMilli > 0 ? (
               <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
                 <View style={{ flex: 1 }}>
-                  <QtyField valueMilli={sel[l.lineId] ?? null} onValue={(v) => setSel((s) => ({ ...s, [l.lineId]: Math.min(v ?? 0, l.remainingQtyMilli) }))} />
+                  <QtyField testID={`return-qty-${i}`} valueMilli={sel[l.lineId] ?? null} onValue={(v) => setSel((s) => ({ ...s, [l.lineId]: Math.min(v ?? 0, l.remainingQtyMilli) }))} />
                 </View>
                 <Chip label={t('products.all')} selected={sel[l.lineId] === l.remainingQtyMilli} onPress={() => setSel((s) => ({ ...s, [l.lineId]: l.remainingQtyMilli }))} />
               </View>

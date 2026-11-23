@@ -1,0 +1,25 @@
+appId: app.daftarak
+name: Sign up a new shop (OTP → business → owner PIN)
+---
+- launchApp: { clearState: true }
+- tapOn: { id: welcome-start }
+- tapOn: { id: phone-input }
+- inputText: "01000000001"
+- tapOn: { id: phone-send }
+- tapOn: { id: otp-input }
+- inputText: "123456"
+- tapOn: { id: otp-verify }
+- tapOn: { id: business-name }
+- inputText: "بقالة الاختبار"
+- tapOn: { id: country-EG }
+- tapOn: { id: type-shop }
+- tapOn: { id: vat-no }
+- tapOn: { id: business-next }
+- tapOn: { id: owner-name }
+- inputText: "أحمد"
+- tapOn: { id: owner-pin }
+- inputText: "1234"
+- tapOn: { id: owner-pin2 }
+- inputText: "1234"
+- tapOn: { id: owner-finish }
+- assertVisible: { id: home-sell }

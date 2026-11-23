@@ -12,11 +12,22 @@ import { ensureInventorySeed } from '../domain/inventory/seed';
 import { ensureExpenseCategories } from '../domain/vouchers/vouchers';
 import { loadSettings } from '../domain/settings/settings';
 import { checkinDue, hooks, refreshLicenceState, runCheckin } from '../domain/licence/service';
+import { integrityToken } from '../features/integrity/integrity';
+import { getMeta, setMeta } from '../domain/device';
 import { finishAutoBackup, markCommitted, pendingBackupId, prepareAutoBackup } from '../features/backup/service';
 
 // Daily automatic backup rides on the check-in (features/backup/service.ts).
 hooks.prepareBackup = prepareAutoBackup;
 hooks.pendingBackupId = pendingBackupId;
+// Device integrity once a week (Google/Apple quotas; the server only records it at check-in).
+hooks.integrity = async () => {
+  const db = getDb();
+  const last = Number((await getMeta(db, 'integrity.at')) ?? 0);
+  if (Date.now() - last < 7 * 86_400_000) return undefined;
+  const tok = await integrityToken('checkin');
+  if (tok) await setMeta(db, 'integrity.at', String(Date.now()));
+  return tok;
+};
 hooks.afterCheckin = async (put, committed) => {
   await markCommitted(committed);
   void finishAutoBackup(put);
@@ -97,4 +108,12 @@ export async function reloadAppData() {
     device: await getCurrentDevice(db),
     business: b ? { name: b.name, country: b.country, type: b.type, currency: b.currency, serverBusinessId: b.serverBusinessId } : null,
   });
+}
+
+/** Cold-start timing (JS start → first interactive screen), kept for the About line and diagnostics. */
+export const startedAt = Date.now();
+export function markInteractive() {
+  const ms = Date.now() - startedAt;
+  if (__DEV__) console.log(`[startup] interactive in ${ms} ms`);
+  return ms;
 }

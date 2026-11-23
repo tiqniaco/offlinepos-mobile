@@ -1,0 +1,15 @@
+appId: app.daftarak
+name: Return one item of the last invoice (offline)
+---
+- launchApp
+- runFlow: { file: subflows/unlock.yaml }
+- setAirplaneMode: enabled
+- tapOn: { id: home-search }
+- inputText: "INV-"
+- tapOn: { text: "INV-A-.*", index: 0 }
+- tapOn: { text: "مرتجع" }
+- tapOn: { id: return-qty-0, optional: true }
+- inputText: "1"
+- tapOn: { id: return-confirm }
+- assertVisible: { text: "RET-A-.*" }
+- setAirplaneMode: disabled

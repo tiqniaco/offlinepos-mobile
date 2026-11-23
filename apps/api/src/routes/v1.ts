@@ -21,7 +21,16 @@ import { requestOtp, verifyOtp } from '../otp/service';
 import { providerFor, type OtpProvider } from '../otp/providers';
 import { createSession, requireSession, revokeSession, rotateRefresh } from '../auth/tokens';
 import { buildLicence, getPlan, signAnchorReceipt, type BusinessRow, type DeviceRow } from '../licence/issue';
-import { addPhase6Routes, commitBackup, startBackup } from './phase6';
+import { addPhase6Routes, commitBackup, setIntegrityChecker, startBackup } from './phase6';
+import { blocks, verifyIntegrity, type IntegrityInput } from '../integrity/verify';
+
+/** Verify (or just record) device integrity; throws only when policy says so. */
+export async function checkIntegrity(env: Env, input: IntegrityInput | undefined, action: 'signup' | 'activate' | 'checkin', now: number, deviceId?: string) {
+  const v = await verifyIntegrity(env, input, now);
+  if (deviceId) await env.DB.prepare(`UPDATE devices SET integrity_status = ?2, integrity_reason = ?3, integrity_at = ?4 WHERE id = ?1`).bind(deviceId, v.status, v.reason ?? null, now).run();
+  if (blocks(env, v, action)) throw new ApiError(403, 'integrity_failed');
+  return v;
+}
 
 /** Injected in tests to control time and the OTP provider. */
 export interface Deps {
@@ -179,6 +188,7 @@ export function v1Routes(deps: Deps = defaultDeps) {
     const now = deps.now();
     const s = await requireSession(c.env, c.req.header('Authorization'), now);
     const b = await body(c, createBusinessSchema);
+    const verdict = await checkIntegrity(c.env, b.integrity, 'signup', now);
     if (base64urlDecode(b.backupKey).length !== 32) throw new ApiError(400, 'invalid_request', 'backup key must be 32 bytes');
     const trial = await getPlan(c.env, TRIAL_PLAN_CODE);
     const id = uuidv7(now);
@@ -216,6 +226,7 @@ export function v1Routes(deps: Deps = defaultDeps) {
       )
       .run();
     const registration = await registerDevice(c.env, business, s.sid, b.device, now);
+    await c.env.DB.prepare(`UPDATE devices SET integrity_status = ?2, integrity_reason = ?3, integrity_at = ?4 WHERE id = ?1`).bind(registration.deviceId, verdict.status, verdict.reason ?? null, now).run();
     await countRequest(c.env, id, now);
     return c.json({ business: { id, name: b.name, country: b.country, type: b.type, role: 'owner' }, registration }, 201);
   });
@@ -267,6 +278,7 @@ export function v1Routes(deps: Deps = defaultDeps) {
       c.env.DB.prepare(`UPDATE devices SET last_checkin_at = ?2, app_version = ?3 WHERE id = ?1`).bind(device.id, now, b.appVersion),
       c.env.DB.prepare(`UPDATE businesses SET last_seen_at = ?2, app_version = ?3 WHERE id = ?1`).bind(business.id, now, b.appVersion),
     ]);
+    if (b.integrity) await checkIntegrity(c.env, b.integrity, 'checkin', now, device.id);
     await countRequest(c.env, business.id, now);
 
     // Backups ride on the daily check-in (no extra request): commit yesterday's upload, hand out today's PUT URL.
@@ -291,6 +303,7 @@ export function v1Routes(deps: Deps = defaultDeps) {
     });
   });
 
+  setIntegrityChecker(checkIntegrity);
   addPhase6Routes(app, deps, registerDevice, countRequest);
   return app;
 }

@@ -1,6 +1,5 @@
 /** Export a ReportDoc: A4 PDF, Excel, thermal print, WhatsApp text. Used by every report screen. */
 import * as Print from 'expo-print';
-import * as XLSX from 'xlsx';
 import { File, Paths } from 'expo-file-system';
 import { router } from 'expo-router';
 import i18n from 'i18next';
@@ -12,6 +11,10 @@ import { PrintError } from '../printing/types';
 import { reportHtml } from './reportHtml';
 import { reportSheet, reportText, type ReportDoc } from './report';
 import { openWhatsApp, shareFile } from './whatsapp';
+
+/** SheetJS is ~1 MB: required on first use only, so it never slows the app start. */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const xlsx = (): typeof import('xlsx') => require('xlsx');
 
 const t = (k: string) => i18n.t(k);
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -34,15 +37,15 @@ export async function exportReport(d: ReportDoc, kind: ExportKind, mobile?: stri
       return true;
     }
     if (kind === 'excel') {
-      const ws = XLSX.utils.aoa_to_sheet(reportSheet(d));
+      const ws = xlsx().utils.aoa_to_sheet(reportSheet(d));
       ws['!cols'] = d.columns.map(() => ({ wch: 18 }));
-      const wb = XLSX.utils.book_new();
+      const wb = xlsx().utils.book_new();
       wb.Workbook = { Views: [{ RTL: true }] };
-      XLSX.utils.book_append_sheet(wb, ws, d.title.slice(0, 30));
+      xlsx().utils.book_append_sheet(wb, ws, d.title.slice(0, 30));
       const file = new File(Paths.cache, `${d.fileName}.xlsx`);
       if (file.exists) file.delete();
       file.create();
-      file.write(XLSX.write(wb, { type: 'base64', bookType: 'xlsx' }) as string, { encoding: 'base64' });
+      file.write(xlsx().write(wb, { type: 'base64', bookType: 'xlsx' }) as string, { encoding: 'base64' });
       await shareFile(file.uri, XLSX_MIME, d.title, 'org.openxmlformats.spreadsheetml.sheet');
       return true;
     }

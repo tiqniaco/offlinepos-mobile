@@ -13,6 +13,7 @@ import { useAutoLock } from '../hooks/useAutoLock';
 import { ToastHost } from '../ui/Toast';
 import { AdsProvider } from '../features/ads/AdsProvider';
 import { UpgradeSheet } from '../features/UpgradeSheet';
+import { markInteractive } from '../state/boot';
 import { onNotificationTap } from '../features/notify/notify';
 import { modalOptions, stackOptions } from '../ui/motion';
 import { PrintHost } from '../features/printing/PrintHost';
@@ -50,7 +51,10 @@ export default function RootLayout() {
   // boot() loads the chosen font family before leaving 'booting'.
   const ready = status !== 'booting';
   useEffect(() => {
-    if (ready) void SplashScreen.hideAsync();
+    if (ready) {
+      void SplashScreen.hideAsync();
+      markInteractive();
+    }
   }, [ready]);
   if (!ready) return null;
 

@@ -20,6 +20,7 @@ import { appendAudit } from '../../domain/audit/audit';
 import { withTx } from '../../db/tx';
 import migrations from '../../db/migrations/migrations';
 import { restoreBusinessId } from './restoreState';
+import { integrityToken } from '../integrity/integrity';
 import { buildBackup, decryptBackup, downloadBackup, installSnapshot, openSnapshot, uploadBackup, type BuiltBackup } from './files';
 
 export interface LastBackup {
@@ -177,7 +178,7 @@ export async function stageRestore(token: string, backupId: string, onProgress?:
 /** Replace this phone's data with the staged backup, register the phone (old one deactivated), reopen. */
 export async function applyRestore(token: string, serverBusinessId: string, device: Parameters<typeof api.activateDevice>[2]) {
   if (!staged) throw new Error('nothing staged');
-  const reg = await api.activateDevice(token, serverBusinessId, device, staged.backupId);
+  const reg = await api.activateDevice(token, serverBusinessId, device, staged.backupId, await integrityToken('activate'));
   closeDatabase();
   installSnapshot(staged.snapshot, await getOrCreateDbKey(), staged.images);
   const db = await openDatabase();

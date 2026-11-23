@@ -57,6 +57,9 @@ export const authResponseSchema = z.object({
 });
 export type AuthResponse = z.infer<typeof authResponseSchema>;
 
+/** Play Integrity token (Android) or App Attest object (iOS) bound to requestHash. */
+export const integritySchema = z.object({ platform: z.enum(['android', 'ios']), token: z.string().max(20_000), requestHash: z.string().max(128), keyId: z.string().max(200).optional() });
+
 export const createBusinessSchema = z.object({
   name: z.string().trim().min(2).max(80),
   country: z.enum(['EG', 'SA']),
@@ -65,6 +68,7 @@ export const createBusinessSchema = z.object({
   /** Backup key generated on device, base64url, 32 bytes (PLAN.md D-15). */
   backupKey: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
   device: deviceInfoSchema,
+  integrity: integritySchema.optional(),
 });
 
 export const deviceRegistrationSchema = z.object({
@@ -81,7 +85,7 @@ export const createBusinessResponseSchema = z.object({
 });
 export type CreateBusinessResponse = z.infer<typeof createBusinessResponseSchema>;
 
-export const attachDeviceSchema = z.object({ businessId: z.string(), device: deviceInfoSchema });
+export const attachDeviceSchema = z.object({ businessId: z.string(), device: deviceInfoSchema, integrity: integritySchema.optional() });
 
 export const anchorSchema = z.object({
   chainSeq: z.number().int().min(0),
@@ -100,6 +104,7 @@ export const checkinSchema = z.object({
   backupMeta: z.lazy(() => backupMetaSchema).optional(),
   /** The upload of this backup finished → the server verifies and commits it. */
   committedBackupId: z.string().optional(),
+  integrity: integritySchema.optional(),
 });
 
 export const backupMetaSchema = z.object({
@@ -154,5 +159,6 @@ export const API_ERROR_CODES = [
   'code_invalid',
   'code_used',
   'backup_not_uploaded',
+  'integrity_failed',
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];

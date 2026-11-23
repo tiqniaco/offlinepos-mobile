@@ -13,6 +13,12 @@ import { getPlan, type BusinessRow } from '../licence/issue';
 import { presign } from '../backups/r2';
 import type { Deps } from './v1';
 
+type CheckIntegrity = (env: Env, input: z.infer<typeof attachDeviceSchema>['integrity'], action: 'signup' | 'activate' | 'checkin', now: number) => Promise<unknown>;
+let checkIntegrityFn: CheckIntegrity = async () => undefined;
+export function setIntegrityChecker(f: CheckIntegrity) {
+  checkIntegrityFn = f;
+}
+
 type RegisterDevice = (env: Env, business: BusinessRow, sessionId: string, device: z.infer<typeof attachDeviceSchema>['device'], now: number) => Promise<unknown>;
 
 async function ownedBusiness(env: Env, businessId: string, accountId: string): Promise<BusinessRow> {
@@ -143,6 +149,7 @@ export function addPhase6Routes(app: Hono<AppEnv>, deps: Deps, registerDevice: R
     if (!s.stepUpUntil || s.stepUpUntil < now) throw new ApiError(403, 'step_up_required');
     const b = await body(c, attachDeviceSchema.extend({ backupId: z.string().optional() }));
     const business = await ownedBusiness(c.env, b.businessId, s.aid);
+    await checkIntegrityFn(c.env, b.integrity, 'activate', now);
     const registration = await registerDevice(c.env, business, s.sid, b.device, now);
     await countRequest(c.env, business.id, now);
     return c.json({ business: { id: business.id, name: business.name, country: business.country, type: business.type, role: 'owner' }, registration });

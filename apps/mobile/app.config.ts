@@ -6,10 +6,14 @@ const config: ExpoConfig = {
   name: 'دفترك',
   slug: 'daftarak',
   scheme: 'daftarak',
-  version: '0.1.0',
+  version: process.env.APP_VERSION ?? '1.0.0',
+  // OTA updates only within the same app version (native changes always need a store build).
+  runtimeVersion: { policy: 'appVersion' },
+  updates: process.env.EAS_PROJECT_ID ? { url: `https://u.expo.dev/${process.env.EAS_PROJECT_ID}` } : undefined,
   orientation: 'default',
   icon: './assets/icon.png',
-  userInterfaceStyle: 'light',
+  // The app follows the system only when the owner picks "automatic" in المظهر.
+  userInterfaceStyle: 'automatic',
   ios: {
     bundleIdentifier: 'app.daftarak',
     supportsTablet: true,
@@ -59,9 +63,12 @@ const config: ExpoConfig = {
   experiments: { typedRoutes: true },
   extra: {
     apiUrl: process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:8787',
+    eas: process.env.EAS_PROJECT_ID ? { projectId: process.env.EAS_PROJECT_ID } : undefined,
     // Store billing (RevenueCat public SDK keys; empty → in-app purchase hidden, activation codes still work).
     revenuecat: { android: process.env.REVENUECAT_ANDROID_KEY ?? '', ios: process.env.REVENUECAT_IOS_KEY ?? '' },
     supportWhatsApp: process.env.SUPPORT_WHATSAPP ?? '',
+    // Play Integrity: Google Cloud project number linked in Play Console.
+    gcpProjectNumber: process.env.GCP_PROJECT_NUMBER ?? '',
     // Real ad unit ids are injected at release build time; empty → Google test units.
     admob: {
       bannerAndroid: process.env.ADMOB_BANNER_ANDROID ?? '',

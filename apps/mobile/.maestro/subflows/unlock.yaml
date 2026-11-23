@@ -1,0 +1,10 @@
+appId: app.daftarak
+---
+- runFlow:
+    when: { visible: { text: "أحمد" } }
+    commands:
+      - tapOn: { text: "أحمد" }
+      - tapOn: { id: pin-1 }
+      - tapOn: { id: pin-2 }
+      - tapOn: { id: pin-3 }
+      - tapOn: { id: pin-4 }

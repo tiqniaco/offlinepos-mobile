@@ -1,0 +1,11 @@
+appId: app.daftarak
+name: Lock and unlock with the PIN; wrong PIN refused
+---
+- launchApp
+- runFlow: { file: subflows/unlock.yaml }
+- tapOn: { id: home-lock }
+- tapOn: { text: "أحمد" }
+- inputText: "9999"
+- assertVisible: { text: ".*غلط.*" }
+- runFlow: { file: subflows/unlock.yaml }
+- assertVisible: { id: home-sell }
