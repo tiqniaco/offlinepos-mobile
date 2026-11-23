@@ -3,6 +3,7 @@
  * Bearer session token held in the admin SPA's sessionStorage; CORS limited to ADMIN_ORIGIN.
  * Every mutating action is written to admin_audit.
  */
+import { announceSchema, targetSchema, targetSql, type Target } from '../announce/announce';
 import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import { DAY_MS, FEATURES, uuidv7, verifyTotp } from '@daftarak/shared';
@@ -57,6 +58,20 @@ const planSchema = z.object({
   trialDays: z.number().int().min(0).max(90),
   active: z.boolean(),
 });
+
+async function reach(env: Env, t: Target, withTokens = false) {
+  const { where, args } = targetSql(t);
+  const n = await env.DB.prepare(
+    `SELECT COUNT(DISTINCT b.id) AS businesses, COUNT(d.id) AS devices, COUNT(d.push_token) AS push
+     FROM businesses b LEFT JOIN devices d ON d.business_id = b.id AND d.deactivated_at IS NULL WHERE ${where}`,
+  )
+    .bind(...args)
+    .first<{ businesses: number; devices: number; push: number }>();
+  const tokens = withTokens
+    ? (await env.DB.prepare(`SELECT DISTINCT d.push_token AS t FROM devices d JOIN businesses b ON b.id = d.business_id WHERE d.deactivated_at IS NULL AND d.push_token IS NOT NULL AND ${where}`).bind(...args).all<{ t: string }>()).results.map((r) => r.t)
+    : [];
+  return { businesses: n?.businesses ?? 0, devices: n?.devices ?? 0, push: n?.push ?? 0, tokens };
+}
 
 export function adminRoutes(deps: Deps = defaultDeps) {
   const app = new Hono<AppEnv>();
@@ -291,6 +306,57 @@ export function adminRoutes(deps: Deps = defaultDeps) {
     const r = await c.env.DB.prepare(`UPDATE activation_codes SET revoked_at = ?2 WHERE code = ?1 AND redeemed_at IS NULL AND revoked_at IS NULL`).bind(c.req.param('code'), now).run();
     if (r.meta.changes !== 1) throw new ApiError(404, 'not_found');
     await audit(c.env, adminId, 'code_revoke', c.req.param('code'), null, now);
+    return c.json({ ok: true });
+  });
+
+  // ── Announcements to users (push + in-app inbox via check-in) ──
+  /** Preview: how many businesses / phones / push-enabled phones a target reaches. */
+  app.post('/announcements/preview', async (c) => {
+    await requireAdmin(c, deps.now());
+    const t = await body(c, targetSchema);
+    return c.json(await reach(c.env, t));
+  });
+
+  app.post('/announcements', async (c) => {
+    const now = deps.now();
+    const adminId = await requireAdmin(c, now);
+    const b = await body(c, announceSchema);
+    const id = uuidv7(now);
+    await c.env.DB.prepare(
+      `INSERT INTO announcements (id, title_ar, body_ar, title_en, body_en, url, target_json, push, created_by, created_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`,
+    )
+      .bind(id, b.titleAr, b.bodyAr, b.titleEn || null, b.bodyEn || null, b.url ?? null, JSON.stringify(b.target), b.push ? 1 : 0, adminId, now, now + b.days * DAY_MS)
+      .run();
+    let sent = 0;
+    let failed = 0;
+    const r = await reach(c.env, b.target, true);
+    if (b.push && r.tokens.length && deps.push) {
+      [sent, failed] = await deps.push(
+        c.env,
+        r.tokens.map((to) => ({ to, title: b.titleAr, body: b.bodyAr, sound: 'default' as const, channelId: 'default', data: { kind: 'announcement', id, url: b.url ?? null } })),
+      );
+      await c.env.DB.prepare(`UPDATE announcements SET push_sent = ?2, push_failed = ?3 WHERE id = ?1`).bind(id, sent, failed).run();
+    }
+    await audit(c.env, adminId, 'announce', id, { title: b.titleAr, target: b.target, businesses: r.businesses, pushSent: sent }, now);
+    return c.json({ id, businesses: r.businesses, devices: r.devices, pushSent: sent, pushFailed: failed }, 201);
+  });
+
+  app.get('/announcements', async (c) => {
+    await requireAdmin(c, deps.now());
+    const r = await c.env.DB.prepare(
+      `SELECT a.id, a.title_ar, a.body_ar, a.url, a.target_json, a.push_sent, a.push_failed, a.delivered, a.created_at, a.expires_at, a.cancelled_at, u.email
+       FROM announcements a LEFT JOIN admin_users u ON u.id = a.created_by ORDER BY a.created_at DESC LIMIT 200`,
+    ).all();
+    return c.json({ announcements: r.results });
+  });
+
+  /** Withdraw: phones that have not checked in yet will not receive it (already-delivered copies stay). */
+  app.post('/announcements/:id/cancel', async (c) => {
+    const now = deps.now();
+    const adminId = await requireAdmin(c, now);
+    const r = await c.env.DB.prepare(`UPDATE announcements SET cancelled_at = ?2 WHERE id = ?1 AND cancelled_at IS NULL`).bind(c.req.param('id'), now).run();
+    if (r.meta.changes !== 1) throw new ApiError(404, 'not_found');
+    await audit(c.env, adminId, 'announce_cancel', c.req.param('id'), null, now);
     return c.json({ ok: true });
   });
 

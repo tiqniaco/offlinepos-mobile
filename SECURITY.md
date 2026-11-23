@@ -56,3 +56,9 @@ Legend: ✅ done & tested · 🟡 done, needs on-device verification · ⏳ late
   @expo/app-integrity, expo-screen-capture, expo-audio, react-native-purchases, react-native-google-mobile-ads.
 - Residual risks (unchanged, honest): a rooted phone can still alter data after the last daily anchor; a patched APK can
   bypass the licence check on a rooted phone (integrity verdicts make it visible to us, not impossible).
+
+## Announcements (2026-11)
+- Only an admin (password + TOTP) can send; every send and withdrawal is written to `admin_audit`.
+- A message can only open an allow-listed app screen (checked on the server and again on the phone) — never an arbitrary web link, so a stolen admin session cannot push phishing links.
+- Push tokens are stored per device, cleared when Expo reports `DeviceNotRegistered`, and are never returned by any API.
+- The inbox copy rides on the existing check-in (no new request, no new endpoint for phones). Messages are delivered once per device; withdrawn or expired messages are not delivered.

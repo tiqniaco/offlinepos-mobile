@@ -9,7 +9,8 @@ import { licenceState } from '../../db/schema';
 import { SECURE_KEYS, deleteSecret, getSecret, setSecret } from '../../lib/secure';
 import { api, ApiError } from '../../api/client';
 import { APP_VERSION } from '../../config/env';
-import { getCurrentDevice } from '../device';
+import { getCurrentDevice, getMeta, setMeta } from '../device';
+import { saveAnnouncements, type Announcement } from '../inbox/inbox';
 import { evaluateLicence, setLicenceState } from './guard';
 import { currentAnchor, saveReceipt } from '../integrity/anchors';
 import { useAccessToken, withRefreshLock } from '../../lib/session';
@@ -20,6 +21,10 @@ export const hooks: {
   pendingBackupId?: () => Promise<string | undefined>;
   /** Weekly device-integrity token (Play Integrity / App Attest). */
   integrity?: () => Promise<{ platform: 'android' | 'ios'; token: string; requestHash: string; keyId?: string } | undefined>;
+  /** Expo push token of this phone, if notifications are allowed. */
+  pushToken?: () => Promise<string | undefined>;
+  /** New messages from Daftarak arrived with the check-in (already stored in the inbox). */
+  onAnnouncements?: (fresh: Announcement[]) => Promise<void>;
   afterCheckin?: (put: { backupId: string; url: string; headers: Record<string, string> } | null, committed: boolean | undefined) => Promise<void>;
 } = {};
 
@@ -87,15 +92,23 @@ export async function runCheckin(db: AppDb): Promise<{ outcome: CheckinOutcome; 
     const backupMeta = hooks.prepareBackup ? await hooks.prepareBackup() : undefined;
     const committedBackupId = hooks.pendingBackupId ? await hooks.pendingBackupId() : undefined;
     const integrity = hooks.integrity ? await hooks.integrity() : undefined;
+    // Push token only when it changed (keeps the request small).
+    const tok = hooks.pushToken ? await hooks.pushToken().catch(() => undefined) : undefined;
+    const pushToken = tok && tok !== (await getMeta(db, 'push.sent')) ? tok : undefined;
     const r = await withRefreshLock(async () => {
       const token = (await getSecret(SECURE_KEYS.refreshToken)) ?? refreshToken;
-      const res = await api.checkin({ refreshToken: token, deviceId: device.id, appVersion: APP_VERSION, deviceTime: Date.now(), anchor, backupMeta, committedBackupId, integrity });
+      const res = await api.checkin({ refreshToken: token, deviceId: device.id, appVersion: APP_VERSION, deviceTime: Date.now(), anchor, backupMeta, committedBackupId, integrity, pushToken });
       await setSecret(SECURE_KEYS.refreshToken, res.refreshToken);
       return res;
     });
     useAccessToken(r.accessToken, r.accessExpiresAt);
     await storeLicence(db, r.licence, r.serverTime);
     if (r.anchorReceipt) await saveReceipt(db, device.id, r.anchorReceipt);
+    if (pushToken) await setMeta(db, 'push.sent', pushToken);
+    if (r.announcements?.length) {
+      const fresh = await saveAnnouncements(db, r.announcements);
+      if (fresh.length) await hooks.onAnnouncements?.(fresh).catch(() => undefined);
+    }
     await hooks.afterCheckin?.(r.backupPut ?? null, r.backupCommitted);
     return { outcome: 'ok', state: await refreshLicenceState(db), notices: r.notices };
   } catch (e) {

@@ -13,6 +13,7 @@ import { customersDue } from '../../domain/parties/statement';
 import { currentShift } from '../../domain/shifts/shifts';
 import { verifyChain } from '../../domain/integrity/chain';
 import { planNotifications } from '../../features/notify/notify';
+import { latestUnread, unreadCount } from '../../domain/inbox/inbox';
 import { addSampleData, hasSampleData, removeSampleData } from '../../domain/sample/sample';
 import { useInvCtx } from '../../features/inventory/useInvCtx';
 import { toast } from '../../state/toast';
@@ -43,6 +44,9 @@ export default function Home() {
   const [shiftOpen, setShiftOpen] = useState(true);
   const [tamper, setTamper] = useState(false);
   const [sample, setSample] = useState(false);
+  const inboxBump = useApp((s) => s.inboxBump);
+  const [unread, setUnread] = useState(0);
+  const [news, setNews] = useState<Awaited<ReturnType<typeof latestUnread>>>(null);
   const invCtx = useInvCtx();
   const trySample = async () => {
     if (!invCtx) return;
@@ -77,12 +81,14 @@ export default function Home() {
       if (device) void currentShift(db, device.id).then((s) => setShiftOpen(!!s));
       void planNotifications({ ask: true });
       void hasSampleData({ db }).then(setSample);
+      void unreadCount(db).then(setUnread);
+      void latestUnread(db).then(setNews);
       // Daily background integrity check for owners/managers (tamper alert on the home screen).
       if (device && integrityCheckedDay !== day && roleHas(user.permissions, 'settings.manage')) {
         integrityCheckedDay = day;
         setTimeout(() => void verifyChain(db, device.id).then((r) => setTamper(!r.ok), () => undefined), 1500);
       }
-    }, [tz, reminderDays, device, user.permissions]),
+    }, [tz, reminderDays, device, user.permissions, inboxBump]),
   );
 
   const plan = DEFAULT_PLANS.find((p) => p.code === licence?.plan);
@@ -112,6 +118,7 @@ export default function Home() {
   const alerts = (
     <>
       <Tip id="home" />
+      {news ? <Banner tone="info" icon="bell" title={(i18n.language === 'en' && news.titleEn) || news.titleAr} text={(i18n.language === 'en' && news.bodyEn) || news.bodyAr} action={t('inbox.open')} onAction={() => router.push('/inbox')} /> : null}
       {tamper ? <Banner tone="danger" title={t('integrity.alertTitle')} text={t('integrity.alertBody')} action={t('integrity.open')} onAction={() => router.push('/settings/integrity')} /> : null}
       {requireShift && !shiftOpen && can('sales.create') ? <Banner tone="warn" text={t('shift.mustOpen')} action={t('shift.open')} onAction={() => router.push('/shifts')} /> : null}
       {late > 0 && can('parties.manage') ? (
@@ -136,6 +143,8 @@ export default function Home() {
       tasks={tasks}
       onLock={() => useApp.getState().lock()}
       onSearch={() => router.push('/search')}
+      onInbox={() => router.push('/inbox')}
+      unread={unread}
       onSell={can('sales.create') ? () => router.push('/(main)/sell') : undefined}
       quick={quick}
       alerts={alerts}

@@ -2,12 +2,13 @@ import { env } from 'cloudflare:workers';
 import { createApp } from '../src/index';
 import { ConsoleProvider } from '../src/otp/providers';
 import type { Env } from '../src/env';
+import type { Deps } from '../src/routes/v1';
 
 export const TEST_PK_SK = '9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60';
 
-export function makeClient(start = 1_800_000_000_000) {
+export function makeClient(start = 1_800_000_000_000, extra: Partial<Deps> = {}) {
   const clock = { now: start };
-  const app = createApp({ now: () => clock.now, provider: () => new ConsoleProvider() });
+  const app = createApp({ now: () => clock.now, provider: () => new ConsoleProvider(), ...extra });
   let ip = '10.0.0.1';
   async function call(method: string, path: string, json?: unknown, headers: Record<string, string> = {}) {
     const res = await app.request(

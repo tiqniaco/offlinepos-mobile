@@ -59,7 +59,7 @@ export const api = {
   ) => request('/v1/businesses', createBusinessResponseSchema, { body: b, token }),
   attachDevice: (token: string, businessId: string, device: DeviceInfo, integrity?: Integrity) =>
     request('/v1/devices/attach', createBusinessResponseSchema, { body: { businessId, device, integrity }, token }),
-  checkin: (b: { refreshToken: string; deviceId: string; appVersion: string; deviceTime: number; anchor?: { chainSeq: number; chainHead: string; auditSeq: number; auditHead: string }; backupMeta?: BackupMeta; committedBackupId?: string; integrity?: Integrity }) =>
+  checkin: (b: { refreshToken: string; deviceId: string; appVersion: string; deviceTime: number; anchor?: { chainSeq: number; chainHead: string; auditSeq: number; auditHead: string }; backupMeta?: BackupMeta; committedBackupId?: string; integrity?: Integrity; pushToken?: string }) =>
     request('/v1/checkin', checkinResponseSchema, { body: b }),
   refresh: (refreshToken: string) => request('/v1/auth/refresh', z.object({ accessToken: z.string(), refreshToken: z.string(), accessExpiresAt: z.number() }), { body: { refreshToken } }),
   stepUpRequest: (token: string) => request('/v1/auth/step-up/request', z.object({ phone: z.string(), resendAfterMs: z.number(), expiresInMs: z.number() }), { body: {}, token }),

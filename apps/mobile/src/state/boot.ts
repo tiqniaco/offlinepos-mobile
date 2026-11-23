@@ -13,6 +13,7 @@ import { ensureExpenseCategories } from '../domain/vouchers/vouchers';
 import { loadSettings } from '../domain/settings/settings';
 import { checkinDue, hooks, refreshLicenceState, runCheckin } from '../domain/licence/service';
 import { integrityToken } from '../features/integrity/integrity';
+import { pushToken, showAnnouncements } from '../features/notify/notify';
 import { getMeta, setMeta } from '../domain/device';
 import { finishAutoBackup, markCommitted, pendingBackupId, prepareAutoBackup } from '../features/backup/service';
 
@@ -27,6 +28,11 @@ hooks.integrity = async () => {
   const tok = await integrityToken('checkin');
   if (tok) await setMeta(db, 'integrity.at', String(Date.now()));
   return tok;
+};
+hooks.pushToken = pushToken;
+hooks.onAnnouncements = async (fresh) => {
+  useApp.getState().set({ inboxBump: Date.now() });
+  await showAnnouncements(fresh);
 };
 hooks.afterCheckin = async (put, committed) => {
   await markCommitted(committed);

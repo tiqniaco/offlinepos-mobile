@@ -21,6 +21,7 @@ import { requestOtp, verifyOtp } from '../otp/service';
 import { providerFor, type OtpProvider } from '../otp/providers';
 import { createSession, requireSession, revokeSession, rotateRefresh } from '../auth/tokens';
 import { buildLicence, getPlan, signAnchorReceipt, type BusinessRow, type DeviceRow } from '../licence/issue';
+import { matches, sendExpoPush, type PushMessage, type Target } from '../announce/announce';
 import { addPhase6Routes, commitBackup, setIntegrityChecker, startBackup } from './phase6';
 import { blocks, verifyIntegrity, type IntegrityInput } from '../integrity/verify';
 
@@ -36,8 +37,10 @@ export async function checkIntegrity(env: Env, input: IntegrityInput | undefined
 export interface Deps {
   now: () => number;
   provider: (env: Env) => OtpProvider;
+  /** Push sender (Expo); injected in tests. */
+  push?: (env: Env, messages: PushMessage[]) => Promise<[number, number]>;
 }
-export const defaultDeps: Deps = { now: () => Date.now(), provider: providerFor };
+export const defaultDeps: Deps = { now: () => Date.now(), provider: providerFor, push: sendExpoPush };
 
 function utcDay(now: number): number {
   const d = new Date(now);
@@ -279,6 +282,7 @@ export function v1Routes(deps: Deps = defaultDeps) {
       c.env.DB.prepare(`UPDATE businesses SET last_seen_at = ?2, app_version = ?3 WHERE id = ?1`).bind(business.id, now, b.appVersion),
     ]);
     if (b.integrity) await checkIntegrity(c.env, b.integrity, 'checkin', now, device.id);
+    if (b.pushToken) await c.env.DB.prepare(`UPDATE devices SET push_token = ?2 WHERE id = ?1`).bind(device.id, b.pushToken).run();
     await countRequest(c.env, business.id, now);
 
     // Backups ride on the daily check-in (no extra request): commit yesterday's upload, hand out today's PUT URL.
@@ -290,7 +294,24 @@ export function v1Routes(deps: Deps = defaultDeps) {
     if (Math.abs(b.deviceTime - now) > DAY_MS) {
       notices.push({ kind: 'clock', textAr: 'ساعة الموبايل مش مظبوطة، من فضلك اظبط التاريخ والوقت.', textEn: 'Your phone clock is wrong. Please fix date and time.' });
     }
+    // In-app inbox: announcements created since this device's last delivery, still valid, matching this business.
+    const since = (await c.env.DB.prepare(`SELECT announcements_until AS u, activated_at AS a FROM devices WHERE id = ?1`).bind(device.id).first<{ u: number; a: number }>())!;
+    const rows = await c.env.DB.prepare(
+      `SELECT id, title_ar, body_ar, title_en, body_en, url, target_json, created_at FROM announcements
+       WHERE created_at > ?1 AND created_at >= ?2 - 14 * 86400000 AND expires_at > ?3 AND cancelled_at IS NULL ORDER BY created_at LIMIT 20`,
+    )
+      .bind(since.u, since.a, now)
+      .all<{ id: string; title_ar: string; body_ar: string; title_en: string | null; body_en: string | null; url: string | null; target_json: string; created_at: number }>();
+    const announcements = rows.results.filter((a) => matches(JSON.parse(a.target_json) as Target, business)).map((a) => ({ id: a.id, titleAr: a.title_ar, bodyAr: a.body_ar, titleEn: a.title_en, bodyEn: a.body_en, url: a.url, at: a.created_at }));
+    if (rows.results.length) {
+      const last = rows.results[rows.results.length - 1]!.created_at;
+      await c.env.DB.batch([
+        c.env.DB.prepare(`UPDATE devices SET announcements_until = ?2 WHERE id = ?1`).bind(device.id, last),
+        ...announcements.map((a) => c.env.DB.prepare(`UPDATE announcements SET delivered = delivered + 1 WHERE id = ?1`).bind(a.id)),
+      ]);
+    }
     return c.json({
+      announcements,
       licence: await buildLicence(c.env, business, device, now),
       serverTime: now,
       refreshToken: t.refreshToken,

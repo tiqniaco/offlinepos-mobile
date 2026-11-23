@@ -105,6 +105,8 @@ export const checkinSchema = z.object({
   /** The upload of this backup finished → the server verifies and commits it. */
   committedBackupId: z.string().optional(),
   integrity: integritySchema.optional(),
+  /** Expo push token of this phone (sent when it changes). */
+  pushToken: z.string().max(200).optional(),
 });
 
 export const backupMetaSchema = z.object({
@@ -132,6 +134,8 @@ export const checkinResponseSchema = z.object({
   backupPut: backupPutSchema.nullable().optional(),
   backupCommitted: z.boolean().optional(),
   notices: z.array(z.object({ kind: z.string(), textAr: z.string(), textEn: z.string() })),
+  /** Super-admin announcements for the in-app inbox. */
+  announcements: z.array(z.object({ id: z.string(), titleAr: z.string(), bodyAr: z.string(), titleEn: z.string().nullable(), bodyEn: z.string().nullable(), url: z.string().nullable(), at: z.number() })).optional(),
 });
 export type CheckinResponse = z.infer<typeof checkinResponseSchema>;
 

@@ -27,6 +27,8 @@ interface AppState {
   licence: LicenceState | null;
   user: SessionUser | null;
   lastActivity: number;
+  /** Changes when new messages from Daftarak arrive (home bell refreshes). */
+  inboxBump: number;
   set: (p: Partial<AppState>) => void;
   lock: () => void;
   unlock: (u: SessionUser) => void;
@@ -42,6 +44,7 @@ export const useApp = create<AppState>((set) => ({
   licence: null,
   user: null,
   lastActivity: Date.now(),
+  inboxBump: 0,
   set: (p) => set(p),
   lock: () => set({ status: 'locked', user: null }),
   unlock: (u) => set({ status: 'ready', user: u, lastActivity: Date.now() }),

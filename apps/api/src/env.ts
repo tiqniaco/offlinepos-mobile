@@ -23,6 +23,8 @@ export interface Env {
   INTEGRITY_MODE?: 'off' | 'log' | 'enforce';
   ANDROID_PACKAGE?: string;
   GOOGLE_SERVICE_ACCOUNT_JSON?: string;
+  /** Optional: Expo push 'enhanced security' access token. */
+  EXPO_ACCESS_TOKEN?: string;
   SMSMISR_USERNAME?: string;
   SMSMISR_PASSWORD?: string;
   SMSMISR_SENDER?: string;

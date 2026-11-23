@@ -756,6 +756,7 @@ D1 load at 10,000 businesses ≈ 10k check-ins/day (≈ 0.12 req/s) — far insi
 | D-56 | iOS App Attest objects are recorded, full server verification (CBOR + Apple chain) is a follow-up; Android Play Integrity fully verified; default policy `log`, `enforce` only blocks sign-up/activation | §12 Play Integrity / App Attest | never lock out a paying shop because of a Google/Apple outage; App Attest verification is large and iOS share is small in EG/SA |
 | D-57 | Local notifications only (no push server) | Phase 7 notifications | zero extra requests, works offline |
 | D-58 | Maestro + EAS builds defined as CI workflows; first green runs need secrets/emulators outside this repo's CI | Phase 7 acceptance | can't run emulators/signing here; everything is ready to run |
+| D-59 | Super-admin announcements: Expo push (instant, phones that allowed notifications) + inbox copy carried by the daily check-in (no extra request); links limited to an allow-list of app screens | owner request (2026-11) | push alone misses phones without permission/token; the check-in path always arrives |
 | D-19 | Phase 1 is delivered in **three commits groups** (1a app foundation, 1b server/auth/licence, 1c onboarding + admin) inside one phase | one phase | it's the largest phase; you can review progress mid-way. Acceptance is still checked once at the end |
 
 No other deviations. The full stack in SPEC §2 is otherwise used as specified (Expo + Router + dev builds,

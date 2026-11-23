@@ -36,6 +36,8 @@ export function HomeView({
   tasks,
   onLock,
   onSearch,
+  onInbox,
+  unread = 0,
   stats,
   onSell,
   quick,
@@ -51,6 +53,9 @@ export function HomeView({
   tasks: SetupTask[];
   onLock: () => void;
   onSearch?: () => void;
+  /** Messages from Daftarak (bell + unread dot). */
+  onInbox?: () => void;
+  unread?: number;
   stats?: { key: string; label: string; value: string; icon: IconName; hue: Hue; onPress?: () => void }[];
   onSell?: () => void;
   quick?: Tile[];
@@ -72,6 +77,16 @@ export function HomeView({
             {onSearch ? (
               <Pressable testID="home-search" accessibilityRole="search" onPress={onSearch} style={({ pressed }) => ({ width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)', opacity: pressed ? 0.7 : 1 })}>
                 <Icon name="search" size={20} color="#FFFFFF" tint="rgba(255,255,255,0.2)" />
+              </Pressable>
+            ) : null}
+            {onInbox ? (
+              <Pressable testID="home-inbox" accessibilityRole="button" accessibilityLabel={t('inbox.title')} onPress={onInbox} style={({ pressed }) => ({ width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)', opacity: pressed ? 0.7 : 1 })}>
+                <Icon name="bell" size={20} color="#FFFFFF" tint="rgba(255,255,255,0.2)" />
+                {unread > 0 ? (
+                  <View style={{ position: 'absolute', top: 4, end: 4, minWidth: 16, height: 16, paddingHorizontal: 3, borderRadius: 8, backgroundColor: colors.rose[500], alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#FFFFFF' }}>
+                    <Text style={{ color: '#FFFFFF', fontSize: 9, lineHeight: 12, fontFamily: fonts.bold }}>{unread > 9 ? '9+' : unread}</Text>
+                  </View>
+                ) : null}
               </Pressable>
             ) : null}
             <Pressable testID="home-lock" accessibilityRole="button" onPress={onLock} style={({ pressed }) => ({ width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)', opacity: pressed ? 0.7 : 1 })}>

@@ -180,7 +180,8 @@
     "reports": "Reports & dashboard",
     "offers": "Offers & coupons",
     "backup": "Backup",
-    "sessions": "Signed-in phones"
+    "sessions": "Signed-in phones",
+    "inbox": "Messages from Daftarak"
   },
   "users": {
     "title": "Users",
@@ -1314,5 +1315,16 @@
     "pos": "Scan with the camera or a scanner — scanning the same item again adds one. Tap an item to change quantity or discount.",
     "parties": "Tap a customer to collect money, send a statement or a WhatsApp reminder.",
     "reports": "Every report has a date filter and can be shared as PDF, Excel, WhatsApp or printed."
+  },
+  "inbox": {
+    "title": "Messages from Daftarak",
+    "subtitle": "Offers, updates and alerts from the Daftarak team",
+    "readAll": "Mark all read",
+    "empty": "No messages yet",
+    "emptyBody": "Offers and important updates from Daftarak will appear here.",
+    "open": "Open",
+    "update": "Update the app",
+    "many": "{{n}} new messages from Daftarak",
+    "channel": "Messages from Daftarak"
   }
 }

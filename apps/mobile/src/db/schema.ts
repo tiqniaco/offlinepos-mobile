@@ -786,3 +786,19 @@ export const anchorReceipts = sqliteTable(
   },
   (t) => [index('anchor_receipts_device').on(t.deviceId, t.chainSeq)],
 );
+
+/** Messages from Daftarak (super-admin announcements), delivered with the daily check-in or by push. */
+export const inbox = sqliteTable(
+  'inbox',
+  {
+    id: text('id').primaryKey(),
+    titleAr: text('title_ar').notNull(),
+    bodyAr: text('body_ar').notNull(),
+    titleEn: text('title_en'),
+    bodyEn: text('body_en'),
+    url: text('url'),
+    at: integer('at').notNull(),
+    readAt: integer('read_at'),
+  },
+  (t) => [index('inbox_at').on(t.at)],
+);

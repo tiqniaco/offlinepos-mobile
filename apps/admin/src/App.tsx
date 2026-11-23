@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { call, fmtDate, fmtMoney, session, AdminApiError } from './api';
 
-type View = { name: 'dashboard' } | { name: 'codes' } | { name: 'businesses' } | { name: 'business'; id: string } | { name: 'plans' } | { name: 'audit' } | { name: 'settings' };
+type View = { name: 'dashboard' } | { name: 'codes' } | { name: 'notify'; businessId?: string; businessName?: string } | { name: 'businesses' } | { name: 'business'; id: string } | { name: 'plans' } | { name: 'audit' } | { name: 'settings' };
 
 const STATUS_AR: Record<string, string> = { trial: 'تجربة', active: 'مشترك', past_due: 'منتهي', suspended: 'موقوف' };
 const DAY = 86_400_000;
@@ -101,7 +101,7 @@ function Businesses({ open }: { open: (id: string) => void }) {
   );
 }
 
-function BusinessDetail({ id, back }: { id: string; back: () => void }) {
+function BusinessDetail({ id, back, notify }: { id: string; back: () => void; notify: (name: string) => void }) {
   const { data, error, reload } = useLoad(() => call(`/businesses/${id}`), [id]);
   const plans = useLoad(() => call('/plans'), []);
   const [days, setDays] = useState(7);
@@ -126,6 +126,7 @@ function BusinessDetail({ id, back }: { id: string; back: () => void }) {
       <div className="row" style={{ marginBottom: 14 }}>
         <button className="btn ghost" onClick={back}>→ رجوع</button>
         <h2 style={{ margin: 0 }}>{b.name}</h2>
+        <button onClick={() => notify(b.name)}>إرسال إشعار</button>
         <span className={`pill ${b.status}`}>{STATUS_AR[b.status] ?? b.status}</span>
       </div>
       <div className="grid two">
@@ -400,6 +401,136 @@ function Codes() {
   );
 }
 
+const SCREENS: [string, string][] = [
+  ['', 'بدون (يفتح صندوق الرسائل)'],
+  ['/settings/subscription', 'الاشتراك والباقات'],
+  ['/settings/backup', 'النسخ الاحتياطي'],
+  ['/settings/printers', 'الطابعات'],
+  ['/reports', 'التقارير'],
+  ['/offers', 'العروض'],
+  ['/(main)/sell', 'شاشة البيع'],
+  ['/(main)/products', 'الأصناف'],
+  ['/(main)/parties', 'العملاء'],
+  ['store', 'تحديث التطبيق (المتجر)'],
+];
+const STATUS: Record<string, string> = { trial: 'تجربة', active: 'مشترك', past_due: 'متأخر في الدفع', suspended: 'موقوف' };
+
+/** Super-admin → users: push now (phones that allowed notifications) + inbox copy with each phone's daily check-in. */
+function Notify({ businessId, businessName }: { businessId?: string; businessName?: string }) {
+  const { data, reload } = useLoad(() => call('/announcements'), []);
+  const [titleAr, setTitleAr] = useState('');
+  const [bodyAr, setBodyAr] = useState('');
+  const [titleEn, setTitleEn] = useState('');
+  const [bodyEn, setBodyEn] = useState('');
+  const [url, setUrl] = useState('');
+  const [mode, setMode] = useState<'all' | 'filter' | 'one'>(businessId ? 'one' : 'all');
+  const [countries, setCountries] = useState<string[]>([]);
+  const [plans, setPlans] = useState<string[]>([]);
+  const [statuses, setStatuses] = useState<string[]>([]);
+  const [push, setPush] = useState(true);
+  const [days, setDays] = useState(14);
+  const [reach, setReach] = useState<{ businesses: number; devices: number; push: number } | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const target = mode === 'all' ? { all: true } : mode === 'one' && businessId ? { businessIds: [businessId] } : { countries: countries.length ? countries : undefined, plans: plans.length ? plans : undefined, statuses: statuses.length ? statuses : undefined };
+  const key = JSON.stringify(target);
+  useEffect(() => {
+    setReach(null);
+    const h = setTimeout(() => void call('/announcements/preview', { body: target }).then(setReach, () => setReach(null)), 300);
+    return () => clearTimeout(h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  const toggle = (list: string[], set: (v: string[]) => void, v: string) => set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
+  const chip = (on: boolean, label: string, onClick: () => void) => (
+    <button key={label} className={on ? 'btn' : ''} onClick={onClick} style={{ padding: '4px 10px' }}>{label}</button>
+  );
+  const send = async () => {
+    if (!reach?.businesses) return;
+    if (!confirm(`هيتبعت لـ ${reach.businesses} نشاط (${reach.devices} جهاز). متأكد؟`)) return;
+    try {
+      const r = await call('/announcements', { body: { titleAr, bodyAr, titleEn: titleEn || undefined, bodyEn: bodyEn || undefined, url: url || undefined, target, push, days } });
+      setMsg(`اتبعت ✓ — ${r.businesses} نشاط، ${r.pushSent} إشعار فوري${r.pushFailed ? `، ${r.pushFailed} فشل` : ''}. الباقي هيوصله مع التحديث اليومي.`);
+      setTitleAr(''); setBodyAr(''); setTitleEn(''); setBodyEn('');
+      reload();
+    } catch (e) {
+      setMsg(`خطأ: ${(e as Error).message}`);
+    }
+  };
+  const targetLabel = (j: string) => {
+    const t = JSON.parse(j);
+    if (t.all) return 'الكل';
+    if (t.businessIds) return `${t.businessIds.length} نشاط محدد`;
+    return [t.countries?.map((c: string) => (c === 'EG' ? 'مصر' : 'السعودية')).join('، '), t.plans?.join('، '), t.statuses?.map((s: string) => STATUS[s]).join('، ')].filter(Boolean).join(' · ');
+  };
+  return (
+    <>
+      <h2>إرسال إشعار للمستخدمين</h2>
+      <div className="card" style={{ display: 'grid', gap: 10 }}>
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+          <strong>لمين؟</strong>
+          {chip(mode === 'all', 'كل المستخدمين', () => setMode('all'))}
+          {chip(mode === 'filter', 'فئة معينة', () => setMode('filter'))}
+          {businessId ? chip(mode === 'one', `نشاط: ${businessName ?? businessId}`, () => setMode('one')) : null}
+        </div>
+        {mode === 'filter' ? (
+          <div style={{ display: 'grid', gap: 6 }}>
+            <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <span className="muted">البلد:</span>
+              {chip(countries.includes('EG'), 'مصر', () => toggle(countries, setCountries, 'EG'))}
+              {chip(countries.includes('SA'), 'السعودية', () => toggle(countries, setCountries, 'SA'))}
+            </div>
+            <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <span className="muted">الباقة:</span>
+              {[['free', 'مجانية'], ['basic', 'أساسي'], ['pro', 'احترافي']].map(([v, l]) => chip(plans.includes(v!), l!, () => toggle(plans, setPlans, v!)))}
+            </div>
+            <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <span className="muted">الحالة:</span>
+              {Object.entries(STATUS).map(([v, l]) => chip(statuses.includes(v), l, () => toggle(statuses, setStatuses, v)))}
+            </div>
+          </div>
+        ) : null}
+        <input placeholder="العنوان (عربي) — مثال: خصم 20% على الباقة السنوية" maxLength={80} value={titleAr} onChange={(e) => setTitleAr(e.target.value)} />
+        <textarea placeholder="نص الرسالة (عربي)" maxLength={500} rows={3} value={bodyAr} onChange={(e) => setBodyAr(e.target.value)} />
+        <details>
+          <summary className="muted">نسخة إنجليزي (اختياري — للي مختار اللغة الإنجليزية)</summary>
+          <div style={{ display: 'grid', gap: 6, marginTop: 6 }} className="ltr">
+            <input placeholder="Title (English)" maxLength={80} value={titleEn} onChange={(e) => setTitleEn(e.target.value)} />
+            <textarea placeholder="Message (English)" maxLength={500} rows={2} value={bodyEn} onChange={(e) => setBodyEn(e.target.value)} />
+          </div>
+        </details>
+        <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+          <label>يفتح شاشة <select value={url} onChange={(e) => setUrl(e.target.value)}>{SCREENS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+          <label>يفضل ظاهر <input type="number" min={1} max={60} value={days} onChange={(e) => setDays(Number(e.target.value))} style={{ width: 60 }} /> يوم</label>
+          <label><input type="checkbox" checked={push} onChange={(e) => setPush(e.target.checked)} /> إشعار فوري على الموبايل</label>
+        </div>
+        <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+          <span className="muted" style={{ flex: 1 }}>
+            {reach ? `هيوصل لـ ${reach.businesses} نشاط · ${reach.devices} جهاز · ${reach.push} منهم يستقبلوا إشعار فوري` : '…'}
+          </span>
+          <button className="btn" disabled={titleAr.trim().length < 2 || bodyAr.trim().length < 2 || !reach?.businesses} onClick={() => void send()}>إرسال</button>
+        </div>
+        {msg ? <div className="muted">{msg}</div> : null}
+      </div>
+      <div className="card">
+        <table>
+          <thead><tr><th>التاريخ</th><th>الرسالة</th><th>لمين</th><th>فوري</th><th>وصل في التطبيق</th><th /></tr></thead>
+          <tbody>
+            {data?.announcements.map((a: any) => (
+              <tr key={a.id} style={a.cancelled_at ? { opacity: 0.5 } : undefined}>
+                <td>{fmtDate(a.created_at)}</td>
+                <td><strong>{a.title_ar}</strong><div className="muted">{a.body_ar}</div></td>
+                <td>{targetLabel(a.target_json)}</td>
+                <td>{a.push_sent}{a.push_failed ? ` (${a.push_failed} فشل)` : ''}</td>
+                <td>{a.delivered}</td>
+                <td>{a.cancelled_at ? 'مسحوب' : a.expires_at > Date.now() ? <button onClick={() => confirm('سحب الرسالة؟ اللي لسه ماوصلهاش مش هتوصله.') && call(`/announcements/${a.id}/cancel`, { body: {} }).then(reload)}>سحب</button> : 'انتهت'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
 function Settings() {
   const { data, reload } = useLoad(() => call('/settings'), []);
   const ads = data?.ads_enabled !== 'false';
@@ -435,6 +566,7 @@ export function App() {
         {nav({ name: 'dashboard' }, 'لوحة الأرقام')}
         {nav({ name: 'businesses' }, 'الأنشطة')}
         {nav({ name: 'codes' }, 'أكواد التفعيل')}
+        {nav({ name: 'notify' }, 'الإشعارات')}
         {nav({ name: 'plans' }, 'الباقات')}
         {nav({ name: 'settings' }, 'إعدادات')}
         {nav({ name: 'audit' }, 'سجل الإدارة')}
@@ -444,8 +576,9 @@ export function App() {
       <main>
         {view.name === 'dashboard' && <Dashboard />}
         {view.name === 'codes' && <Codes />}
+        {view.name === 'notify' && <Notify key={view.businessId ?? 'all'} businessId={view.businessId} businessName={view.businessName} />}
         {view.name === 'businesses' && <Businesses open={(id) => setView({ name: 'business', id })} />}
-        {view.name === 'business' && <BusinessDetail id={view.id} back={() => setView({ name: 'businesses' })} />}
+        {view.name === 'business' && <BusinessDetail id={view.id} back={() => setView({ name: 'businesses' })} notify={(name) => setView({ name: 'notify', businessId: view.id, businessName: name })} />}
         {view.name === 'plans' && <Plans />}
         {view.name === 'audit' && <Audit />}
         {view.name === 'settings' && <Settings />}
