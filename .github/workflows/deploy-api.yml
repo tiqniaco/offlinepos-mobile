@@ -85,7 +85,13 @@ jobs:
         run: npx wrangler d1 migrations apply daftarak --remote --env production
 
       - name: Deploy the server
-        run: npx wrangler deploy --env production
+        # The very first upload can race with Cloudflare registering the new Worker ("does not exist", 10007): retry.
+        run: |
+          for i in 1 2 3 4; do
+            npx wrangler deploy --env production && exit 0
+            echo "::warning::deploy attempt $i failed, retrying in 20s"; sleep 20
+          done
+          exit 1
 
       - name: Server secrets (generated once, never replaced) + your secrets
         env:
