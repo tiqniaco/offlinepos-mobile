@@ -8,8 +8,9 @@ import { auditLog, integrityChain, salesDocs, salesLines, payments } from '../..
 import { setLicenceState } from '../licence/guard';
 import type { SessionUser } from '../auth/users';
 import { ensureInventorySeed } from '../inventory/seed';
-import { listUnits } from '../inventory/catalog';
-import { createProduct, getProduct } from '../inventory/products';
+import { listUnits, saveCategory } from '../inventory/catalog';
+import { saveOffer } from '../offers/offers';
+import { bulkSetCategory, createProduct, getProduct } from '../inventory/products';
 import { checkStockLevels } from '../inventory/ledger';
 import { postAdjustment } from '../inventory/adjust';
 import { createCustomer, ledgerBalance, partyBalance } from '../parties/customers';
@@ -160,6 +161,34 @@ describe('parked sales and quotations', () => {
     const d = await loadDraft(db, q.id);
     await postSale(ctx, d, [{ method: 'cash', amountMinor: 6 * 7980 }]);
     expect((await getSale(db, q.id))!.doc.status).toBe('CONVERTED');
+  });
+  it('a held sale keeps its coupon and category, is priced with offers, and is removed only when its sale posts', async () => {
+    const cat = await saveCategory(ctx, { name: 'مشروبات' });
+    await bulkSetCategory(ctx, [tea], cat);
+    await saveOffer(ctx, { name: 'مشروبات 10%', type: 'PERCENT', active: true, scope: { categoryIds: [cat] }, valueBp: 1000 });
+    await saveOffer(ctx, { name: 'كوبون', type: 'COUPON', active: true, scope: { all: true }, couponCode: 'EID', valueMinor: 500 });
+    const d = { ...(await draft([tea, 2000])), couponCode: 'EID' };
+    const id = await parkSale(ctx, d);
+    // 2 × 22.80 = 45.60 − 10% (4.56) − coupon 5.00 = 36.04
+    expect((await listDrafts(db, 'INVOICE'))[0]!.totalMinor).toBe(3604);
+    const back = await loadDraft(db, id);
+    expect(back.couponCode).toBe('EID');
+    expect(back.sourceId).toBe(id);
+    expect(back.lines[0]!.categoryId).toBe(cat);
+    // Re-holding the resumed cart replaces it (still one held sale).
+    await parkSale(ctx, back, id);
+    expect(await listDrafts(db, 'INVOICE')).toHaveLength(1);
+    // Opening it does not delete it; posting it does, in the same transaction.
+    const again = await loadDraft(db, id);
+    const r = await postSale(ctx, again, [{ method: 'cash', amountMinor: 3604 }]);
+    expect(r.totalMinor).toBe(3604);
+    expect(await listDrafts(db, 'INVOICE')).toHaveLength(0);
+  });
+  it('a failed post keeps the held sale', async () => {
+    const id = await parkSale(ctx, await draft([tea, 1000]));
+    const d = await loadDraft(db, id);
+    await expect(postSale(ctx, d, [{ method: 'credit', amountMinor: 2280 }])).rejects.toThrow();
+    expect(await listDrafts(db, 'INVOICE')).toHaveLength(1);
   });
 });
 

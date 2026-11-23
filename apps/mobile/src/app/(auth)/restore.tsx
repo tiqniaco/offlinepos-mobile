@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -40,6 +40,8 @@ export default function Restore() {
   const [progress, setProgress] = useState<{ p: number; stage: string }>({ p: 0, stage: '' });
   const [preview, setPreview] = useState<RestorePreview | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [verifyBusy, setVerifyBusy] = useState(false);
+  const verifying = useRef(false);
 
   useEffect(() => {
     if (!auth || !businessId) return;
@@ -65,6 +67,9 @@ export default function Restore() {
     }
   };
   const verify = async () => {
+    if (verifying.current) return;
+    verifying.current = true;
+    setVerifyBusy(true);
     setErr(null);
     try {
       await api.stepUpVerify(auth.accessToken, code);
@@ -75,6 +80,9 @@ export default function Restore() {
     } catch (e) {
       setErr(e instanceof ApiError ? errorMessage(t, e) : t('restore.decryptFailed'));
       setStep(e instanceof ApiError && e.code === 'otp_invalid' ? 'otp' : 'list');
+    } finally {
+      verifying.current = false;
+      setVerifyBusy(false);
     }
   };
   const install = async () => {
@@ -112,7 +120,7 @@ export default function Restore() {
             <Button kind="ghost" title={t('restore.startEmpty')} onPress={() => router.push('/owner')} />
           </>
         ) : step === 'otp' ? (
-          <Button title={t('restore.verify')} disabled={code.length !== 6} onPress={() => void verify()} />
+          <Button title={t('restore.verify')} loading={verifyBusy} disabled={code.length !== 6 || verifyBusy} onPress={() => void verify()} />
         ) : step === 'preview' ? (
           <Button testID="restore-confirm" icon="check" title={t('restore.confirm')} onPress={() => void install()} />
         ) : null

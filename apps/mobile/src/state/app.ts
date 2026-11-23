@@ -2,7 +2,7 @@
  * UI state only (Zustand). The database stays the source of truth; this mirrors what screens need.
  */
 import { create } from 'zustand';
-import type { AuthResponse, LicenceState } from '@daftarak/shared';
+import type { AuthResponse, CreateBusinessResponse, LicenceState } from '@daftarak/shared';
 import type { SessionUser } from '../domain/auth/users';
 import type { AppSettings } from '../domain/settings/settings';
 import type { BusinessForm } from '../domain/onboarding';
@@ -61,6 +61,8 @@ interface OnboardingDraft {
   auth: AuthResponse | null;
   businessForm: BusinessForm | null;
   existingBusinessId: string | null;
+  /** The server's answer once the business was created / this phone attached, so a retry only redoes the local part. */
+  registration: CreateBusinessResponse | null;
   set: (p: Partial<OnboardingDraft>) => void;
   reset: () => void;
 }
@@ -72,6 +74,7 @@ export const useOnboarding = create<OnboardingDraft>((set) => ({
   auth: null,
   businessForm: null,
   existingBusinessId: null,
+  registration: null,
   set: (p) => set(p),
-  reset: () => set({ phone: '', mode: 'signup', password: null, auth: null, businessForm: null, existingBusinessId: null }),
+  reset: () => set({ phone: '', mode: 'signup', password: null, auth: null, businessForm: null, existingBusinessId: null, registration: null }),
 }));

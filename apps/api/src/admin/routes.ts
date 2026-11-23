@@ -13,6 +13,8 @@ import { pbkdf2Hex, randomToken, safeEqual, sha256HexAsync } from '../lib/crypto
 import type { Deps } from '../routes/v1';
 import { defaultDeps } from '../routes/v1';
 import { newActivationCode } from '../routes/phase6';
+import { activatePlan } from '../billing/activate';
+import { receiptContentType } from '../billing/manual';
 
 const SESSION_TTL = 8 * 3_600_000;
 const MAX_FAILED = 5;
@@ -71,6 +73,15 @@ async function reach(env: Env, t: Target, withTokens = false) {
     ? (await env.DB.prepare(`SELECT DISTINCT d.push_token AS t FROM devices d JOIN businesses b ON b.id = d.business_id WHERE d.deactivated_at IS NULL AND d.push_token IS NOT NULL AND ${where}`).bind(...args).all<{ t: string }>()).results.map((r) => r.t)
     : [];
   return { businesses: n?.businesses ?? 0, devices: n?.devices ?? 0, push: n?.push ?? 0, tokens };
+}
+
+/** e.g. 23/12/2026 (Cairo time). */
+function arDate(ms: number): string {
+  try {
+    return new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Cairo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(ms));
+  } catch {
+    return new Date(ms).toISOString().slice(0, 10);
+  }
 }
 
 export function adminRoutes(deps: Deps = defaultDeps) {
@@ -265,6 +276,24 @@ export function adminRoutes(deps: Deps = defaultDeps) {
     return c.json({ ok: true });
   });
 
+  /** Manual-payment numbers shown in the app + the activation SLA (hours). */
+  app.put('/settings/payments', async (c) => {
+    const now = deps.now();
+    const adminId = await requireAdmin(c, now);
+    const b = await body(c, z.object({ instapay: z.string().trim().min(3).max(60), vodafoneCash: z.string().trim().regex(/^01[0125]\d{8}$/), slaHours: z.number().int().min(1).max(168) }));
+    await c.env.DB.batch(
+      (
+        [
+          ['pay_instapay', b.instapay],
+          ['pay_vodafone_cash', b.vodafoneCash],
+          ['pay_sla_hours', String(b.slaHours)],
+        ] as const
+      ).map(([k, v]) => c.env.DB.prepare(`INSERT INTO app_settings (key, value) VALUES (?1, ?2) ON CONFLICT (key) DO UPDATE SET value = ?2`).bind(k, v)),
+    );
+    await audit(c.env, adminId, 'payment_settings', null, b, now);
+    return c.json({ ok: true });
+  });
+
   app.get('/audit', async (c) => {
     await requireAdmin(c, deps.now());
     const r = await c.env.DB.prepare(
@@ -360,6 +389,118 @@ export function adminRoutes(deps: Deps = defaultDeps) {
     return c.json({ ok: true });
   });
 
+  // ── Manual payments (InstaPay / Vodafone Cash receipts) ──
+  app.get('/payment-requests', async (c) => {
+    await requireAdmin(c, deps.now());
+    const status = c.req.query('status') ?? 'pending';
+    if (!['pending', 'approved', 'rejected', 'all'].includes(status)) throw new ApiError(400, 'invalid_request', 'status');
+    const r = await c.env.DB.prepare(
+      `SELECT r.id, r.business_id, b.name AS business_name, a.phone AS owner_phone, r.plan_code, p.name_ar AS plan_name_ar, r.period, r.amount_minor, r.currency,
+              r.method, r.payer_phone, r.note, r.status, r.reject_reason, r.reviewed_at, u.email AS reviewed_by_email, r.created_at,
+              b.plan_code AS business_plan_code, b.plan_expires_at AS business_plan_expires_at
+       FROM payment_requests r
+       JOIN businesses b ON b.id = r.business_id
+       JOIN accounts a ON a.id = b.owner_account_id
+       LEFT JOIN plans p ON p.code = r.plan_code
+       LEFT JOIN admin_users u ON u.id = r.reviewed_by
+       WHERE (?1 = 'all' OR r.status = ?1)
+       ORDER BY CASE WHEN r.status = 'pending' THEN r.created_at END ASC, r.created_at DESC LIMIT 200`,
+    )
+      .bind(status)
+      .all();
+    const pending = await c.env.DB.prepare(`SELECT COUNT(*) AS n FROM payment_requests WHERE status = 'pending'`).first<{ n: number }>();
+    return c.json({ requests: r.results, pendingCount: pending?.n ?? 0 });
+  });
+
+  /** Streams the receipt image (admin only; there is no public URL). */
+  app.get('/payment-requests/:id/receipt', async (c) => {
+    await requireAdmin(c, deps.now());
+    const row = await c.env.DB.prepare(`SELECT receipt_key FROM payment_requests WHERE id = ?1`).bind(c.req.param('id')).first<{ receipt_key: string }>();
+    if (!row) throw new ApiError(404, 'not_found');
+    const obj = await c.env.BACKUPS.get(row.receipt_key);
+    if (!obj) throw new ApiError(404, 'not_found', 'receipt missing');
+    return new Response(obj.body, {
+      headers: {
+        'Content-Type': obj.httpMetadata?.contentType ?? receiptContentType(row.receipt_key),
+        'Content-Length': String(obj.size),
+        'Cache-Control': 'private, no-store',
+        'X-Content-Type-Options': 'nosniff',
+      },
+    });
+  });
+
+  app.post('/payment-requests/:id/approve', async (c) => {
+    const now = deps.now();
+    const adminId = await requireAdmin(c, now);
+    const id = c.req.param('id');
+    const b = await body(c, z.object({ days: z.number().int().min(1).max(3660).optional() }));
+    const req = await c.env.DB.prepare(`SELECT business_id, plan_code, period, amount_minor, status FROM payment_requests WHERE id = ?1`).bind(id).first<{
+      business_id: string;
+      plan_code: string;
+      period: 'monthly' | 'yearly';
+      amount_minor: number;
+      status: string;
+    }>();
+    if (!req) throw new ApiError(404, 'not_found');
+    // Atomic claim: only one approve/reject can win.
+    const upd = await c.env.DB.prepare(`UPDATE payment_requests SET status = 'approved', reviewed_by = ?2, reviewed_at = ?3 WHERE id = ?1 AND status = 'pending'`).bind(id, adminId, now).run();
+    if (upd.meta.changes !== 1) throw new ApiError(409, 'not_pending', 'request already reviewed');
+    const business = await c.env.DB.prepare(`SELECT id, plan_code, plan_expires_at FROM businesses WHERE id = ?1`).bind(req.business_id).first<{ id: string; plan_code: string; plan_expires_at: number }>();
+    const days = b.days ?? (req.period === 'yearly' ? 366 : 31);
+    const until = await activatePlan(c.env, business!, req.plan_code, days, 'manual', now, req.period);
+    const plan = await c.env.DB.prepare(`SELECT name_ar FROM plans WHERE code = ?1`).bind(req.plan_code).first<{ name_ar: string }>();
+    const annId = await notifyBusiness(
+      c.env,
+      adminId,
+      req.business_id,
+      'تم تفعيل باقتك 🎉',
+      `استلمنا تحويلك وتم تفعيل باقة «${plan?.name_ar ?? req.plan_code}» (${req.period === 'yearly' ? 'سنوي' : 'شهري'}) لحد ${arDate(until)}. شكراً لثقتك!`,
+      now,
+    );
+    await audit(c.env, adminId, 'payment_approve', id, { businessId: req.business_id, plan: req.plan_code, period: req.period, amountMinor: req.amount_minor, days, expiresAt: until, announcement: annId }, now);
+    return c.json({ ok: true, planExpiresAt: until });
+  });
+
+  app.post('/payment-requests/:id/reject', async (c) => {
+    const now = deps.now();
+    const adminId = await requireAdmin(c, now);
+    const id = c.req.param('id');
+    const { reason } = await body(c, z.object({ reason: z.string().trim().min(2).max(200) }));
+    const req = await c.env.DB.prepare(`SELECT business_id FROM payment_requests WHERE id = ?1`).bind(id).first<{ business_id: string }>();
+    if (!req) throw new ApiError(404, 'not_found');
+    const upd = await c.env.DB.prepare(`UPDATE payment_requests SET status = 'rejected', reject_reason = ?2, reviewed_by = ?3, reviewed_at = ?4 WHERE id = ?1 AND status = 'pending'`)
+      .bind(id, reason, adminId, now)
+      .run();
+    if (upd.meta.changes !== 1) throw new ApiError(409, 'not_pending', 'request already reviewed');
+    const annId = await notifyBusiness(c.env, adminId, req.business_id, 'طلب الدفع اترفض', `السبب: ${reason}\nمن فضلك راجع التحويل وابعت الطلب تاني بصورة إيصال واضحة.`, now);
+    await audit(c.env, adminId, 'payment_reject', id, { businessId: req.business_id, reason, announcement: annId }, now);
+    return c.json({ ok: true });
+  });
+
+  /** Targeted announcement (in-app inbox + push) to one business. */
+  async function notifyBusiness(env: Env, adminId: string, businessId: string, titleAr: string, bodyAr: string, now: number): Promise<string> {
+    const id = uuidv7(now);
+    const target: Target = { businessIds: [businessId] };
+    await env.DB.prepare(
+      `INSERT INTO announcements (id, title_ar, body_ar, url, target_json, push, created_by, created_at, expires_at) VALUES (?1, ?2, ?3, '/settings/subscription', ?4, 1, ?5, ?6, ?7)`,
+    )
+      .bind(id, titleAr, bodyAr, JSON.stringify(target), adminId, now, now + 14 * DAY_MS)
+      .run();
+    const r = await reach(env, target, true);
+    if (r.tokens.length && deps.push) {
+      try {
+        const [sent, failed] = await deps.push(
+          env,
+          r.tokens.map((to) => ({ to, title: titleAr, body: bodyAr, sound: 'default' as const, channelId: 'default', data: { kind: 'announcement', id, url: '/settings/subscription' } })),
+        );
+        await env.DB.prepare(`UPDATE announcements SET push_sent = ?2, push_failed = ?3 WHERE id = ?1`).bind(id, sent, failed).run();
+      } catch {
+        // push is best-effort; the inbox copy still arrives with the next check-in
+      }
+    }
+    return id;
+  }
+
   /** Dashboard: active, trials, paid by plan, MRR (monthly-equivalent), churn (30 days), requests per business/day. */
   app.get('/metrics', async (c) => {
     const now = deps.now();
@@ -390,7 +531,8 @@ export function adminRoutes(deps: Deps = defaultDeps) {
     const churn = paidNow + (lapsed?.n ?? 0) ? (lapsed?.n ?? 0) / (paidNow + (lapsed?.n ?? 0)) : 0;
     const today = Number(new Date(now).toISOString().slice(0, 10).replace(/-/g, ''));
     const req = await q<{ avg: number | null; max: number | null }>(`SELECT AVG(count) AS avg, MAX(count) AS max FROM request_counters WHERE day >= ?1`, today - 7);
-    return c.json({ total: total?.n ?? 0, active30: active?.n ?? 0, trials: trials?.n ?? 0, paid: paidNow, byPlan, mrrMinor: mrr, churn30: churn, requestsPerBusinessDay: { avg: req?.avg ?? 0, max: req?.max ?? 0 } });
+    const pendingPayments = await q<{ n: number }>(`SELECT COUNT(*) AS n FROM payment_requests WHERE status = 'pending'`);
+    return c.json({ pendingPayments: pendingPayments?.n ?? 0, total: total?.n ?? 0, active30: active?.n ?? 0, trials: trials?.n ?? 0, paid: paidNow, byPlan, mrrMinor: mrr, churn30: churn, requestsPerBusinessDay: { avg: req?.avg ?? 0, max: req?.max ?? 0 } });
   });
 
   return app;

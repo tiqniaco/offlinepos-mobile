@@ -46,19 +46,19 @@ export async function searchAll(db: Db, raw: string, limit = 5, permissions?: re
     !canPurchases
       ? none<SearchResults['purchases'][number]>()
       : db
-      .select({ id: purchaseDocs.id, number: purchaseDocs.number, name: purchaseDocs.supplierName, totalMinor: purchaseDocs.totalMinor, type: purchaseDocs.type, status: purchaseDocs.status })
-      .from(purchaseDocs)
-      .where(and(inArray(purchaseDocs.status, ['POSTED', 'VOIDED']), or(like(purchaseDocs.number, like_), like(purchaseDocs.supplierName, like_), like(purchaseDocs.supplierRef, like_))))
-      .orderBy(desc(purchaseDocs.postedAt))
-      .limit(limit),
+        .select({ id: purchaseDocs.id, number: purchaseDocs.number, name: purchaseDocs.supplierName, totalMinor: purchaseDocs.totalMinor, type: purchaseDocs.type, status: purchaseDocs.status })
+        .from(purchaseDocs)
+        .where(and(inArray(purchaseDocs.status, ['POSTED', 'VOIDED']), or(like(purchaseDocs.number, like_), like(purchaseDocs.supplierName, like_), like(purchaseDocs.supplierRef, like_))))
+        .orderBy(desc(purchaseDocs.postedAt))
+        .limit(limit),
     !canParties && !canExpenses
       ? none<SearchResults['vouchers'][number]>()
       : db
-      .select({ id: vouchers.id, number: vouchers.number, name: sql<string | null>`coalesce(${vouchers.partyName}, ${vouchers.categoryName})`, amountMinor: vouchers.amountMinor, type: vouchers.type, status: vouchers.status })
-      .from(vouchers)
-      .where(or(like(vouchers.number, like_), like(vouchers.partyName, like_), like(vouchers.note, like_)))
-      .orderBy(desc(vouchers.postedAt))
-      .limit(limit),
+        .select({ id: vouchers.id, number: vouchers.number, name: sql<string | null>`coalesce(${vouchers.partyName}, ${vouchers.categoryName})`, amountMinor: vouchers.amountMinor, type: vouchers.type, status: vouchers.status })
+        .from(vouchers)
+        .where(or(like(vouchers.number, like_), like(vouchers.partyName, like_), like(vouchers.note, like_)))
+        .orderBy(desc(vouchers.postedAt))
+        .limit(limit),
   ]);
   const products = prods.map((p) => ({ id: p.id, name: p.variantLabel ? `${p.name} · ${p.variantLabel}` : p.name, priceMinor: p.retailPriceMinor, qtyMilli: p.qtyMilli, unit: p.unitName }));
   if (byCode && !products.some((p) => p.id === byCode.productId)) {

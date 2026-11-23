@@ -26,6 +26,7 @@ import { addPasswordRoutes } from './password';
 import { addReleaseRoutes } from './releases';
 import { matches, sendExpoPush, type PushMessage, type Target } from '../announce/announce';
 import { addPhase6Routes, commitBackup, setIntegrityChecker, startBackup } from './phase6';
+import { addManualBillingRoutes } from '../billing/manual';
 import { blocks, verifyIntegrity, type IntegrityInput } from '../integrity/verify';
 
 /** Verify (or just record) device integrity; throws only when policy says so. */
@@ -350,5 +351,6 @@ export function v1Routes(deps: Deps = defaultDeps) {
 
   setIntegrityChecker(checkIntegrity);
   addPhase6Routes(app, deps, registerDevice, countRequest);
+  addManualBillingRoutes(app, deps, countRequest);
   return app;
 }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Pressable } from '../ui/Press';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -33,9 +34,10 @@ export default function Search() {
   const fmt = (v: number) => money(v, currency, i18n.language);
 
   useEffect(() => {
-    const h = setTimeout(() => void searchAll(getDb(), q).then(setR), 120);
+    const h = setTimeout(() => void searchAll(getDb(), q, 5, user.permissions).then(setR, () => setR(null)), 120);
     return () => clearTimeout(h);
-  }, [q]);
+  }, [q, user.permissions]);
+  const canOpenProduct = roleHas(user.permissions, 'products.manage');
 
   const actions: Action[] = useMemo(
     () => [
@@ -57,8 +59,8 @@ export default function Search() {
   const nq = normalizeArabicForSearch(q);
   const shownActions = actions.filter((a) => (!a.perm || roleHas(user.permissions, a.perm)) && (!nq || normalizeArabicForSearch(`${a.label} ${a.words}`).includes(nq)));
 
-  const Row = ({ icon, hue, title, sub, right, onPress }: { icon: IconName; hue: Hue; title: string; sub?: string; right?: string; onPress: () => void }) => (
-    <Pressable onPress={onPress} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, paddingHorizontal: 12, backgroundColor: pressed ? colors.paper.sunk : 'transparent' })}>
+  const Row = ({ icon, hue, title, sub, right, onPress }: { icon: IconName; hue: Hue; title: string; sub?: string; right?: string; onPress?: () => void }) => (
+    <Pressable disabled={!onPress} onPress={onPress} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, paddingHorizontal: 12, backgroundColor: pressed ? colors.paper.sunk : 'transparent' })}>
       <IconBadge name={icon} hue={hue} size={32} />
       <View style={{ flex: 1 }}>
         <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 14.5, lineHeight: 21, color: colors.ink.DEFAULT }}>{title}</Text>
@@ -86,7 +88,7 @@ export default function Search() {
           <Text style={{ fontFamily: fonts.semibold, fontSize: 15, lineHeight: 22, color: colors.primary[700] }}>{t('common.cancel')}</Text>
         </Pressable>
       </View>
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingTop: 4, gap: 4, paddingBottom: insets.bottom + 24 }}>
+      <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" bottomOffset={16} contentContainerStyle={{ padding: 16, paddingTop: 4, gap: 4, paddingBottom: insets.bottom + 24 }}>
         <Group title={t('search.actions')} n={shownActions.length}>
           {shownActions.slice(0, nq ? 6 : 12).map((a) => (
             <Row key={a.key} icon={a.icon} hue={a.hue} title={a.label} onPress={a.go} />
@@ -96,7 +98,7 @@ export default function Search() {
           <>
             <Group title={t('tabs.products')} n={r.products.length}>
               {r.products.map((p) => (
-                <Row key={p.id} icon="box" hue="amber" title={p.name} sub={`${formatQty(p.qtyMilli)} ${p.unit}`} right={fmt(p.priceMinor)} onPress={() => router.replace({ pathname: '/products/[id]', params: { id: p.id } })} />
+                <Row key={p.id} icon="box" hue="amber" title={p.name} sub={`${formatQty(p.qtyMilli)} ${p.unit}`} right={fmt(p.priceMinor)} onPress={canOpenProduct ? () => router.replace({ pathname: '/products/[id]', params: { id: p.id } }) : undefined} />
               ))}
             </Group>
             <Group title={t('parties.customers')} n={r.customers.length}>
@@ -132,7 +134,7 @@ export default function Search() {
             ) : null}
           </>
         ) : null}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </View>
   );
 }

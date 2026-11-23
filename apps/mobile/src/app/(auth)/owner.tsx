@@ -6,7 +6,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { OnboardingScreen, Text, Button, TextField, SectionTitle, Card, Banner, IconBadge, colors } from '../../ui';
 import { useApp, useOnboarding } from '../../state/app';
 import { getDb } from '../../db/client';
-import { attachExistingBusiness, createBusinessOnline } from '../../domain/onboarding';
+import { attachDeviceRemote, createBusinessRemote, finishBusinessLocal } from '../../domain/onboarding';
 import { sessionAfterSetup, listActiveUsers, unlockWithBiometric } from '../../domain/auth/users';
 import { setBiometric } from '../../domain/auth/biometric';
 import { reloadAppData } from '../../state/boot';
@@ -40,13 +40,18 @@ export default function OwnerScreen() {
     const e: typeof errors = {};
     if (name.trim().length < 2) e.name = t('errors.required');
     setErrors(e);
-    if (Object.keys(e).length || !draft.auth || !draft.businessForm || !draft.password) return;
+    if (busy || Object.keys(e).length || !draft.auth || !draft.businessForm || !draft.password) return;
     setBusy(true);
     try {
       const db = getDb();
       const owner = { name: name.trim(), password: draft.password };
-      if (draft.existingBusinessId) await attachExistingBusiness(db, draft.auth, draft.existingBusinessId, owner, draft.businessForm.vatNumber);
-      else await createBusinessOnline(db, draft.auth, draft.businessForm, owner);
+      // Server part once: on a retry (local step failed) reuse the stored answer instead of creating a second business.
+      let reg = useOnboarding.getState().registration;
+      if (!reg) {
+        reg = draft.existingBusinessId ? await attachDeviceRemote(draft.auth, draft.existingBusinessId) : await createBusinessRemote(draft.auth, draft.businessForm);
+        useOnboarding.getState().set({ registration: reg });
+      }
+      await finishBusinessLocal(db, draft.auth, reg, draft.businessForm, owner, !!draft.existingBusinessId);
       await reloadAppData();
       const ownerUser = (await listActiveUsers(db))[0]!;
       let session = await sessionAfterSetup(db, ownerUser.id);

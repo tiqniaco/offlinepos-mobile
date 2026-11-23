@@ -18,18 +18,29 @@ export default function LockScreen() {
   const [bioAvailable, setBioAvailable] = useState(false);
 
   useEffect(() => {
-    void listActiveUsers(getDb()).then((u) => {
-      setUsers(u);
-      if (u.length === 1) setSelected(u[0]!);
-    });
-    void Promise.all([LocalAuthentication.hasHardwareAsync(), LocalAuthentication.isEnrolledAsync()]).then(([h, e]) => setBioAvailable(h && e));
+    void listActiveUsers(getDb()).then(
+      (u) => {
+        setUsers(u);
+        if (u.length === 1) setSelected(u[0]!);
+      },
+      () => setMsg(t('lock.wrong')),
+    );
+    void Promise.all([LocalAuthentication.hasHardwareAsync(), LocalAuthentication.isEnrolledAsync()]).then(
+      ([h, e]) => setBioAvailable(h && e),
+      () => setBioAvailable(false),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const tryBiometric = useCallback(
     async (u: LockUser) => {
       // Fingerprint / face first; if it fails the phone offers its own passcode (device fallback).
-      const r = await LocalAuthentication.authenticateAsync({ promptMessage: t('lock.biometricPrompt'), disableDeviceFallback: false, fallbackLabel: t('lock.usePhoneCode'), cancelLabel: t('common.cancel') });
-      if (r.success) useApp.getState().unlock(await unlockWithBiometric(getDb(), u.id));
+      try {
+        const r = await LocalAuthentication.authenticateAsync({ promptMessage: t('lock.biometricPrompt'), disableDeviceFallback: false, fallbackLabel: t('lock.usePhoneCode'), cancelLabel: t('common.cancel') });
+        if (r.success) useApp.getState().unlock(await unlockWithBiometric(getDb(), u.id));
+      } catch {
+        setMsg(t(u.secretKind === 'password' ? 'lock.wrongPassword' : 'lock.wrong'));
+      }
     },
     [t],
   );
@@ -47,7 +58,7 @@ export default function LockScreen() {
       setPin('');
       if (e instanceof PinError && e.code === 'locked' && e.lockedUntil) {
         const secs = Math.ceil((e.lockedUntil - Date.now()) / 1000);
-        setMsg(t('lock.lockedFor', { time: secs >= 60 ? `${Math.ceil(secs / 60)} min` : `${secs} s` }));
+        setMsg(t('lock.lockedFor', { time: secs >= 60 ? t('lock.minutes', { n: Math.ceil(secs / 60) }) : t('lock.seconds', { n: Math.max(1, secs) }) }));
       } else setMsg(t(selected.secretKind === 'password' ? 'lock.wrongPassword' : 'lock.wrong'));
     } finally {
       setBusy(false);

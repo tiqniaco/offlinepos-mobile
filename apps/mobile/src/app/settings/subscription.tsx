@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Constants from 'expo-constants';
 import { Segmented } from '../../features/common/Segmented';
 import { buy, configureStore, restoreStore, storeAvailable, storePlans, type StorePlan } from '../../features/billing/store';
@@ -56,23 +56,33 @@ export default function Subscription() {
       if (r?.outcome === 'ok' && r.state.plan !== l?.plan) break;
     }
   };
-  const purchase = async (p: StorePlan) => {
+  // One store purchase / code redemption at a time (double taps must not charge or redeem twice).
+  const [working, setWorking] = useState<string | null>(null);
+  const workingRef = useRef(false);
+  const once = async <T,>(key: string, fn: () => Promise<T>): Promise<T | undefined> => {
+    if (workingRef.current) return undefined;
+    workingRef.current = true;
+    setWorking(key);
     setErr(null);
     try {
-      if (await buy(p)) await afterChange(t('subscription.thanks'));
+      return await fn();
     } catch (e) {
       setErr(errorMessage(t, e));
+      return undefined;
+    } finally {
+      workingRef.current = false;
+      setWorking(null);
     }
   };
+  const purchase = async (p: StorePlan) => {
+    const bought = await once(`buy-${p.code}`, () => buy(p));
+    if (bought) await afterChange(t('subscription.thanks'));
+  };
   const redeem = async () => {
-    setErr(null);
-    try {
-      const r = await api.redeemCode(await accessToken(), business!.serverBusinessId, code);
-      setCode('');
-      await afterChange(t('subscription.codeOk', { plan: DEFAULT_PLANS.find((x) => x.code === r.plan)?.[i18n.language === 'en' ? 'nameEn' : 'nameAr'] ?? r.plan }));
-    } catch (e) {
-      setErr(errorMessage(t, e));
-    }
+    const r = await once('redeem', async () => api.redeemCode(await accessToken(), business!.serverBusinessId, code));
+    if (!r) return;
+    setCode('');
+    await afterChange(t('subscription.codeOk', { plan: DEFAULT_PLANS.find((x) => x.code === r.plan)?.[i18n.language === 'en' ? 'nameEn' : 'nameAr'] ?? r.plan }));
   };
   const FEATURE_KEYS: Record<string, string> = { no_ads: 'noAds', multi_unit: 'multiUnit', offers: 'offers', expenses_shifts: 'expenses', expiry: 'expiry', adv_reports: 'advReports', custom_roles: 'customRoles' };
   return (
@@ -133,7 +143,7 @@ export default function Subscription() {
               ))}
               <Text variant="caption">{t('subscription.limitsLine', { users: lim(p.limits.users), products: lim(p.limits.products) })}</Text>
             </View>
-            {current ? <Banner tone="success" text={t('subscription.current')} /> : sp ? <Button testID={`buy-${p.code}`} title={t('subscription.subscribe')} onPress={() => void purchase(sp)} /> : null}
+            {current ? <Banner tone="success" text={t('subscription.current')} /> : sp ? <Button testID={`buy-${p.code}`} title={t('subscription.subscribe')} loading={working === `buy-${p.code}`} disabled={!!working} onPress={() => void purchase(sp)} /> : null}
           </Card>
         );
       })}
@@ -144,7 +154,7 @@ export default function Subscription() {
         <View style={{ height: 8 }} />
         <TextField testID="activation-code" value={code} onChangeText={(v) => setCode(v.toUpperCase())} placeholder="XXXX-XXXX-XXXX" autoCapitalize="characters" ltr />
         <View style={{ height: 8 }} />
-        <Button title={t('subscription.redeem')} disabled={code.replace(/[^A-Z0-9]/gi, '').length < 12} onPress={() => void redeem()} />
+        <Button title={t('subscription.redeem')} loading={working === 'redeem'} disabled={!!working || code.replace(/[^A-Z0-9]/gi, '').length < 12} onPress={() => void redeem()} />
       </Card>
       {support ? <Button kind="secondary" icon="whatsapp" title={t('subscription.contactSales')} onPress={() => void openWhatsApp(support, t('subscription.salesMessage', { name: business?.name ?? '' }))} /> : null}
       <Button kind="secondary" icon="globe" title={busy ? t('subscription.checking') : t('licence.checkNow')} loading={busy} onPress={refresh} />

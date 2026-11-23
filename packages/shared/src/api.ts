@@ -153,8 +153,8 @@ export const checkinResponseSchema = z.object({
 export type CheckinResponse = z.infer<typeof checkinResponseSchema>;
 
 // ── Manual payments (InstaPay / Vodafone Cash + receipt photo; activated by the super admin) ──
-export const PAYMENT_METHODS = ['instapay', 'vodafone_cash'] as const;
-export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+export const MANUAL_PAYMENT_METHODS = ['instapay', 'vodafone_cash'] as const;
+export type ManualPaymentMethod = (typeof MANUAL_PAYMENT_METHODS)[number];
 export const BILLING_PERIODS = ['monthly', 'yearly'] as const;
 export type BillingPeriod = (typeof BILLING_PERIODS)[number];
 export const PAYMENT_REQUEST_STATUSES = ['pending', 'approved', 'rejected'] as const;
@@ -163,7 +163,7 @@ export type PaymentRequestStatus = (typeof PAYMENT_REQUEST_STATUSES)[number];
 export const RECEIPT_MAX_BYTES = 2 * 1024 * 1024;
 
 export const manualBillingInfoSchema = z.object({
-  methods: z.array(z.object({ id: z.enum(PAYMENT_METHODS), number: z.string() })),
+  methods: z.array(z.object({ id: z.enum(MANUAL_PAYMENT_METHODS), number: z.string() })),
   slaHours: z.number(),
   plans: z.array(
     z.object({
@@ -183,7 +183,7 @@ export const createPaymentRequestSchema = z.object({
   businessId: z.string(),
   plan: z.string().min(1).max(20),
   period: z.enum(BILLING_PERIODS),
-  method: z.enum(PAYMENT_METHODS),
+  method: z.enum(MANUAL_PAYMENT_METHODS),
   /** Egyptian mobile (01xxxxxxxxx; +20 / spaces accepted). */
   payerPhone: z.string().min(10).max(20),
   note: z.string().max(200).optional(),
@@ -200,7 +200,7 @@ export const paymentRequestSummarySchema = z.object({
   plan: z.string(),
   period: z.enum(BILLING_PERIODS),
   amountMinor: z.number(),
-  method: z.enum(PAYMENT_METHODS),
+  method: z.enum(MANUAL_PAYMENT_METHODS),
   status: z.enum(PAYMENT_REQUEST_STATUSES),
   rejectReason: z.string().nullable(),
   createdAt: z.number(),

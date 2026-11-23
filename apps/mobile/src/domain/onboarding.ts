@@ -64,7 +64,10 @@ async function writeLocal(db: AppDb, auth: AuthResponse, reg: CreateBusinessResp
   const deviceCode = registration.deviceCode;
   const profile = COUNTRY_PROFILES[form.country];
   const plat = Platform.OS === 'ios' ? 'ios' : 'android';
-  await withTx(db, async (tx) => {
+  // Retry after a failure past the local transaction: the business is already written → only redo the rest.
+  const already = (await db.select({ id: business.serverBusinessId }).from(business).limit(1))[0];
+  if (already && already.id !== registration.businessId) throw new Error('business_exists');
+  if (!already) await withTx(db, async (tx) => {
     await setMeta(tx, 'device_id', deviceId);
     await setMeta(tx, 'device_code', deviceCode);
     await setMeta(tx, 'account_phone', auth.account.phone);
@@ -105,6 +108,37 @@ async function writeLocal(db: AppDb, auth: AuthResponse, reg: CreateBusinessResp
 }
 
 /** New business on this phone. */
+/**
+ * New business on this phone, in two parts so a failure after the server call can be retried without creating a
+ * second business: `createBusinessRemote` (server) → keep its result → `finishBusinessLocal` (this phone, idempotent).
+ */
+export async function createBusinessRemote(auth: AuthResponse, form: BusinessForm): Promise<CreateBusinessResponse> {
+  return api.createBusiness(auth.accessToken, {
+    name: form.name.trim(),
+    country: form.country,
+    type: form.type,
+    vatRegistered: form.vatRegistered,
+    backupKey: await getOrCreateBackupKey(),
+    device: await deviceInfo(),
+    integrity: await integrityToken('signup'),
+  });
+}
+
+/** Existing business, new phone: the server part (registers this phone, deactivates the old one). */
+export async function attachDeviceRemote(auth: AuthResponse, businessId: string): Promise<CreateBusinessResponse> {
+  return api.attachDevice(auth.accessToken, businessId, await deviceInfo(), await integrityToken('attach'));
+}
+
+/** The local part after createBusinessRemote / attachDeviceRemote (safe to call again after a failure). */
+export async function finishBusinessLocal(db: AppDb, auth: AuthResponse, reg: CreateBusinessResponse, form: BusinessForm, owner: OwnerForm, attached: boolean) {
+  if (attached) {
+    const b = reg.business;
+    await writeLocal(db, auth, reg, { name: b.name, country: b.country, type: b.type, vatRegistered: form.vatNumber != null, vatNumber: form.vatNumber }, owner);
+  } else {
+    await writeLocal(db, auth, reg, form, owner);
+  }
+}
+
 export async function createBusinessOnline(db: AppDb, auth: AuthResponse, form: BusinessForm, owner: OwnerForm) {
   const reg = await api.createBusiness(auth.accessToken, {
     name: form.name.trim(),
