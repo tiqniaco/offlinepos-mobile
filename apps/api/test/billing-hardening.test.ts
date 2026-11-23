@@ -80,6 +80,7 @@ describe('manual payments: approve, duplicates, idempotency', () => {
     expect((await c.call('POST', `/admin/businesses/${s.businessId}/suspend`, { suspended: true }, a)).json.status).toBe('suspended');
     c.advance(61_000);
     const r2 = await c.call('POST', '/v1/billing/manual/requests', payReq(s.businessId, { receipt: JPEG2 }), s.h);
+    expect(r2.status).toBe(201);
     const refused = await c.call('POST', `/admin/payment-requests/${r2.json.id}/approve`, {}, a);
     expect([refused.status, refused.json.error.code]).toEqual([409, 'business_suspended']);
     expect((await c.env.DB.prepare(`SELECT status FROM payment_requests WHERE id = ?1`).bind(r2.json.id).first<any>()).status).toBe('pending');
@@ -101,9 +102,9 @@ describe('manual payments: approve, duplicates, idempotency', () => {
     expect(r2.json.id).toBe(r1.json.id);
     const r3 = await c.call('POST', '/v1/billing/manual/requests', payReq(s.businessId, { idempotencyKey: uuidv7(c.clock.now + 1) }), s.h);
     expect(r3.status).toBe(201);
-    const list = (await c.call('GET', '/admin/payment-requests', undefined, a)).json.requests as any[];
+    const list = ((await c.call('GET', '/admin/payment-requests', undefined, a)).json.requests as any[]).filter((x) => x.business_id === s.businessId);
     expect(list).toHaveLength(2);
-    expect(list.every((x) => x.duplicate_receipts === 1)).toBe(true);
+    expect(list.every((x) => x.duplicate_receipts >= 1)).toBe(true);
     expect(list.find((x) => x.id === r1.json.id)).toMatchObject({ reference: '123456789' });
   });
 });

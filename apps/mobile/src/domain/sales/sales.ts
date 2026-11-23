@@ -250,16 +250,17 @@ export async function postSale(ctx: SalesCtx, draft: SaleDraft, pays: PaymentInp
 
     // Stock first: valued at moving average; blocked here if the negative-stock policy says so.
     const warehouseId = await defaultWarehouseId(tx);
-    const tracked = new Set(
-      (await tx.select({ id: products.id }).from(products).where(and(inArray(products.id, draft.lines.map((l) => l.productId)), eq(products.trackStock, true)))).map((r) => r.id),
-    );
+    const prodRows = await tx.select({ id: products.id, track: products.trackStock, cost: products.costMinor }).from(products).where(inArray(products.id, draft.lines.map((l) => l.productId)));
+    const tracked = new Set(prodRows.filter((r) => r.track).map((r) => r.id));
+    const refCost = new Map(prodRows.map((r) => [r.id, r.cost ?? 0]));
     const lineIds = draft.lines.map(() => uuidv7(t));
     const costs: (number | null)[] = [];
     let cogs = 0;
     for (const [i, l] of draft.lines.entries()) {
       const baseQty = toBaseQty(l.qtyMilli, l.factorMilli);
       if (!tracked.has(l.productId) || baseQty === 0) {
-        costs.push(null);
+        // Not stocked (services, untracked items): profit reports cost it at the product's reference cost.
+        costs.push(tracked.has(l.productId) ? null : (refCost.get(l.productId) ?? 0));
         continue;
       }
       const [mv] = await postMovements(tx, ctx, warehouseId, [{ productId: l.productId, qtyMilli: -baseQty, type: 'SALE', sourceType: 'sales_doc', sourceId: docId, sourceLineId: lineIds[i] }]);
@@ -888,8 +889,8 @@ export async function postReturn(ctx: SalesCtx, invoiceId: string, items: { line
         netMinor: p.amounts.netMinor,
         taxMinor: p.amounts.taxMinor,
         totalMinor: p.amounts.totalMinor,
-        // No stock came back (tracking off): no cost either, so profit reports don't count a phantom cost.
-        unitCostMinor: tracked.has(p.line.productId) ? p.line.unitCostMinor : null,
+        // Cost snapshot of the sold line (profit reports); stock moves only for tracked products.
+        unitCostMinor: p.line.unitCostMinor,
         originalLineId: p.line.id,
         businessDay: day,
       });

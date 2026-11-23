@@ -28,18 +28,20 @@ jobs:
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
       - run: pnpm install --frozen-lockfile
         env: { NODE_ENV: development }
       - name: Checks
-        env: { NODE_ENV: test }
+        env:
+          NODE_ENV: test
+          HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         run: |
-          [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ] || { echo "::error::ANDROID_KEYSTORE_BASE64 secret is missing — updates must be signed with the upload key."; exit 1; }
+          [ "$HAS_KEYSTORE" = "true" ] || { echo "::error::ANDROID_KEYSTORE_BASE64 secret is missing — updates must be signed with the upload key."; exit 1; }
           pnpm --filter @daftarak/mobile typecheck && pnpm --filter @daftarak/mobile test
       - name: Version + licence key
         run: |
@@ -50,7 +52,8 @@ jobs:
           [ -n "$KEY" ] || { echo "::error::could not read the licence key"; exit 1; }
           echo "EXPO_PUBLIC_LICENCE_PUBLIC_KEY=$KEY" >> "$GITHUB_ENV"
       - name: Upload key
-        env: { KEYSTORE: '${{ secrets.ANDROID_KEYSTORE_BASE64 }}' }
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/upload.jks"
           echo "DAFTARAK_UPLOAD_STORE_FILE=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
@@ -66,14 +69,19 @@ jobs:
           cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/kashiro-$BUILD_NUMBER.apk"
       - name: Upload to R2 + register the release
         working-directory: apps/api
+        # Workflow inputs go through env (never interpolated into the script / SQL text).
+        env:
+          NOTES_INPUT: ${{ inputs.notes }}
+          FORCED_INPUT: ${{ inputs.forced }}
         run: |
           F="$GITHUB_WORKSPACE/kashiro-$BUILD_NUMBER.apk"
           SHA=$(sha256sum "$F" | cut -d' ' -f1); SIZE=$(stat -c%s "$F")
           npx wrangler r2 object put "daftarak-backups/releases/kashiro-$BUILD_NUMBER.apk" --file "$F" --content-type application/vnd.android.package-archive --remote
           ID=$(npx wrangler d1 list --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).find(x=>x.name==="daftarak").uuid))')
           sed -i "s/00000000-0000-0000-0000-000000000000/$ID/g" wrangler.jsonc
-          NOTES=$(printf '%s' "${{ inputs.notes }}" | sed "s/'/''/g")
-          FORCED=${{ inputs.forced && 1 || 0 }}
+          NOTES=$(printf '%s' "$NOTES_INPUT" | head -c 1000 | sed "s/'/''/g")
+          if [ "$FORCED_INPUT" = "true" ]; then FORCED=1; else FORCED=0; fi
+          case "$BUILD_NUMBER$SIZE" in *[!0-9]*) echo "::error::bad build number / size"; exit 1;; esac
           npx wrangler d1 execute daftarak --remote --env production --command \
             "INSERT INTO app_releases (id, platform, version_code, version_name, file_key, sha256, size, notes_ar, forced, created_at) VALUES ('$(cat /proc/sys/kernel/random/uuid)', 'android', $BUILD_NUMBER, '$APP_VERSION', 'releases/kashiro-$BUILD_NUMBER.apk', '$SHA', $SIZE, '$NOTES', $FORCED, $(date +%s)000)"
           URL="$EXPO_PUBLIC_API_URL/v1/app/download/kashiro-$BUILD_NUMBER.apk"

@@ -1,7 +1,7 @@
 # Build the phone apps on GitHub's own machines (no EAS needed). See docs/build-github.md.
 #
-#  • Android (Ubuntu): APK (install directly) + AAB (Play Store). Signed with your upload key when the
-#    ANDROID_* secrets exist; otherwise signed with a debug key (fine for testing, NOT for the store).
+#  • Android (Ubuntu): APK (install directly) + AAB (Play Store), always signed with your upload key: the build FAILS
+#    without the ANDROID_* secrets (never a debug-signed release; emulator test builds live in screens.yml / e2e.yml).
 #    Optional: uploads the AAB to Play "internal testing" when PLAY_SERVICE_ACCOUNT_JSON exists.
 #  • iOS (macOS): without Apple secrets → a simulator build (proves the app compiles).
 #    With IOS_* secrets → signed IPA; with ASC_* secrets too → uploaded to TestFlight.
@@ -55,7 +55,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
@@ -74,12 +74,12 @@ jobs:
       HAS_PLAY: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
       - run: pnpm install --frozen-lockfile
         env: { NODE_ENV: development }
 
@@ -115,7 +115,10 @@ jobs:
           DAFTARAK_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           DAFTARAK_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          [ "$HAS_KEYSTORE" = "true" ] || echo "::warning::No ANDROID_KEYSTORE_BASE64 secret — signed with the debug key (testing only, not for Play)."
+          # Never build (or attach to a release) an APK signed with the public debug key.
+          if [ "$HAS_KEYSTORE" != "true" ] || [ -z "${DAFTARAK_UPLOAD_STORE_FILE:-}" ]; then
+            echo "::error::No ANDROID_KEYSTORE_BASE64 secret — release builds must be signed with the upload key (see docs/build-github.md)."; exit 1
+          fi
           # Real phones only (arm64 + armv7); x86 is for emulators and doubles the build time.
           ./gradlew assembleRelease bundleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a -Dorg.gradle.jvmargs="-Xmx6g -XX:MaxMetaspaceSize=1g"
           mkdir -p "$GITHUB_WORKSPACE/out"
@@ -130,7 +133,7 @@ jobs:
 
       - name: Upload to Google Play (internal testing)
         if: env.HAS_PLAY == 'true' && env.HAS_KEYSTORE == 'true'
-        uses: r0adkll/upload-google-play@v1
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: app.daftarak
@@ -148,9 +151,9 @@ jobs:
       HAS_ASC: ${{ secrets.ASC_KEY_P8_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
-      - uses: maxim-lobanov/setup-xcode@v1
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with: { xcode-version: latest-stable }
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
@@ -297,7 +300,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with: { path: out, merge-multiple: true }
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: out/*
           draft: true

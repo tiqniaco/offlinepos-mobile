@@ -56,7 +56,7 @@ export async function writeSettings(tx: Pick<AppDb, 'insert'>, values: Partial<A
 }
 
 /** Security settings that protect the whole shop: only someone with settings.manage may change them. */
-const MANAGED_KEYS: ReadonlySet<SettingKey> = new Set<SettingKey>(['autoLockMinutes', 'blockScreenshots']);
+const MANAGED_KEYS: ReadonlySet<SettingKey> = new Set<SettingKey>(['autoLockMinutes', 'blockScreenshots', 'negativeStock', 'wallets']);
 
 /** Change one setting with an audit entry. Language and lock time are personal → allowed even read-only. */
 export async function changeSetting<K extends SettingKey>(

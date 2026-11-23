@@ -36,10 +36,11 @@ export default function More() {
   ];
   if (can('backup.manage')) account.push({ key: 'backup', testID: 'more-backup', icon: 'upload', hue: 'leaf', title: t('more.backup'), onPress: () => router.push('/settings/backup') });
   if (can('users.manage')) account.push({ key: 'sessions', icon: 'phone', hue: 'sky', title: t('more.sessions'), onPress: () => router.push('/settings/sessions') });
+  if (can('settings.manage')) account.push({ key: 'selling', icon: 'cart', hue: 'amber', title: t('more.selling'), onPress: () => router.push('/settings/selling') });
   if (can('settings.manage')) account.push({ key: 'integrity', icon: 'shield', hue: 'leaf', title: t('more.integrity'), onPress: () => router.push('/settings/integrity') });
   const app: MoreItem[] = [
     { key: 'inbox', testID: 'more-inbox', icon: 'bell', hue: 'primary', title: t('more.inbox'), onPress: () => router.push('/inbox') },
-    { key: 'printers', icon: 'clipboard', hue: 'amber', title: t('more.printers'), onPress: () => router.push('/settings/printers') },
+    { key: 'printers', icon: 'printer', hue: 'amber', title: t('more.printers'), onPress: () => router.push('/settings/printers') },
     { key: 'security', testID: 'more-security', icon: 'shield', hue: 'sky', title: t('more.security'), value: minutes ? t('security.minutes', { n: minutes }) : t('security.never'), onPress: () => router.push('/settings/security') },
     { key: 'appearance', testID: 'more-appearance', icon: 'image', hue: 'primary', title: t('more.appearance'), value: PALETTES.find((p) => p.id === palette)?.[i18n.language === 'en' ? 'nameEn' : 'nameAr'], onPress: () => router.push('/settings/appearance') },
     { key: 'lang', icon: 'globe', hue: 'leaf', title: t('more.language'), value: t(`language.${lang}`), onPress: () => router.push('/settings/language') },
