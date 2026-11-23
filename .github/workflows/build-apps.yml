@@ -44,6 +44,7 @@ env:
   GCP_PROJECT_NUMBER: ${{ vars.GCP_PROJECT_NUMBER }}
   SUPPORT_WHATSAPP: ${{ vars.SUPPORT_WHATSAPP }}
   APP_STORE_ID: ${{ vars.APP_STORE_ID }}
+  LICENCE_PUBLIC_KEY: ${{ vars.LICENCE_PUBLIC_KEY }}
   NODE_ENV: production
   EXPO_NO_TELEMETRY: '1'
 
@@ -83,6 +84,7 @@ jobs:
 
       - name: Version
         run: |
+          [ -n "$LICENCE_PUBLIC_KEY" ] || echo "::warning::LICENCE_PUBLIC_KEY variable is empty — run deploy-api first; subscriptions cannot be verified in this build."
           echo "APP_VERSION=${APP_VERSION#v}" >> "$GITHUB_ENV"
           echo "BUILD_NUMBER=$(( ${{ github.run_number }} + ${{ vars.BUILD_NUMBER_OFFSET || 0 }} ))" >> "$GITHUB_ENV"
 
@@ -147,6 +149,7 @@ jobs:
 
       - name: Version
         run: |
+          [ -n "$LICENCE_PUBLIC_KEY" ] || echo "::warning::LICENCE_PUBLIC_KEY variable is empty — run deploy-api first; subscriptions cannot be verified in this build."
           echo "APP_VERSION=${APP_VERSION#v}" >> "$GITHUB_ENV"
           echo "BUILD_NUMBER=$(( ${{ github.run_number }} + ${{ vars.BUILD_NUMBER_OFFSET || 0 }} ))" >> "$GITHUB_ENV"
           [ "$HAS_SIGNING" = "true" ] && echo "IOS_APS_MODE=production" >> "$GITHUB_ENV" || true

@@ -72,6 +72,8 @@ const config: ExpoConfig = {
     eas: process.env.EAS_PROJECT_ID ? { projectId: process.env.EAS_PROJECT_ID } : undefined,
     // Store billing (RevenueCat public SDK keys; empty → in-app purchase hidden, activation codes still work).
     appStoreId: process.env.APP_STORE_ID || '',
+    // Licence verification public key(s) "kid:hex" — printed by the deploy-api workflow (public, not secret).
+    licencePublicKeys: process.env.LICENCE_PUBLIC_KEY || '',
     revenuecat: { android: process.env.REVENUECAT_ANDROID_KEY || '', ios: process.env.REVENUECAT_IOS_KEY || '' },
     supportWhatsApp: process.env.SUPPORT_WHATSAPP || '',
     // Play Integrity: Google Cloud project number linked in Play Console.
