@@ -18,6 +18,8 @@ import { errorMessage } from '../../lib/errors';
 import { fx } from '../../ui/fx';
 import { syncOwnerPassword } from '../../domain/auth/users';
 import { getCurrentDevice, setMeta } from '../../domain/device';
+import { useSmsOtp } from '../../features/auth/useSmsOtp';
+import { SmsOtpHint } from '../../features/auth/SmsOtpHint';
 
 type Backup = Awaited<ReturnType<typeof api.listBackups>>['backups'][number];
 type Step = 'list' | 'otp' | 'working' | 'preview' | 'installing';
@@ -42,6 +44,12 @@ export default function Restore() {
   const [err, setErr] = useState<string | null>(null);
   const [verifyBusy, setVerifyBusy] = useState(false);
   const verifying = useRef(false);
+  // Android: listen for the SMS while the code step is open; the allowed code fills the boxes and verifies once.
+  const sms = useSmsOtp((c) => {
+    if (step !== 'otp' || verifying.current) return;
+    setCode(c);
+    void verify(c);
+  }, step === 'otp');
 
   useEffect(() => {
     if (!auth || !businessId) return;
@@ -59,6 +67,7 @@ export default function Restore() {
 
   const sendOtp = async () => {
     setErr(null);
+    sms.restart(); // listen before the SMS is sent (it can arrive within seconds)
     try {
       await api.stepUpRequest(auth.accessToken);
       setStep('otp');
@@ -66,13 +75,13 @@ export default function Restore() {
       setErr(errorMessage(t, e));
     }
   };
-  const verify = async () => {
-    if (verifying.current) return;
+  const verify = async (value = code) => {
+    if (verifying.current || value.length !== 6) return;
     verifying.current = true;
     setVerifyBusy(true);
     setErr(null);
     try {
-      await api.stepUpVerify(auth.accessToken, code);
+      await api.stepUpVerify(auth.accessToken, value);
       setStep('working');
       const pv = await stageRestore(auth.accessToken, pick!, (p, stage) => setProgress({ p, stage }));
       setPreview(pv);
@@ -154,6 +163,7 @@ export default function Restore() {
         <>
           <Text variant="body">{t('restore.otpSent')}</Text>
           <OtpInput value={code} onChange={setCode} />
+          <SmsOtpHint show={sms.supported} />
         </>
       ) : null}
       {step === 'working' || step === 'installing' ? (

@@ -49,7 +49,8 @@
     "resend": "Send a new code",
     "verify": "Confirm",
     "changePhone": "Change number",
-    "didntGet": "Didn't get the code?"
+    "didntGet": "Didn't get the code?",
+    "smsHint": "We'll read the code from the SMS automatically — tap \"Allow\" when asked"
   },
   "chooseBusiness": {
     "title": "Your business",

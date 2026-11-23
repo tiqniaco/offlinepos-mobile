@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -9,6 +9,8 @@ import { errorMessage } from '../../lib/errors';
 import { useOnboarding } from '../../state/app';
 import { deviceInfo } from '../../domain/onboarding';
 import i18n from '../../i18n';
+import { useSmsOtp } from '../../features/auth/useSmsOtp';
+import { SmsOtpHint } from '../../features/auth/SmsOtpHint';
 
 export default function OtpScreen() {
   const { t } = useTranslation();
@@ -16,6 +18,7 @@ export default function OtpScreen() {
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const verifying = useRef(false);
   const [wait, setWait] = useState(OTP_POLICY.resendCooldownMs / 1000);
 
   useEffect(() => {
@@ -25,7 +28,8 @@ export default function OtpScreen() {
   }, [wait]);
 
   const verify = async (value = code) => {
-    if (value.length !== 6 || busy) return;
+    if (value.length !== 6 || busy || verifying.current) return;
+    verifying.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -37,11 +41,21 @@ export default function OtpScreen() {
       setError(errorMessage(t, e));
       setCode('');
     } finally {
+      verifying.current = false;
       setBusy(false);
     }
   };
 
+  // Android: the code from the SMS (user tapped "Allow") fills the boxes and verifies once.
+  const sms = useSmsOtp((c) => {
+    if (verifying.current) return;
+    setCode(c);
+    setError(null);
+    void verify(c);
+  });
+
   const resend = async () => {
+    sms.restart(); // fresh 5-minute window for the new SMS
     try {
       await api.requestOtp(phone, i18n.language === 'en' ? 'en' : 'ar');
       setWait(OTP_POLICY.resendCooldownMs / 1000);
@@ -71,6 +85,7 @@ export default function OtpScreen() {
               if (d.length === 6) void verify(d);
             }}
           />
+          <SmsOtpHint show={sms.supported} />
           {error ? (
             <Text variant="caption" className="text-center" style={{ color: colors.rose[700] }}>
               {error}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +15,8 @@ import { errorMessage } from '../lib/errors';
 import { useApp } from '../state/app';
 import { fx } from '../ui/fx';
 import i18n from '../i18n';
+import { useSmsOtp } from '../features/auth/useSmsOtp';
+import { SmsOtpHint } from '../features/auth/SmsOtpHint';
 
 /** The SMS code must belong to an account that owns THIS phone's business. */
 function ownsThisBusiness(auth: AuthResponse): boolean {
@@ -39,6 +41,13 @@ export default function UnlockReset() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [wait, setWait] = useState(0);
+  const running = useRef(false);
+  // Android: listen for the SMS while the code step is open; the allowed code fills the boxes and verifies once.
+  const sms = useSmsOtp((c) => {
+    if (step !== 'code' || running.current) return;
+    setCode(c);
+    void verify(c);
+  }, step === 'code');
 
   useEffect(() => {
     void getMeta(getDb(), 'account.phone')
@@ -54,7 +63,8 @@ export default function UnlockReset() {
   }, [wait]);
 
   const run = async (fn: () => Promise<void>) => {
-    if (busy) return;
+    if (busy || running.current) return;
+    running.current = true;
     setErr(null);
     setBusy(true);
     try {
@@ -62,12 +72,15 @@ export default function UnlockReset() {
     } catch (e) {
       setErr(errorMessage(t, e));
     } finally {
+      running.current = false;
       setBusy(false);
     }
   };
 
   const send = () => {
     if (!phone) return setErr(t('unlockReset.noPhone'));
+    if (busy || running.current) return;
+    sms.restart(); // listen before the SMS is sent (it can arrive within seconds)
     return run(async () => {
       await api.requestOtp(phone, i18n.language === 'en' ? 'en' : 'ar');
       setCode('');
@@ -77,11 +90,11 @@ export default function UnlockReset() {
     });
   };
 
-  const verify = () => {
-    if (!phone || code.length !== 6) return;
+  const verify = (value = code) => {
+    if (!phone || value.length !== 6) return;
     return run(async () => {
       try {
-        const a = await api.verifyOtp(phone, code, await deviceInfo());
+        const a = await api.verifyOtp(phone, value, await deviceInfo());
         if (!ownsThisBusiness(a)) {
           setErr(t('unlockReset.otherAccount'));
           return;
@@ -145,6 +158,7 @@ export default function UnlockReset() {
           <View className="gap-3">
             <Text variant="caption">{t('otp.body', { phone: `+${phone}` })}</Text>
             <OtpInput value={code} onChange={setCode} error={!!err} />
+            <SmsOtpHint show={sms.supported} />
             {wait > 0 ? (
               <Text variant="caption">{t('otp.resendIn', { s: wait })}</Text>
             ) : (

@@ -1,13 +1,13 @@
 import { Platform } from 'react-native';
-import { requireOptionalNativeModule, type EventSubscription, type NativeModule } from 'expo';
+import { NativeModule, requireOptionalNativeModule, type EventSubscription } from 'expo';
 
 export type SmsCodeEvent = { code: string };
 type SmsConsentEvents = { onCode: (event: SmsCodeEvent) => void };
 
-type SmsConsentNative = NativeModule<SmsConsentEvents> & {
+declare class SmsConsentNative extends NativeModule<SmsConsentEvents> {
   start(): Promise<void>;
   stop(): void;
-};
+}
 
 // Android only (Google SMS User Consent API). iOS autofills the code from the keyboard
 // (textContentType="oneTimeCode"); web has nothing — both get these no-op stubs.
