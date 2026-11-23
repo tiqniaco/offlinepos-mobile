@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Sheet, ListGroup, ListRow, Chip } from '../../ui';
 import { useCan } from './useInvCtx';
 import { exportProductsToExcel } from './excel';
+import { startCountFlow } from './countFlow';
 import { toast } from '../../state/toast';
 import { errorMessage } from '../../lib/errors';
 
@@ -21,7 +22,8 @@ export function ProductsMenu({ visible, onClose }: { visible: boolean; onClose: 
   };
   const items = [
     manage && { key: 'cat', icon: 'layers' as const, hue: 'amber' as const, title: t('products.categories'), onPress: () => go('/products/categories') },
-    adjust && { key: 'count', icon: 'clipboard' as const, hue: 'sky' as const, title: t('products.stockCount'), onPress: () => go('/products/count') },
+    adjust && { key: 'count', icon: 'clipboard' as const, hue: 'sky' as const, title: t('products.stockCount'), onPress: () => (onClose(), void startCountFlow()) },
+    adjust && { key: 'counts', icon: 'chart' as const, hue: 'sky' as const, title: t('countReport.title'), onPress: () => go('/products/counts') },
     manage && { key: 'import', icon: 'upload' as const, hue: 'primary' as const, title: t('products.import'), onPress: () => go('/products/import') },
     {
       key: 'export',

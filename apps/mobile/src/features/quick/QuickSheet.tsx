@@ -11,6 +11,7 @@ import { Sheet, Text, IconBadge, Icon, colors, fonts, shadow, type IconName, typ
 import { PressableScale } from '../../ui/PressableScale';
 import { useQuick } from '../../state/quick';
 import { useApp } from '../../state/app';
+import { startCountFlow } from '../inventory/countFlow';
 
 interface Action {
   key: string;
@@ -37,6 +38,7 @@ export function QuickSheet() {
     { key: 'collect', icon: 'arrowIn', hue: 'leaf', label: t('quick.collect'), perm: 'parties.manage', go: () => router.push({ pathname: '/vouchers/new', params: { type: 'RECEIPT' } }) },
     { key: 'pay', icon: 'arrowOut', hue: 'amber', label: t('quick.paySupplier'), perm: 'purchases.manage', go: () => router.push({ pathname: '/vouchers/new', params: { type: 'PAYMENT' } }) },
     { key: 'expense', icon: 'wallet', hue: 'rose', label: t('quick.expense'), perm: 'expenses.manage', go: () => router.push({ pathname: '/vouchers/new', params: { type: 'EXPENSE' } }) },
+    { key: 'count', icon: 'clipboard', hue: 'sky', label: t('quick.stockCount'), perm: 'stock.adjust', go: () => void startCountFlow() },
     { key: 'product', icon: 'box', hue: 'amber', label: t('quick.newProduct'), perm: 'products.manage', go: () => router.push('/products/form') },
     { key: 'customer', icon: 'users', hue: 'primary', label: t('quick.newCustomer'), perm: 'parties.manage', go: () => router.push({ pathname: '/parties/form', params: { type: 'C' } }) },
     { key: 'statement', icon: 'receipt', hue: 'sky', label: t('quick.statement'), go: () => router.push({ pathname: '/(main)/parties', params: { type: 'C' } }) },

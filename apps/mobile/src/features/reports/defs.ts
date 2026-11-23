@@ -13,6 +13,8 @@ import { expenseTotals, listVouchers } from '../../domain/vouchers/vouchers';
 import type { IconName, Hue } from '../../ui';
 import type { ReportDoc } from '../export/report';
 import { dayText, expensesDoc, type BizHeader } from '../export/builders';
+import { listCounts } from '../../domain/inventory/counts';
+import { countsListDoc } from '../inventory/countDoc';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const t = (k: string, o?: Record<string, unknown>) => (i18n.t as any)(k, o) as string;
@@ -33,7 +35,8 @@ export type ReportId =
   | 'aging_c'
   | 'aging_s'
   | 'expenses'
-  | 'shifts';
+  | 'shifts'
+  | 'stock_counts';
 
 export interface ReportDef {
   id: ReportId;

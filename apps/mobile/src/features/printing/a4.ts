@@ -51,7 +51,8 @@ export function buildA4Html(d: ReceiptData, o: A4Options = {}): string {
   const m = (v: number) => formatMinor(v);
   const cur = d.currency === 'SAR' ? 'ر.س' : 'ج.م';
   const quote = d.kind === 'QUOTATION';
-  const method = o.methodLabel ?? ((x: string) => x);
+  const AR_METHODS: Record<string, string> = { cash: 'نقدي', card: 'كارت', wallet: 'محفظة', bank: 'تحويل بنكي', credit: 'آجل' };
+  const method = o.methodLabel ?? ((x: string) => AR_METHODS[x] ?? x);
   const showDisc = tpl.showDiscount && d.lines.some((l) => l.discountMinor > 0);
   const showCode = tpl.showItemCode && d.lines.some((l) => l.code);
   const vat = tpl.showTax && d.taxRatePct != null;
