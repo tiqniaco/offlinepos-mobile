@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Banner } from '../ui';
 import { useApp } from '../state/app';
@@ -8,8 +9,11 @@ import { backgroundCheckin } from '../state/boot';
 export function LicenceBanner() {
   const { t } = useTranslation();
   const l = useApp((s) => s.licence);
+  const unlinked = useApp((s) => s.restoreUnlinked);
   const [busy, setBusy] = useState(false);
   if (!l) return null;
+  // Restored from a file without the server: view-only until this phone is linked to the account (needs internet once).
+  if (unlinked && !l.canWrite) return <Banner testID="licence-banner" tone="warn" text={t('portable.link.banner')} action={t('portable.link.action')} onAction={() => router.push('/settings/link-device')} />;
   const refresh = async () => {
     setBusy(true);
     await backgroundCheckin(true).catch(() => undefined);

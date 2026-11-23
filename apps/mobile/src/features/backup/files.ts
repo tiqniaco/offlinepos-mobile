@@ -48,10 +48,18 @@ export interface BuiltBackup {
 
 /** Snapshot → .obk (gzip + AES-256-GCM with the business backup key). Progress 0…1. */
 export async function buildBackup(keyB64: string, header: ObkHeader, onProgress?: (p: number) => void): Promise<BuiltBackup> {
+  return writeBackupFile(new ObkWriter(base64urlDecode(keyB64), header), `backup-${header.createdAt}.obk`, [], onProgress);
+}
+
+/**
+ * Snapshot + product photos (+ small extra entries) through any container writer (cloud .obk or portable .kashiro),
+ * in 64 KB slices with a yield between them. Progress 0…1.
+ */
+export async function writeBackupFile(w: ObkWriter<object>, fileName: string, extras: [string, Uint8Array][], onProgress?: (p: number) => void): Promise<BuiltBackup> {
   const dir = backupDir();
   const plain = new File(dir, 'snapshot.sqlite');
   snapshot(plain);
-  const out = fresh(dir, `backup-${header.createdAt}.obk`);
+  const out = fresh(dir, fileName);
   const outH = out.open();
   const fileHash = sha256.create();
   const write = async (chunks: Uint8Array[]) => {
@@ -61,7 +69,6 @@ export async function buildBackup(keyB64: string, header: ObkHeader, onProgress?
     }
   };
   try {
-    const w = new ObkWriter(base64urlDecode(keyB64), header);
     await write([w.start()]);
     const inH = plain.open();
     const total = inH.size ?? 0;
@@ -85,6 +92,10 @@ export async function buildBackup(keyB64: string, header: ObkHeader, onProgress?
         await write(w.data(bytes));
         await yieldUi();
       }
+    }
+    for (const [name, bytes] of extras) {
+      await write(w.beginEntry(name, bytes.length));
+      await write(w.data(bytes));
     }
     const fin = w.finish();
     await write(fin.frames);
@@ -121,6 +132,16 @@ export async function backupHeader(file: File): Promise<ObkHeader> {
 
 /** Decrypt a .obk into a plain snapshot + staged images. Throws ObkError on wrong key / tampering. */
 export async function decryptBackup(file: File, keyB64: string, onProgress?: (p: number) => void): Promise<{ snapshot: File; images: Directory; header: ObkHeader }> {
+  const out = await decryptBackupFile<ObkHeader>(file, base64urlDecode(keyB64), onProgress);
+  return { snapshot: out.snapshot, images: out.images, header: out.header };
+}
+
+/** Small entries under "key/" are returned in memory (never written to disk). */
+export async function decryptBackupFile<H extends object>(
+  file: File,
+  key: Uint8Array,
+  onProgress?: (p: number) => void,
+): Promise<{ snapshot: File; images: Directory; header: H; secrets: Record<string, Uint8Array> }> {
   const dir = backupDir();
   const snap = fresh(dir, 'restore.sqlite');
   const imgStage = new Directory(dir, 'restore-images');
@@ -129,7 +150,8 @@ export async function decryptBackup(file: File, keyB64: string, onProgress?: (p:
   const snapH = snap.open();
   let cur: { name: string; handle: ReturnType<File['open']> | null } = { name: '', handle: null };
   const pending: Promise<void>[] = [];
-  const r = new ObkReader(base64urlDecode(keyB64), {
+  const secrets: Record<string, Uint8Array> = {};
+  const r = new ObkReader<H>(key, {
     onEntry: (name) => {
       if (cur.handle && cur.handle !== snapH) cur.handle.close();
       if (name === 'db.sqlite') cur = { name, handle: snapH };
@@ -138,10 +160,18 @@ export async function decryptBackup(file: File, keyB64: string, onProgress?: (p:
     },
     onData: (d) => {
       if (cur.handle) cur.handle.writeBytesSync(d.slice());
+      else if (cur.name.startsWith('key/') && d.length) {
+        const prev = secrets[cur.name];
+        const next = new Uint8Array((prev?.length ?? 0) + d.length);
+        if (prev) next.set(prev);
+        next.set(d, prev?.length ?? 0);
+        if (next.length <= 1024) secrets[cur.name] = next;
+      }
     },
   });
   const inH = file.open();
   const total = inH.size ?? 0;
+  let failed = false;
   try {
     for (let done = 0; done < total; ) {
       const b = await inH.readBytes(SLICE);
@@ -153,12 +183,20 @@ export async function decryptBackup(file: File, keyB64: string, onProgress?: (p:
     }
     await Promise.all(pending);
     r.finish();
+  } catch (e) {
+    failed = true;
+    throw e;
   } finally {
     inH.close();
     if (cur.handle && cur.handle !== snapH) cur.handle.close();
     snapH.close();
+    // Wrong key / damaged file: no partly decrypted data stays behind.
+    if (failed) {
+      if (snap.exists) snap.delete();
+      if (imgStage.exists) imgStage.delete();
+    }
   }
-  return { snapshot: snap, images: imgStage, header: r.header! };
+  return { snapshot: snap, images: imgStage, header: r.header!, secrets };
 }
 
 /** Open a decrypted snapshot read-only-ish for the preview (no key: it is the plain copy). */

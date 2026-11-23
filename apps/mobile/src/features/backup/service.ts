@@ -3,7 +3,6 @@
  * and restore on a new phone. Business data never leaves the phone unencrypted.
  */
 import * as Network from 'expo-network';
-import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
 import { File } from 'expo-file-system';
 import type { ObkHeader } from '@daftarak/shared';
@@ -47,12 +46,13 @@ async function header(): Promise<{ header: ObkHeader; serverBusinessId: string }
   return { header: { v: 1, businessId: b.serverBusinessId, deviceId: dev.id, deviceCode: dev.code, schemaVersion: SCHEMA_VERSION, createdAt: Date.now(), counts: numeric, appVersion: APP_VERSION }, serverBusinessId: b.serverBusinessId };
 }
 
-async function recordDone(meta: LastBackup) {
+/** `cloudHead: false` for the shop's own file copy: it must not make the daily cloud backup think it is up to date. */
+export async function recordDone(meta: LastBackup, opts: { cloudHead?: boolean } = {}) {
   const db = getDb();
   const dev = (await getCurrentDevice(db))!;
   await withTx(db, async (tx) => {
     await setMeta(tx, 'backup.last', JSON.stringify(meta));
-    await setMeta(tx, 'backup.lastHead', (await chainHead(tx, dev.id)).hash);
+    if (opts.cloudHead !== false) await setMeta(tx, 'backup.lastHead', (await chainHead(tx, dev.id)).hash);
     await appendAudit(tx, { action: 'backup.create', entity: 'backups', entityId: meta.id, after: { size: meta.size, kind: meta.kind }, deviceId: dev.id, at: meta.at });
   });
 }
@@ -75,13 +75,8 @@ export async function backupNow(onProgress?: (p: number, stage: 'build' | 'uploa
   }
 }
 
-/** Encrypted .obk to the share sheet (Files, Drive, WhatsApp to yourself…). Works offline and read-only. */
-export async function exportLocalBackup(onProgress?: (p: number) => void) {
-  const { header: h } = await header();
-  const built = await buildBackup(await getOrCreateBackupKey(), h, onProgress);
-  await Sharing.shareAsync(built.file.uri, { mimeType: 'application/octet-stream', dialogTitle: built.file.name, UTI: 'public.data' });
-  await recordDone({ at: Date.now(), size: built.size, id: null, kind: 'local' });
-}
+// The shop's own copy (Drive / Files) is the passphrase-protected ".kashiro" file: features/backup/portable.ts.
+// (An .obk exported with this phone's backup key could not be opened on a new phone without our server.)
 
 // ── automatic daily backup (rides on the check-in: PLAN.md §9.3) ──
 

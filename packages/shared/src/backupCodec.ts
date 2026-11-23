@@ -55,7 +55,8 @@ function aad(headerHash: Uint8Array, index: number, last: boolean) {
 }
 
 /** Streaming writer. start() → header bytes; addEntry/push → frames; finish() → final frames + payload hash. */
-export class ObkWriter {
+/** Any JSON header: the cloud/server-key header (ObkHeader) or the passphrase header (PortableHeader). */
+export class ObkWriter<H extends object = ObkHeader> {
   private gz: Gzip;
   private pending: Uint8Array[] = [];
   private pendingLen = 0;
@@ -65,7 +66,7 @@ export class ObkWriter {
   private headerBytes: Uint8Array;
   private headerHash: Uint8Array;
 
-  constructor(private key: Uint8Array, header: ObkHeader, private random: (n: number) => Uint8Array = randomBytes) {
+  constructor(private key: Uint8Array, header: H, private random: (n: number) => Uint8Array = randomBytes) {
     if (key.length !== 32) throw new ObkError('format');
     this.headerBytes = enc.encode(JSON.stringify(header));
     this.headerHash = sha256(this.headerBytes);
@@ -123,12 +124,14 @@ export class ObkWriter {
 }
 
 /** Read just the header (no key needed) from the first bytes of a file. */
-export function readObkHeader(first: Uint8Array): { header: ObkHeader; bodyOffset: number } {
+export function readObkHeader<H extends object = ObkHeader>(first: Uint8Array): { header: H; bodyOffset: number } {
   if (first.length < 8 || OBK_MAGIC.some((m, i) => first[i] !== m)) throw new ObkError('magic');
   const len = readU32(first, 4);
   if (len > 64 * 1024 || first.length < 8 + len) throw new ObkError('header');
   try {
-    return { header: JSON.parse(dec.decode(first.subarray(8, 8 + len))) as ObkHeader, bodyOffset: 8 + len };
+    const header: unknown = JSON.parse(dec.decode(first.subarray(8, 8 + len)));
+    if (!header || typeof header !== 'object' || Array.isArray(header)) throw new ObkError('header');
+    return { header: header as H, bodyOffset: 8 + len };
   } catch {
     throw new ObkError('header');
   }
@@ -140,10 +143,10 @@ export interface ObkEntryEvents {
 }
 
 /** Streaming reader: push file bytes in any chunking; entries/data are emitted as they decrypt. */
-export class ObkReader {
+export class ObkReader<H extends object = ObkHeader> {
   private buf: Uint8Array = new Uint8Array(0);
   private headerHash: Uint8Array | null = null;
-  header: ObkHeader | null = null;
+  header: H | null = null;
   private index = 0;
   private sawLast = false;
   private hash = sha256.create();
@@ -161,7 +164,7 @@ export class ObkReader {
       if (this.buf.length < 8) return;
       const len = readU32(this.buf, 4);
       if (this.buf.length < 8 + len) return;
-      const { header, bodyOffset } = readObkHeader(this.buf);
+      const { header, bodyOffset } = readObkHeader<H>(this.buf);
       this.header = header;
       this.headerHash = sha256(this.buf.subarray(8, bodyOffset));
       this.buf = this.buf.subarray(bodyOffset);

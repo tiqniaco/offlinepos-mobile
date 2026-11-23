@@ -29,6 +29,8 @@ interface AppState {
   lastActivity: number;
   /** Changes when new messages from Daftarak arrive (home bell refreshes). */
   inboxBump: number;
+  /** Data restored from a .kashiro file without the server: view-only until this phone is linked to the account. */
+  restoreUnlinked: boolean;
   set: (p: Partial<AppState>) => void;
   lock: () => void;
   unlock: (u: SessionUser) => void;
@@ -45,6 +47,7 @@ export const useApp = create<AppState>((set) => ({
   user: null,
   lastActivity: Date.now(),
   inboxBump: 0,
+  restoreUnlinked: false,
   set: (p) => set(p),
   lock: () => set({ status: 'locked', user: null }),
   unlock: (u) => set({ status: 'ready', user: u, lastActivity: Date.now() }),

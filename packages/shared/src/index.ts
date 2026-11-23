@@ -17,4 +17,5 @@ export * from './escpos';
 export * from './purchasing';
 export * from './offers';
 export * from './backupCodec';
+export * from './portableBackup';
 export * from './password';

@@ -65,6 +65,7 @@ export default function Login() {
       {error ? <Banner tone="danger" text={error} /> : null}
       {noPassword ? <Button kind="secondary" compact title={t('login.useSms')} onPress={() => viaSms('reset')} /> : null}
       <Button kind="ghost" compact title={t('login.newAccount')} onPress={() => viaSms('signup')} />
+      <Button kind="ghost" compact icon="file" title={t('portable.restoreTitle')} onPress={() => router.push('/restore-file')} />
     </OnboardingScreen>
   );
 }

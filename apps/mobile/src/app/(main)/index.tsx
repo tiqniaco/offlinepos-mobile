@@ -25,6 +25,7 @@ import { useInvCtx } from '../../features/inventory/useInvCtx';
 import { toast } from '../../state/toast';
 import { errorMessage } from '../../lib/errors';
 import { Tip } from '../../features/Tip';
+import { lastPortableExport, portableReminder } from '../../domain/backup/portable';
 import { LicenceBanner } from '../../features/LicenceBanner';
 import { HomeView, type SetupTask } from '../../features/home/HomeView';
 import type { Tile } from '../../features/common/ActionTiles';
@@ -57,6 +58,7 @@ export default function Home() {
   const inboxBump = useApp((s) => s.inboxBump);
   const [unread, setUnread] = useState(0);
   const [news, setNews] = useState<Awaited<ReturnType<typeof latestUnread>>>(null);
+  const [lastFile, setLastFile] = useState<number | null | undefined>(undefined);
   const invCtx = useInvCtx();
   const [bioAvailable, setBioAvailable] = useState<boolean | null>(null);
   useEffect(() => {
@@ -127,6 +129,7 @@ export default function Home() {
       void hasSampleData({ db }).then(setSample);
       void unreadCount(db).then(setUnread);
       void latestUnread(db).then(setNews);
+      if (roleHas(user.permissions, 'backup.manage')) void lastPortableExport(db).then(setLastFile, () => undefined);
       // Daily background integrity check for owners/managers (tamper alert on the home screen).
       if (device && integrityCheckedDay !== day && roleHas(user.permissions, 'settings.manage')) {
         integrityCheckedDay = day;
@@ -161,10 +164,17 @@ export default function Home() {
     { key: 'shift', icon: 'clock', hue: 'ink', label: t('quick.shift'), onPress: () => router.push('/shifts') },
   ];
 
+  // Weekly nudge: the shop's own copy on Drive (owner / backup managers; once the shop has products).
+  const fileReminder = lastFile !== undefined ? portableReminder(lastFile) : null;
+  const fileNudge = can('backup.manage') && fileReminder?.due && (lastFile || inv?.products) ? fileReminder : null;
+
   const alerts = (
     <>
       <Tip id="home" />
       {news ? <Banner tone="info" icon="bell" title={(i18n.language === 'en' && news.titleEn) || news.titleAr} text={(i18n.language === 'en' && news.bodyEn) || news.bodyAr} action={t('inbox.open')} onAction={() => router.push('/inbox')} /> : null}
+      {fileNudge ? (
+        <Banner tone="warn" icon="file" text={fileNudge.days == null ? t('portable.never') : t('portable.lastAgo', { n: fileNudge.days })} action={t('portable.remindAction')} onAction={() => router.push('/settings/backup')} />
+      ) : null}
       {tamper ? <Banner tone="danger" title={t('integrity.alertTitle')} text={t('integrity.alertBody')} action={t('integrity.open')} onAction={() => router.push('/settings/integrity')} /> : null}
       {requireShift && !shiftOpen && can('sales.create') ? <Banner tone="warn" text={t('shift.mustOpen')} action={t('shift.open')} onAction={() => router.push('/shifts')} /> : null}
       {late > 0 && can('parties.manage') ? (

@@ -15,6 +15,7 @@ import { checkinDue, hooks, refreshLicenceState, runCheckin } from '../domain/li
 import { integrityToken } from '../features/integrity/integrity';
 import { pushToken, showAnnouncements } from '../features/notify/notify';
 import { getMeta, setMeta } from '../domain/device';
+import { isUnlinked } from '../domain/backup/portable';
 import { finishAutoBackup, markCommitted, pendingBackupId, prepareAutoBackup } from '../features/backup/service';
 
 // Daily automatic backup rides on the check-in (features/backup/service.ts).
@@ -89,6 +90,7 @@ export async function boot(): Promise<void> {
   }
   await refreshLicenceState(db);
   set({
+    restoreUnlinked: await isUnlinked(db),
     status: 'locked',
     settings,
     device,

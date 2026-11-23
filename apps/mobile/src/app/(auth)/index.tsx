@@ -46,6 +46,7 @@ export default function Welcome() {
         <View className="gap-3 pt-5">
           <Button testID="welcome-start" title={t('welcome.start')} icon="chevron" onPress={() => (useOnboarding.getState().set({ mode: 'signup' }), router.push('/phone'))} />
           <Button testID="welcome-login" kind="secondary" title={t('login.have')} onPress={() => router.push('/login')} />
+          <Button testID="welcome-restore-file" kind="ghost" icon="file" title={t('portable.restoreTitle')} onPress={() => router.push('/restore-file')} />
           <Text variant="caption" className="text-center">
             {t('welcome.free')}
           </Text>
