@@ -193,3 +193,27 @@ it('PricingError / PaymentError are typed', () => {
   expect(new PricingError('negative_qty').code).toBe('negative_qty');
   expect(new PaymentError('underpaid').code).toBe('underpaid');
 });
+
+describe('scoped coupon (M3)', () => {
+  it('is allocated only across the lines it applies to', () => {
+    const r = priceCart({
+      lines: [
+        { key: 'tea', qtyMilli: 1000, unitPriceMinor: 2280, taxRateBp: 1400, couponEligible: true },
+        { key: 'oil', qtyMilli: 1000, unitPriceMinor: 7980, taxRateBp: 1400, couponEligible: false },
+      ],
+      pricesIncludeVat: true,
+      couponMinor: 500,
+      invoiceDiscount: { type: 'amount', minor: 1000 },
+    });
+    expect(r.couponMinor).toBe(500);
+    const shares = r.lines.map((l) => l.invoiceDiscountMinor);
+    expect(shares[0]! - 500 + shares[1]!).toBe(1000); // manual discount still spread over both
+    expect(shares[1]).toBeLessThan(1000);
+    expect(r.totalMinor).toBe(2280 + 7980 - 1500);
+  });
+  it('is capped at the in-scope amount', () => {
+    const r = priceCart({ lines: [{ key: 'a', qtyMilli: 1000, unitPriceMinor: 300, taxRateBp: 0 }, { key: 'b', qtyMilli: 1000, unitPriceMinor: 5000, taxRateBp: 0, couponEligible: false }], pricesIncludeVat: true, couponMinor: 1000 });
+    expect(r.couponMinor).toBe(300);
+    expect(r.lines[1]!.invoiceDiscountMinor).toBe(0);
+  });
+});
