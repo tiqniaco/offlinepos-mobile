@@ -38,6 +38,18 @@ describe('device integrity', () => {
     expect(blocks(env, rooted, 'checkin')).toBe(false); // never lock a shop out at check-in
   });
 
+  it('Google calls carry a timeout signal; a timeout is "unverified" (never blocks a check-in)', async () => {
+    const env = { INTEGRITY_MODE: 'enforce', ANDROID_PACKAGE: 'app.daftarak', GOOGLE_SERVICE_ACCOUNT_JSON: await serviceAccount() } as unknown as Env;
+    const signals: (AbortSignal | null | undefined)[] = [];
+    const hang = (async (_url: string | URL | Request, init?: RequestInit) => {
+      signals.push(init?.signal);
+      throw new DOMException('timed out', 'TimeoutError');
+    }) as typeof fetch;
+    const v = await verifyIntegrity(env, { platform: 'android', token: 't', requestHash: 'h1' }, NOW, hang);
+    expect(v).toEqual({ status: 'unverified', reason: 'timeout' });
+    expect(signals[0]).toBeInstanceOf(AbortSignal);
+  });
+
   it('log mode never blocks; missing configuration or token is "unverified", not a failure', async () => {
     const env = { INTEGRITY_MODE: 'log' } as unknown as Env;
     const v = await verifyIntegrity(env, { platform: 'android', token: 't', requestHash: 'h' }, NOW);
