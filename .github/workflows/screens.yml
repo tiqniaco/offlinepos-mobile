@@ -52,11 +52,13 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
+          target: google_apis
           arch: x86_64
           profile: pixel_6
           ram-size: 4096M
           disable-animations: false
-          emulator-options: -no-snapshot -noaudio -no-boot-anim -camera-back none
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: |
             adb install -r apps/mobile/android/app/build/outputs/apk/release/app-release.apk
             adb shell settings put system locale ar-EG || true
@@ -65,11 +67,12 @@ jobs:
 
       - name: API log
         if: always()
-        run: tail -200 /tmp/api.log > tour-out/api.log || true
+        run: mkdir -p tour-out && tail -200 /tmp/api.log > tour-out/api.log || true
 
       - name: Publish screenshots to the ci-screens branch (readable without artifact downloads)
         if: always()
         run: |
+          mkdir -p tour-out
           curl -sf https://daftarak-api.mallimerp.com/v1/licence/public-key > tour-out/licence-key.json || true
           cd tour-out
           rm -rf debug/*/screenshot-* 2>/dev/null || true
