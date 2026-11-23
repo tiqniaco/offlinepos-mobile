@@ -23,6 +23,7 @@ import { useApp } from '../../state/app';
 import { useUpgrade } from '../../state/upgrade';
 import { useOcrScan } from '../../state/ocrScan';
 import { toast } from '../../state/toast';
+import { fx } from '../../ui/fx';
 
 type Source = 'camera' | 'gallery' | 'pdf';
 const LONG_EDGE = 1280;
@@ -137,6 +138,7 @@ export function ScanInvoiceButton() {
           return;
         }
         useOcrScan.getState().set(r);
+        fx.notify(); // invoice read
         router.push('/purchases/scan-review');
       } catch (e) {
         if (abort.current?.signal.aborted) return; // cancelled by the user: no error message

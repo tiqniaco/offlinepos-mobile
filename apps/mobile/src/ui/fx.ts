@@ -7,7 +7,12 @@
 import { haptic } from './haptics';
 import { playSound, type SoundName } from './sounds';
 
+let lastAt = 0;
+/** True when some feedback already played within `ms` (the error toast then stays quiet: no double sound). */
+export const fxRecently = (ms = 400) => Date.now() - lastAt < ms;
+
 const both = (h: keyof typeof haptic | null, s: SoundName | null) => () => {
+  lastAt = Date.now();
   try {
     if (h) haptic[h]();
   } catch {

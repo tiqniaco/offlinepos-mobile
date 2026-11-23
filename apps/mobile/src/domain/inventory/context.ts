@@ -24,6 +24,7 @@ export type InventoryErrorCode =
   | 'feature_unavailable'
   | 'unit_required'
   | 'empty_count'
+  | 'out_of_scope'
   | 'clock_behind'
   | 'gram_base_unit';
 

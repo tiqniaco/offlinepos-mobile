@@ -12,7 +12,7 @@ import { salesErrorMessage } from '../../features/sales/errors';
 import { useApp } from '../../state/app';
 import { toast } from '../../state/toast';
 import { money, qty, dateTimeLabel } from '../../lib/format';
-import { printReceipt, sharePdf, whatsappInvoice } from '../../features/printing/actions';
+import { a4Menu, printReceipt, whatsappInvoice } from '../../features/printing/actions';
 
 function Row({ label, value, strong, color }: { label: string; value: string; strong?: boolean; color?: string }) {
   return (
@@ -56,7 +56,7 @@ export default function SaleDetail() {
     try {
       if (kind === 'print') await printReceipt(id);
       else if (kind === 'whatsapp') await whatsappInvoice(id);
-      else await sharePdf(id);
+      else await a4Menu(id);
     } finally {
       setBusy(null);
     }
@@ -121,13 +121,13 @@ export default function SaleDetail() {
       {/* Wraps instead of clipping the labels on 360dp phones. */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
         <View style={{ flexGrow: 1, flexBasis: '30%', minWidth: '30%' }}>
-          <Button kind="secondary" compact icon="printer" title={t('invoice.reprint')} loading={busy === 'print'} disabled={!!busy} onPress={() => void run('print')} />
+          <Button kind="secondary" compact icon="printer" title={t('templates.printThermal')} loading={busy === 'print'} disabled={!!busy} onPress={() => void run('print')} />
         </View>
         <View style={{ flexGrow: 1, flexBasis: '30%', minWidth: '30%' }}>
           <Button kind="secondary" compact icon="whatsapp" title={t('share.whatsapp')} loading={busy === 'whatsapp'} disabled={!!busy} onPress={() => void run('whatsapp')} />
         </View>
         <View style={{ flexGrow: 1, flexBasis: '30%', minWidth: '30%' }}>
-          <Button kind="secondary" compact icon="file" title="PDF" loading={busy === 'pdf'} disabled={!!busy} onPress={() => void run('pdf')} />
+          <Button kind="secondary" compact icon="file" title="PDF A4" loading={busy === 'pdf'} disabled={!!busy} onPress={() => void run('pdf')} />
         </View>
       </View>
       {canReturn ? <Button icon="refresh" title={t('invoice.return')} onPress={() => router.push({ pathname: '/sales/return', params: { id } })} /> : null}

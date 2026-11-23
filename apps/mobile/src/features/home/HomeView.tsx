@@ -5,6 +5,7 @@ import { fonts } from '../../ui/fonts';
 import { useTranslation } from 'react-i18next';
 import { Text, Hero, Avatar, Card, IconBadge, Icon, Button, SectionTitle, colors, type IconName, type Hue } from '../../ui';
 import { ActionTiles, type Tile } from '../common/ActionTiles';
+import { CountUpText } from '../../ui/CountUp';
 import { AdBanner } from '../ads/AdBanner';
 
 export interface SetupTask {
@@ -128,9 +129,7 @@ export function HomeView({
                         {st.label}
                       </Text>
                     </View>
-                    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={{ fontFamily: fonts.bold, fontSize: 15, color: colors.ink.DEFAULT }}>
-                      {st.value}
-                    </Text>
+                    <CountUpText numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={{ fontFamily: fonts.bold, fontSize: 15, color: colors.ink.DEFAULT }} value={st.value} />
                   </View>
                 </Card>
               ))}

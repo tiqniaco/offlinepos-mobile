@@ -4,7 +4,7 @@ import { Pressable } from './Press';
 import Animated, { FadeInDown, FadeOutDown, ZoomIn } from 'react-native-reanimated';
 import { haptic } from './haptics';
 import { useReduceMotion } from './reduceMotion';
-import { fx } from './fx';
+import { fx, fxRecently } from './fx';
 import { fonts } from './fonts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useToast } from '../state/toast';
@@ -21,8 +21,9 @@ export function ToastHost() {
   const reduce = useReduceMotion();
   useEffect(() => {
     // Error toast = error sound + haptic (deduplicated when the screen already played it).
-    if (t?.tone === 'error') fx.error();
-    else if (t?.tone === 'success') haptic.success();
+    if (!t || fxRecently()) return;
+    if (t.tone === 'error') fx.error();
+    else if (t.tone === 'success') haptic.success();
   }, [t?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!t) return null;
   const bg = t.tone === 'error' ? '#A8352E' : colors.inverse.bg;

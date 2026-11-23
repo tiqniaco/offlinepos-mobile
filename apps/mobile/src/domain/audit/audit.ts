@@ -32,6 +32,7 @@ export type AuditAction =
   | 'category.change'
   | 'stock.adjust'
   | 'stock.count'
+  | 'stock.count_discard'
   | 'stock.rebuild'
   | 'customer.create'
   | 'sale.post'

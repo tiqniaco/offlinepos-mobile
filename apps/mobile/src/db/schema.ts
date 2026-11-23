@@ -318,7 +318,8 @@ export const inventoryDocs = sqliteTable(
   {
     ...base,
     type: text('type', { enum: ['OPENING', 'ADJUST', 'COUNT'] }).notNull(),
-    status: text('status', { enum: ['DRAFT', 'POSTED'] }).notNull(),
+    /** DISCARDED = a stock count cancelled before posting (kept for the count report; never touched stock). */
+    status: text('status', { enum: ['DRAFT', 'POSTED', 'DISCARDED'] }).notNull(),
     number: text('number'),
     warehouseId: text('warehouse_id').notNull(),
     reason: text('reason'),

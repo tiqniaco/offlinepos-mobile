@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Screen, Text, Button, IconBadge, Card, colors, fonts } from '../../ui';
+import { Screen, Text, Button, Card, colors, fonts } from '../../ui';
+import { SuccessBurst } from '../../ui/SuccessBurst';
 import { getDb } from '../../db/client';
 import { getSale } from '../../domain/sales/sales';
 import { useCurrency } from '../../features/inventory/useInvCtx';
 import { money } from '../../lib/format';
-import { printReceipt, sharePdf, whatsappInvoice } from '../../features/printing/actions';
+import { a4Menu, printReceipt, whatsappInvoice } from '../../features/printing/actions';
 
 /** After payment: change to give, print / WhatsApp PDF, new sale — all one tap. */
 export default function Done() {
@@ -31,7 +32,7 @@ export default function Done() {
     if (sharing) return;
     setSharing(kind);
     try {
-      await (kind === 'pdf' ? sharePdf(id) : whatsappInvoice(id));
+      await (kind === 'pdf' ? a4Menu(id) : whatsappInvoice(id));
     } finally {
       setSharing(null);
     }
@@ -40,7 +41,7 @@ export default function Done() {
   return (
     <Screen footer={<Button testID="done-new" icon="plus" title={t('done.newSale')} onPress={() => router.dismissTo('/sales/pos')} />}>
       <View style={{ alignItems: 'center', gap: 10, paddingTop: 24 }}>
-        <IconBadge name="check" hue="leaf" size={72} />
+        <SuccessBurst size={72} />
         <Text style={{ fontFamily: fonts.bold, fontSize: 26, lineHeight: 36, color: colors.ink.DEFAULT }}>{t('done.title')}</Text>
         {sale ? <Text variant="caption">{sale.doc.number}</Text> : null}
         {sale ? <Text style={{ fontFamily: fonts.bold, fontSize: 22, lineHeight: 30, color: colors.primary[700] }}>{money(sale.doc.totalMinor, currency, i18n.language)}</Text> : null}
@@ -56,7 +57,7 @@ export default function Done() {
       <Button
         kind="secondary"
         icon="printer"
-        title={printing ? t('done.printing') : t('done.print')}
+        title={printing ? t('done.printing') : t('templates.printThermal')}
         loading={printing}
         onPress={async () => {
           if (printing) return;
@@ -73,7 +74,7 @@ export default function Done() {
           <Button kind="secondary" compact icon="whatsapp" title={t('share.whatsapp')} loading={sharing === 'whatsapp'} disabled={!!sharing} onPress={() => void share('whatsapp')} />
         </View>
         <View style={{ flex: 1 }}>
-          <Button kind="secondary" compact icon="file" title="PDF" loading={sharing === 'pdf'} disabled={!!sharing} onPress={() => void share('pdf')} />
+          <Button kind="secondary" compact icon="file" title="PDF A4" loading={sharing === 'pdf'} disabled={!!sharing} onPress={() => void share('pdf')} />
         </View>
       </View>
     </Screen>

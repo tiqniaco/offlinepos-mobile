@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 import { Pressable } from './Press';
 import { fonts } from './fonts';
-import * as Haptics from 'expo-haptics';
+import { fx } from './fx';
 import { Text } from './Text';
 import { Icon } from './Icon';
 import { shadow } from './shadow';
@@ -40,7 +40,7 @@ export function PinDots({ count, total, error, light = false }: { count: number;
 export function PinPad({ value, onChange, maxLength = 6, onBiometric, disabled }: { value: string; onChange: (v: string) => void; maxLength?: number; onBiometric?: () => void; disabled?: boolean }) {
   const press = (k: (typeof KEYS)[number]) => {
     if (disabled) return;
-    void Haptics.selectionAsync().catch(() => undefined);
+    fx.tap();
     if (k === 'del') return onChange(value.slice(0, -1));
     if (k === 'bio') return onBiometric?.();
     if (value.length >= maxLength) return;

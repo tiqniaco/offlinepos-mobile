@@ -181,7 +181,7 @@ export default function Printers() {
         <Banner tone="info" icon="printer" text={t('printers.noneFound')} />
       ) : null}
       <ListGroup>
-        <ListRow icon="edit" hue="amber" title={t('printers.receipt')} onPress={() => router.push('/settings/receipt')} last />
+        <ListRow icon="edit" hue="amber" title={t('templates.title')} subtitle={t('templates.subtitle')} onPress={() => router.push('/settings/templates')} last />
       </ListGroup>
     </Screen>
   );

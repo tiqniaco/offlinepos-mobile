@@ -60,7 +60,7 @@ export function buildA4Html(d: ReceiptData, o: A4Options = {}): string {
   const rows = d.lines
     .map(
       (l, i) =>
-        `<tr><td class="c">${i + 1}</td>${showCode ? `<td class="c code">${esc(l.code)}</td>` : ''}<td class="name">${esc(l.name)}</td><td class="c">${esc(l.unit)}</td><td class="c num">${formatQty(l.qtyMilli)}</td><td class="num">${m(l.priceMinor)}</td>${showDisc ? `<td class="num">${l.discountMinor ? m(l.discountMinor) : '—'}</td>` : ''}<td class="num b">${m(l.totalMinor)}</td></tr>`,
+        `<tr><td class="c">${i + 1}</td>${showCode ? `<td class="c code">${esc(l.code)}</td>` : ''}<td class="name">${esc(l.name)}</td><td class="c">${esc(l.unit)}</td><td class="c num">${formatQty(l.qtyMilli)}</td><td class="c num">${m(l.priceMinor)}</td>${showDisc ? `<td class="c num">${l.discountMinor ? m(l.discountMinor) : '—'}</td>` : ''}<td class="c num b">${m(l.totalMinor)}</td></tr>`,
     )
     .join('');
 
@@ -101,7 +101,7 @@ export function buildA4Html(d: ReceiptData, o: A4Options = {}): string {
   const css = `${o.fontCss ?? ''}
 @page{size:A4;margin:14mm 12mm 16mm;@bottom-center{content:"صفحة " counter(page) " من " counter(pages);font-family:'Readex',sans-serif;font-size:10px;color:#667085}}
 *{box-sizing:border-box}html,body{margin:0}body{font-family:'Readex','Tahoma',sans-serif;color:#101828;font-size:12px;line-height:1.55}
-.num{font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate}.b{font-weight:700}.c{text-align:center}
+.num{font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate}.b{font-weight:700}.c,th.c,td.c{text-align:center}
 .head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
 .shop{display:flex;gap:12px;align-items:center}.logo{width:72px;height:72px;object-fit:contain}
 .shop h1{margin:0;font-size:22px;line-height:1.3}.shop div{color:#475467;font-size:11.5px}
@@ -141,7 +141,7 @@ ${classic ? '' : '<div class="bar"></div>'}
 ${d.voided ? '<div class="void">ملغاة</div>' : ''}
 ${tpl.headerNote ? `<div class="hnote">${esc(tpl.headerNote)}</div>` : ''}
 <div class="info">${customer}</div>
-<table><thead><tr><th class="c">#</th>${showCode ? '<th class="c">الكود</th>' : ''}<th>الصنف</th><th class="c">الوحدة</th><th class="c">الكمية</th><th>سعر الوحدة</th>${showDisc ? '<th>الخصم</th>' : ''}<th>الإجمالي</th></tr></thead><tbody>${rows}</tbody></table>
+<table><thead><tr><th class="c">#</th>${showCode ? '<th class="c">الكود</th>' : ''}<th>الصنف</th><th class="c">الوحدة</th><th class="c">الكمية</th><th class="c">سعر الوحدة</th>${showDisc ? '<th class="c">الخصم</th>' : ''}<th class="c">الإجمالي</th></tr></thead><tbody>${rows}</tbody></table>
 <div class="bottom"><div class="right">${words}${notes}${qr}</div><div class="left">${tot.join('')}</div></div>
 <div class="sign"><div>${quote ? 'توقيع العميل بالموافقة' : 'توقيع المستلم'}</div><div>الختم والتوقيع</div></div>
 ${tpl.footer ? `<div class="foot">${esc(tpl.footer)}</div>` : ''}

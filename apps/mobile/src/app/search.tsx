@@ -51,6 +51,7 @@ export default function Search() {
       { key: 'shift', icon: 'clock', hue: 'ink', label: t('quick.shift'), words: 'وردية خزنة درج shift', go: () => router.replace('/shifts') },
       { key: 'backup', icon: 'upload', hue: 'leaf', label: t('more.backup'), words: 'نسخ احتياطي backup', perm: 'backup.manage', go: () => router.replace('/settings/backup') },
       { key: 'printers', icon: 'printer', hue: 'amber', label: t('more.printers'), words: 'طابعة طباعة printer', go: () => router.replace('/settings/printers') },
+      { key: 'templates', icon: 'receipt', hue: 'primary', label: t('templates.title'), words: 'شكل الفاتورة فواتير عرض سعر A4 حراري قالب template invoice', go: () => router.replace('/settings/templates') },
       { key: 'offers', icon: 'tag', hue: 'leaf', label: t('more.offers'), words: 'عروض كوبون خصم offers', perm: 'products.manage', go: () => router.replace('/offers') },
       { key: 'appearance', icon: 'image', hue: 'primary', label: t('more.appearance'), words: 'مظهر لون داكن خط اصوات appearance', go: () => router.replace('/settings/appearance') },
     ],

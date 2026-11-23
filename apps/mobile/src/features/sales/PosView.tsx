@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import Animated, { FadeInUp, FadeOutLeft, LinearTransition } from 'react-native-reanimated';
 import { normalizeDigits, type PricedCart } from '@daftarak/shared';
 import { Text, Icon, Button, EmptyState, colors, shadow, fonts } from '../../ui';
+import { CountUpText } from '../../ui/CountUp';
+import { Pulse } from '../../ui/Pulse';
 import { money, qty } from '../../lib/format';
 import type { CartLine } from '../../domain/sales/sales';
 import { ProductThumb } from '../inventory/ProductRow';
@@ -141,6 +143,7 @@ export function PosView(p: {
               const fresh = l.key === p.lastKey && i === 0;
               return (
                 <Animated.View key={l.key} entering={FadeInUp.springify().damping(18)} exiting={FadeOutLeft.duration(160)} layout={LinearTransition.springify().damping(20)}>
+                <Pulse trigger={l.qtyMilli} active={fresh}>
                 <Pressable
                   onPress={() => p.onLine(l.key)}
                   style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 18, backgroundColor: fresh ? colors.primary[50] : colors.paper.card, borderWidth: 1.5, borderColor: fresh ? colors.primary[200] : 'transparent', opacity: pressed ? 0.9 : 1 }, shadow.soft]}
@@ -165,6 +168,7 @@ export function PosView(p: {
                     <Stepper value={qty(l.qtyMilli)} onMinus={() => p.onQty(l.key, l.qtyMilli - 1000)} onPlus={() => p.onQty(l.key, l.qtyMilli + 1000)} />
                   </View>
                 </Pressable>
+                </Pulse>
                 </Animated.View>
               );
             })}
@@ -239,7 +243,7 @@ export function PosView(p: {
             <Pressable testID="pos-pay" onPress={p.onPay} accessibilityState={{ disabled: !!p.payDisabled }} style={({ pressed }) => [{ flex: 1, height: 60, borderRadius: 18, overflow: 'hidden', opacity: p.payDisabled ? 0.5 : 1, transform: [{ scale: pressed && !p.payDisabled ? 0.985 : 1 }] }]}>
               <View style={{ flex: 1, backgroundColor: colors.primary[600], flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 18 }}>
                 <Text style={{ color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 19, lineHeight: 26 }}>{t('pos.payShort')}</Text>
-                <Text numberOfLines={1} adjustsFontSizeToFit style={{ flexShrink: 1, color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 24, lineHeight: 32 }}>{p.payDisabled ? '—' : money(totals?.totalMinor ?? 0, p.currency, p.lang)}</Text>
+                <CountUpText testID="pos-total" numberOfLines={1} adjustsFontSizeToFit duration={320} fromZero={false} style={{ flexShrink: 1, color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 24, lineHeight: 32 }} value={p.payDisabled ? '—' : money(totals?.totalMinor ?? 0, p.currency, p.lang)} />
               </View>
             </Pressable>
           </View>

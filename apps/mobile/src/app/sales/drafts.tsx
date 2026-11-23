@@ -52,6 +52,19 @@ export default function Drafts() {
     }
   };
 
+  // Printing code loads on first use (keeps this list light).
+  const runDoc = async (key: string, fn: (a: typeof import('../../features/printing/actions')) => Promise<void>) => {
+    if (pdfBusy) return;
+    setPdfBusy(key);
+    try {
+      await fn(await import('../../features/printing/actions'));
+    } catch {
+      toast(t('errors.unknown'), 'error');
+    } finally {
+      setPdfBusy(null);
+    }
+  };
+
   const confirmOpen = (id: string) => {
     const cart = useCart.getState();
     // Never drop the cart on the counter silently.
@@ -78,25 +91,29 @@ export default function Drafts() {
             <Text style={{ fontFamily: fonts.bold, fontSize: 16, lineHeight: 22, color: colors.ink.DEFAULT }}>{money(r.totalMinor, currency, i18n.language)}</Text>
           </View>
           {type === 'QUOTATION' && r.status !== 'CONVERTED' ? (
-            <View style={{ marginTop: 10 }}>
-              <Button
-                compact
-                kind="ghost"
-                icon="upload"
-                title="PDF"
-                loading={pdfBusy === r.id}
-                disabled={!!pdfBusy}
-                onPress={async () => {
-                  setPdfBusy(r.id);
-                  try {
-                    await (await import('../../features/printing/actions')).sharePdf(r.id);
-                  } catch {
-                    toast(t('errors.unknown'), 'error');
-                  } finally {
-                    setPdfBusy(null);
-                  }
-                }}
-              />
+            <View style={{ marginTop: 10, flexDirection: 'row', gap: 8 }}>
+              <View style={{ flex: 1 }}>
+                <Button
+                  compact
+                  kind="secondary"
+                  icon="file"
+                  title="PDF A4"
+                  loading={pdfBusy === `a4:${r.id}`}
+                  disabled={!!pdfBusy}
+                  onPress={() => void runDoc(`a4:${r.id}`, async (a) => a.a4Menu(r.id))}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button
+                  compact
+                  kind="secondary"
+                  icon="printer"
+                  title={t('templates.printThermal')}
+                  loading={pdfBusy === `th:${r.id}`}
+                  disabled={!!pdfBusy}
+                  onPress={() => void runDoc(`th:${r.id}`, async (a) => void (await a.printReceipt(r.id)))}
+                />
+              </View>
             </View>
           ) : null}
         </Card>

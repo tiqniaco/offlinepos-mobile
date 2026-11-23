@@ -41,6 +41,7 @@ export default function More() {
   const app: MoreItem[] = [
     { key: 'inbox', testID: 'more-inbox', icon: 'bell', hue: 'primary', title: t('more.inbox'), onPress: () => router.push('/inbox') },
     { key: 'printers', icon: 'printer', hue: 'amber', title: t('more.printers'), onPress: () => router.push('/settings/printers') },
+    { key: 'templates', icon: 'receipt', hue: 'primary', title: t('templates.title'), onPress: () => router.push('/settings/templates') },
     { key: 'security', testID: 'more-security', icon: 'shield', hue: 'sky', title: t('more.security'), value: minutes ? t(minutes >= 3 && minutes <= 10 ? 'security.minutesFew' : 'security.minutes', { n: minutes }) : t('security.never'), onPress: () => router.push('/settings/security') },
     { key: 'appearance', testID: 'more-appearance', icon: 'image', hue: 'primary', title: t('more.appearance'), value: PALETTES.find((p) => p.id === palette)?.[i18n.language === 'en' ? 'nameEn' : 'nameAr'], onPress: () => router.push('/settings/appearance') },
     { key: 'lang', icon: 'globe', hue: 'leaf', title: t('more.language'), value: t(`language.${lang}`), onPress: () => router.push('/settings/language') },
