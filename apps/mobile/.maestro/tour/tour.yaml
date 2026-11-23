@@ -22,20 +22,17 @@ appId: app.daftarak
 - tapOn: { id: password-2 }
 - inputText: "Test2026ok"
 - takeScreenshot: shots/a06-password-keyboard
-- hideKeyboard
 - tapOn: { id: password-save }
 - waitForAnimationToEnd: { timeout: 6000 }
 - takeScreenshot: shots/a07-business
 - tapOn: { id: business-name }
 - inputText: "سوبر ماركت النور"
 - takeScreenshot: shots/a08-business-keyboard
-- hideKeyboard
 - tapOn: { id: business-next }
 - waitForAnimationToEnd: { timeout: 4000 }
 - takeScreenshot: shots/a09-owner
 - tapOn: { id: owner-name }
 - inputText: "أحمد"
-- hideKeyboard
 - tapOn: { id: owner-finish }
 - extendedWaitUntil: { visible: { id: home-sell }, timeout: 60000 }
 - takeScreenshot: shots/b01-home
@@ -51,18 +48,23 @@ appId: app.daftarak
 - tapOn: { id: tab-plus }
 - waitForAnimationToEnd
 - takeScreenshot: shots/c00-quick-sheet
-- tapOn: { id: quick-sell }
+- back
 - waitForAnimationToEnd
+- takeScreenshot: shots/c00b-quick-sheet-closed
+- launchApp: { stopApp: false }
+- scrollUntilVisible: { element: { id: home-sell }, direction: UP, timeout: 8000, optional: true }
+- tapOn: { id: home-sell }
+- waitForAnimationToEnd: { timeout: 8000 }
 - takeScreenshot: shots/c01-sell-empty
 - tapOn: { id: pos-search, optional: true }
 - inputText: "شاي"
+- waitForAnimationToEnd
 - takeScreenshot: shots/c02-sell-search-keyboard
 - tapOn: { text: "شاي.*", index: 1, optional: true }
-- hideKeyboard
 - tapOn: { id: pos-search, optional: true }
 - inputText: "أرز"
+- waitForAnimationToEnd
 - tapOn: { text: "أرز.*", index: 1, optional: true }
-- hideKeyboard
 - takeScreenshot: shots/c03-sell-cart
 - tapOn: { id: pos-pay, optional: true }
 - waitForAnimationToEnd
@@ -70,23 +72,31 @@ appId: app.daftarak
 - tapOn: { id: pay-confirm, optional: true }
 - waitForAnimationToEnd: { timeout: 6000 }
 - takeScreenshot: shots/c05-done
-- back
-- tapOn: { text: "المنتجات" }
+- launchApp: { stopApp: false }
+- openLink: "daftarak://"
+- waitForAnimationToEnd
+- tapOn: { id: tab-plus, optional: true }
+- waitForAnimationToEnd
+- tapOn: { id: quick-sell, optional: true }
+- waitForAnimationToEnd: { timeout: 8000 }
+- takeScreenshot: shots/c06-sell-from-quick
+- launchApp: { stopApp: false }
+- openLink: "daftarak://products"
 - waitForAnimationToEnd
 - takeScreenshot: shots/d01-products
 - scroll
 - takeScreenshot: shots/d02-products-scrolled
-- tapOn: { text: "العملاء" }
+- openLink: "daftarak://parties"
 - waitForAnimationToEnd
 - takeScreenshot: shots/e01-parties
 - tapOn: { text: "الموردين", optional: true }
 - takeScreenshot: shots/e02-suppliers
-- tapOn: { text: "المزيد" }
+- openLink: "daftarak://more"
 - waitForAnimationToEnd
 - takeScreenshot: shots/f01-more
 - scroll
 - takeScreenshot: shots/f02-more-scrolled
-- tapOn: { text: "الرئيسية" }
+- openLink: "daftarak://"
 # Forms with the keyboard open (the field at the bottom must stay visible)
 - openLink: "daftarak://products/form"
 - waitForAnimationToEnd
@@ -97,7 +107,6 @@ appId: app.daftarak
 - scroll
 - scroll
 - takeScreenshot: shots/g03-product-form-bottom-keyboard
-- hideKeyboard
 - back
 - back
 - openLink: "daftarak://parties/form?type=C"

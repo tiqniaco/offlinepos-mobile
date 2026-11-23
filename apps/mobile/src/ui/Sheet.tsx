@@ -64,7 +64,7 @@ export function Sheet({ visible, onClose, title, children, footer }: { visible: 
 
   return (
     <Modal visible transparent animationType="none" onRequestClose={dismiss} statusBarTranslucent navigationBarTranslucent>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+      <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior="padding">
         <Animated.View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(16,24,40,0.45)', opacity: backdrop }}>
           <Pressable onPress={dismiss} style={{ flex: 1 }} />
         </Animated.View>
@@ -72,10 +72,6 @@ export function Sheet({ visible, onClose, title, children, footer }: { visible: 
           {...pan.panHandlers}
           onLayout={(e) => (height.current = e.nativeEvent.layout.height)}
           style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 0,
             maxHeight: '88%',
             backgroundColor: colors.paper.DEFAULT,
             borderTopLeftRadius: 24,
