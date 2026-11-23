@@ -211,13 +211,15 @@ export async function assertVoidWindow(tx: Db, shiftId: string | null, docDay: n
 /** Post the exact mirror of a document's journal entry (debits ↔ credits). */
 export async function mirrorJournal(tx: Db, ctx: { user: { id: string }; device: { id: string } }, sourceType: string, sourceId: string, newSourceType: string, day: number, t: number, memo: string) {
   const entry = (await tx.select().from(journalEntries).where(and(eq(journalEntries.sourceType, sourceType), eq(journalEntries.sourceId, sourceId))).limit(1))[0];
-  if (!entry) return;
+  if (!entry) return [];
   const jl = await tx
     .select({ key: accounts.systemKey, d: journalLines.debitMinor, c: journalLines.creditMinor, pt: journalLines.partyType, pid: journalLines.partyId })
     .from(journalLines)
     .innerJoin(accounts, eq(accounts.id, journalLines.accountId))
     .where(eq(journalLines.entryId, entry.id));
-  await postJournal(tx, ctx, { sourceType: newSourceType, sourceId, businessDay: day, memo, at: t, lines: jl.map((x) => ({ account: x.key as AccountKey, debit: x.c, credit: x.d, ...(x.pt ? { partyType: x.pt as PartyType, partyId: x.pid } : {}) })) });
+  const lines = jl.map((x) => ({ account: x.key as AccountKey, debit: x.c, credit: x.d, ...(x.pt ? { partyType: x.pt as PartyType, partyId: x.pid } : {}) }));
+  await postJournal(tx, ctx, { sourceType: newSourceType, sourceId, businessDay: day, memo, at: t, lines });
+  return lines;
 }
 
 export async function getVoucher(db: Db, id: string) {

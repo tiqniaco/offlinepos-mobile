@@ -349,12 +349,11 @@ export async function voidPurchase(ctx: PurchaseCtx, docId: string, reason: stri
     const lines = await tx.select().from(purchaseLines).where(eq(purchaseLines.docId, docId));
     const warehouseId = await defaultWarehouseId(tx);
     const tracked = new Set((await tx.select({ id: products.id }).from(products).where(and(inArray(products.id, lines.map((l) => l.productId)), eq(products.trackStock, true)))).map((r) => r.id));
-    let diff = 0;
+    let back = 0;
     for (const l of lines) {
       if (!tracked.has(l.productId) || l.baseQtyMilli === 0) continue;
       const [mv] = await postMovements(tx, ctx, warehouseId, [{ productId: l.productId, qtyMilli: -l.baseQtyMilli, type: 'VOID_REVERSAL', unitCostMinor: l.baseUnitCostMinor, sourceType: 'purchase_void', sourceId: docId, sourceLineId: l.id, reason }]);
-      const original = mulDivRound(l.baseQtyMilli, l.baseUnitCostMinor, 1000);
-      diff += original - -mv!.valueMinor; // inventory credited at the original value; average drift → stock adj.
+      back += mv!.valueMinor; // what the stock value actually changed by (negative)
     }
     // The product's reference cost goes back to what it was before this invoice (if nothing changed it since).
     for (const l of lines) {
@@ -363,8 +362,11 @@ export async function voidPurchase(ctx: PurchaseCtx, docId: string, reason: stri
       const prev = await previousCost(tx, l.productId, docId, doc.postedAt ?? t, warehouseId);
       if (prev != null && prev !== p.cost) await tx.update(products).set({ costMinor: prev, updatedAt: t }).where(eq(products.id, l.productId));
     }
-    await mirrorJournal(tx, ctx, 'purchase_doc', docId, 'purchase_void', day, t, `void ${doc.number}`);
-    if (diff !== 0) await postJournal(tx, ctx, { sourceType: 'purchase_void', sourceId: docId, businessDay: day, memo: `void ${doc.number} avg`, at: t, lines: diff > 0 ? [{ account: 'INVENTORY', debit: diff }, { account: 'STOCK_ADJ', credit: diff }] : [{ account: 'STOCK_ADJ', debit: -diff }, { account: 'INVENTORY', credit: -diff }] });
+    // The mirror takes out of INVENTORY what the invoice put in (incl. a negative-stock true-up); the stock value
+    // actually changed by `back` (average drift, a reset negative average…): post the difference so INVENTORY = Σ stock values.
+    const mirrored = await mirrorJournal(tx, ctx, 'purchase_doc', docId, 'purchase_void', day, t, `void ${doc.number}`);
+    const diff = back - mirrored.filter((x) => x.account === 'INVENTORY').reduce((s, x) => s + (x.debit ?? 0) - (x.credit ?? 0), 0);
+    if (diff !== 0) await postJournal(tx, ctx, { sourceType: 'purchase_void', sourceId: docId, businessDay: day, memo: `void ${doc.number} avg`, at: t, lines: [signedLine('INVENTORY', diff), signedLine('STOCK_ADJ', -diff)] });
     if (doc.creditMinor > 0 && doc.supplierId) await postPartyLedger(tx, ctx, { partyType: 'S', partyId: doc.supplierId, sourceType: 'purchase_void', sourceId: docId, debitMinor: doc.creditMinor, creditMinor: 0, businessDay: day, at: t });
     await tx.update(payments).set({ voided: true }).where(eq(payments.docId, docId));
     await tx.update(purchaseDocs).set({ status: 'VOIDED', voidReason: reason.trim(), voidedBy: ctx.user.id, voidedAt: t }).where(eq(purchaseDocs.id, docId));
