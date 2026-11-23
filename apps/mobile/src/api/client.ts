@@ -10,6 +10,9 @@ import {
   createBusinessResponseSchema,
   createPaymentRequestResponseSchema,
   manualBillingInfoSchema,
+  ocrScanResponseSchema,
+  ocrUsageSchema,
+  type OcrMediaType,
   paymentRequestListSchema,
   type ApiErrorCode,
   type CreatePaymentRequest,
@@ -88,6 +91,13 @@ export const api = {
   /** Sends the receipt (base64 JPEG/PNG ≤ 2 MB). Errors: receipt_invalid, invalid_phone, too_many_pending (409), rate_limited (429). */
   createPaymentRequest: (token: string, payload: CreatePaymentRequest) => request('/v1/billing/manual/requests', createPaymentRequestResponseSchema, { body: payload, token, timeoutMs: 90_000 }),
   listPaymentRequests: (token: string, businessId: string) => request(`/v1/billing/manual/requests?businessId=${encodeURIComponent(businessId)}`, paymentRequestListSchema, { token }),
+  /**
+   * Supplier invoice scan (needs internet; counts against the plan's monthly `ocr_month` only when it succeeds).
+   * Errors: ocr_not_in_plan (403), ocr_quota_exceeded (402), image_invalid / pdf_too_large (400), ocr_failed (422), ocr_unavailable (503), rate_limited (429).
+   */
+  scanInvoice: (token: string, businessId: string, file: string, mediaType: OcrMediaType) =>
+    request('/v1/purchases/scan', ocrScanResponseSchema, { body: { businessId, file, mediaType }, token, timeoutMs: 120_000 }),
+  scanUsage: (token: string, businessId: string) => request(`/v1/purchases/scan/usage?businessId=${encodeURIComponent(businessId)}`, ocrUsageSchema, { token }),
   sessions: (token: string) =>
     request('/v1/sessions', z.object({ sessions: z.array(z.object({ id: z.string(), created_at: z.number(), last_used_at: z.number().nullable(), platform: z.string().nullable(), model: z.string().nullable(), app_version: z.string().nullable(), current: z.boolean() })) }), { token }),
   revokeSession: (token: string, id: string) => request(`/v1/sessions/${id}`, z.object({ ok: z.boolean() }), { method: 'DELETE', token }),

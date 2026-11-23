@@ -187,6 +187,12 @@ function BusinessDetail({ id, back, notify }: { id: string; back: () => void; no
           </table>
         </div>
         <div className="card">
+          <strong>مسح فواتير الموردين (الشهر ده)</strong>
+          <div className="muted ltr">
+            {data.ocrMonth ? `ok ${data.ocrMonth.scans} · failed ${data.ocrMonth.failed} · tokens in ${data.ocrMonth.inputTokens} / out ${data.ocrMonth.outputTokens}` : '—'}
+          </div>
+        </div>
+        <div className="card">
           <strong>طلبات السيرفر يومياً (الهدف ≤ ٥)</strong>
           <table>
             <thead><tr><th>اليوم</th><th>عدد الطلبات</th></tr></thead>
@@ -201,6 +207,16 @@ function BusinessDetail({ id, back, notify }: { id: string; back: () => void; no
     </>
   );
 }
+
+const LIMIT_DEFAULTS = { users: 0, products: 0, parties: 0, invoices_month: 0, backups_kept: 0, ocr_month: 0 };
+const LIMIT_LABELS: Record<string, string> = {
+  users: 'مستخدمين (users)',
+  products: 'منتجات (products)',
+  parties: 'عملاء/موردين (parties)',
+  invoices_month: 'فواتير/شهر (invoices_month)',
+  backups_kept: 'نسخ احتياطية (backups_kept)',
+  ocr_month: 'مسح فواتير الموردين/شهر (ocr_month) — 0 = مش في الباقة',
+};
 
 function Plans() {
   const { data, error, reload } = useLoad(() => call('/plans'), []);
@@ -239,9 +255,9 @@ function Plans() {
                 <td>{p.name_ar}</td>
                 <td>{fmtMoney(p.monthly_egp)} / {fmtMoney(p.monthly_sar)}</td>
                 <td>{fmtMoney(p.yearly_egp)} / {fmtMoney(p.yearly_sar)}</td>
-                <td className="muted">مستخدمين {p.limits.users} · منتجات {p.limits.products} · فواتير/شهر {p.limits.invoices_month}</td>
+                <td className="muted">مستخدمين {p.limits.users} · منتجات {p.limits.products} · فواتير/شهر {p.limits.invoices_month} · مسح فواتير/شهر {p.limits.ocr_month ?? 0}</td>
                 <td>{p.trial_days} يوم</td>
-                <td><button className="btn ghost" onClick={() => setEdit(JSON.parse(JSON.stringify(p)))}>تعديل</button></td>
+                <td><button className="btn ghost" onClick={() => { const e = JSON.parse(JSON.stringify(p)); e.limits = { ...LIMIT_DEFAULTS, ...e.limits }; setEdit(e); }}>تعديل</button></td>
               </tr>
             ))}
           </tbody>
@@ -263,7 +279,7 @@ function Plans() {
           </div>
           <div className="row">
             {Object.keys(edit.limits).map((k) => (
-              <label key={k}>{k}<input type="number" value={edit.limits[k]} onChange={(e) => setEdit({ ...edit, limits: { ...edit.limits, [k]: e.target.value } })} /></label>
+              <label key={k}>{LIMIT_LABELS[k] ?? k}<input type="number" value={edit.limits[k]} onChange={(e) => setEdit({ ...edit, limits: { ...edit.limits, [k]: e.target.value } })} /></label>
             ))}
           </div>
           <div className="row">
@@ -342,6 +358,7 @@ function Dashboard({ openPayments }: { openPayments: () => void }) {
             {tile('MRR ج.م', fmtMoney(data.mrrMinor.EGP))}
             {tile('MRR ر.س', fmtMoney(data.mrrMinor.SAR))}
             {tile('Churn 30 يوم', `${(data.churn30 * 100).toFixed(1)}%`)}
+            {data.ocrMonth ? tile('مسح فواتير الشهر ده (توكنز داخل/خارج)', `${data.ocrMonth.scans} (${data.ocrMonth.inputTokens} / ${data.ocrMonth.outputTokens})`) : null}
             {tile('طلبات/نشاط/يوم (متوسط · أقصى)', `${Number(data.requestsPerBusinessDay.avg).toFixed(1)} · ${data.requestsPerBusinessDay.max}`)}
           </div>
           <div className="card">

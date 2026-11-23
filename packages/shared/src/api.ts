@@ -210,15 +210,19 @@ export type PaymentRequestSummary = z.infer<typeof paymentRequestSummarySchema>;
 export const paymentRequestListSchema = z.object({ requests: z.array(paymentRequestSummarySchema) });
 
 // ── Supplier invoice scan (OCR via Claude; paid plans, monthly quota `ocr_month`) ──
-/** Max decoded image size for a scan (the app sends a ~1280 px JPEG, usually 150-400 KB). */
+/** Max decoded size of a scan upload (the app sends a ~1280 px JPEG, usually 150-400 KB, or a small PDF). */
 export const OCR_IMAGE_MAX_BYTES = 1.5 * 1024 * 1024;
 export const OCR_MAX_LINES = 100;
 
-export const ocrScanRequestSchema = z.object({
-  businessId: z.string().min(1),
-  /** base64 JPEG / PNG (a `data:image/...;base64,` prefix is accepted). */
-  image: z.string().min(8).max(Math.ceil((OCR_IMAGE_MAX_BYTES * 4) / 3) + 100),
-});
+export const OCR_PDF_MAX_PAGES = 3;
+export const OCR_MEDIA_TYPES = ['image/jpeg', 'image/png', 'application/pdf'] as const;
+export type OcrMediaType = (typeof OCR_MEDIA_TYPES)[number];
+const ocrB64 = z.string().min(8).max(Math.ceil((OCR_IMAGE_MAX_BYTES * 4) / 3) + 100);
+/** Send `image` (base64 JPEG / PNG, a data: prefix is accepted) or `file` + `mediaType` (JPEG / PNG / PDF ≤ 3 pages). */
+export const ocrScanRequestSchema = z
+  .object({ businessId: z.string().min(1), image: ocrB64.optional(), file: ocrB64.optional(), mediaType: z.enum(OCR_MEDIA_TYPES).optional() })
+  .refine((b) => !!b.image !== !!b.file, { message: 'send either image or file' })
+  .refine((b) => !b.file || !!b.mediaType, { message: 'mediaType is required with file' });
 export type OcrScanRequest = z.infer<typeof ocrScanRequestSchema>;
 
 /** Money is in major units (EGP) as printed on the invoice; the app converts to minor units. */
@@ -275,6 +279,7 @@ export const API_ERROR_CODES = [
   'rate_limited',
   'not_pending',
   'image_invalid',
+  'pdf_too_large',
   'ocr_not_in_plan',
   'ocr_quota_exceeded',
   'ocr_failed',

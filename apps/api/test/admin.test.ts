@@ -85,7 +85,7 @@ describe('admin actions', () => {
     const r = await c.call(
       'PUT',
       '/admin/plans/basic',
-      { nameAr: 'أساسي', nameEn: 'Basic', monthlyEgp: 19900, monthlySar: 4900, yearlyEgp: 199000, yearlySar: 49000, limits: { users: 3, products: 5000, parties: -1, invoices_month: 3000, backups_kept: 7 }, features: ['no_ads'], trialDays: 0, active: true },
+      { nameAr: 'أساسي', nameEn: 'Basic', monthlyEgp: 19900, monthlySar: 4900, yearlyEgp: 199000, yearlySar: 49000, limits: { users: 3, products: 5000, parties: -1, invoices_month: 3000, backups_kept: 7, ocr_month: 40 }, features: ['no_ads'], trialDays: 0, active: true },
       h,
     );
     expect(r.status).toBe(200);

@@ -9,6 +9,7 @@ import { internalBarcode, normalizeBarcode, uuidv7 } from '@daftarak/shared';
 import { Screen, Text, Button, TextField, MoneyField, QtyField, Card, SectionTitle, Chip, Icon, Banner, Sheet, colors } from '../../ui';
 import { getDb } from '../../db/client';
 import { createProduct, getProduct, updateProduct, type ProductInput } from '../../domain/inventory/products';
+import { reportNewProduct } from '../../state/ocrScan';
 import { listCategories, listUnits, saveCategory } from '../../domain/inventory/catalog';
 import { useCan, useInvCtx } from '../../features/inventory/useInvCtx';
 import { invErrorMessage } from '../../features/inventory/errors';
@@ -34,7 +35,7 @@ function Toggle({ label, hint, value, onChange, disabled }: { label: string; hin
 
 export default function ProductForm() {
   const { t } = useTranslation();
-  const params = useLocalSearchParams<{ id?: string; barcode?: string }>();
+  const params = useLocalSearchParams<{ id?: string; barcode?: string; name?: string; cost?: string; then?: string }>();
   const editing = !!params.id;
   const ctx = useInvCtx();
   const canCost = useCan('cost.view');
@@ -45,14 +46,14 @@ export default function ProductForm() {
 
   const [units, setUnits] = useState<Unit[]>([]);
   const [cats, setCats] = useState<Cat[]>([]);
-  const [name, setName] = useState('');
+  const [name, setName] = useState(params.name ?? '');
   const [nameEn, setNameEn] = useState('');
   const [sku, setSku] = useState('');
   const [notes, setNotes] = useState('');
   const [barcode, setBarcode] = useState(params.barcode ? normalizeBarcode(params.barcode) : '');
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [baseUnitId, setBaseUnitId] = useState<string | null>(null);
-  const [cost, setCost] = useState<number | null>(null);
+  const [cost, setCost] = useState<number | null>(params.cost && Number.isFinite(Number(params.cost)) ? Number(params.cost) : null);
   const [retail, setRetail] = useState<number | null>(null);
   const [wholesale, setWholesale] = useState<number | null>(null);
   const [trackStock, setTrackStock] = useState(true);
@@ -192,7 +193,9 @@ export default function ProductForm() {
         router.back();
       } else {
         const id = await createProduct(ctx, { ...input, openingQtyMilli: trackStock ? opening : null });
-        router.replace({ pathname: '/products/[id]', params: { id } });
+        // Opened from a supplier-invoice scan review: hand the new product back to it.
+        if (params.then === 'ocr' && reportNewProduct(id)) router.back();
+        else router.replace({ pathname: '/products/[id]', params: { id } });
       }
       toast(t('productForm.saved'));
     } catch (e) {

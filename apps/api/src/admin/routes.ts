@@ -15,6 +15,7 @@ import { defaultDeps } from '../routes/v1';
 import { newActivationCode } from '../routes/phase6';
 import { activatePlan } from '../billing/activate';
 import { receiptContentType } from '../billing/manual';
+import { cairoMonthStart } from '../ocr/scan';
 
 const SESSION_TTL = 8 * 3_600_000;
 const MAX_FAILED = 5;
@@ -55,6 +56,8 @@ const planSchema = z.object({
     parties: z.number().int().min(-1),
     invoices_month: z.number().int().min(-1),
     backups_kept: z.number().int().min(-1),
+    /** Invoice photo scans per month (0 = not in the plan). */
+    ocr_month: z.number().int().min(-1).default(0),
   }),
   features: z.array(z.enum(FEATURES)),
   trialDays: z.number().int().min(0).max(90),
@@ -179,7 +182,18 @@ export function adminRoutes(deps: Deps = defaultDeps) {
       .bind(id)
       .all();
     const requests = await c.env.DB.prepare(`SELECT day, count FROM request_counters WHERE business_id = ?1 ORDER BY day DESC LIMIT 14`).bind(id).all();
-    return c.json({ business: b, devices: devices.results, requests: requests.results });
+    const ocr = await c.env.DB.prepare(
+      `SELECT SUM(CASE WHEN status = 'ok' THEN 1 ELSE 0 END) AS ok, SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens
+       FROM ocr_scans WHERE business_id = ?1 AND created_at >= ?2`,
+    )
+      .bind(id, cairoMonthStart(deps.now()))
+      .first<{ ok: number | null; failed: number | null; input_tokens: number | null; output_tokens: number | null }>();
+    return c.json({
+      business: b,
+      devices: devices.results,
+      requests: requests.results,
+      ocrMonth: { scans: ocr?.ok ?? 0, failed: ocr?.failed ?? 0, inputTokens: ocr?.input_tokens ?? 0, outputTokens: ocr?.output_tokens ?? 0 },
+    });
   });
 
   app.post('/businesses/:id/extend-trial', async (c) => {
@@ -532,7 +546,11 @@ export function adminRoutes(deps: Deps = defaultDeps) {
     const today = Number(new Date(now).toISOString().slice(0, 10).replace(/-/g, ''));
     const req = await q<{ avg: number | null; max: number | null }>(`SELECT AVG(count) AS avg, MAX(count) AS max FROM request_counters WHERE day >= ?1`, today - 7);
     const pendingPayments = await q<{ n: number }>(`SELECT COUNT(*) AS n FROM payment_requests WHERE status = 'pending'`);
-    return c.json({ pendingPayments: pendingPayments?.n ?? 0, total: total?.n ?? 0, active30: active?.n ?? 0, trials: trials?.n ?? 0, paid: paidNow, byPlan, mrrMinor: mrr, churn30: churn, requestsPerBusinessDay: { avg: req?.avg ?? 0, max: req?.max ?? 0 } });
+    const ocr = await q<{ n: number; tin: number | null; tout: number | null }>(
+      `SELECT COUNT(*) AS n, SUM(input_tokens) AS tin, SUM(output_tokens) AS tout FROM ocr_scans WHERE status = 'ok' AND created_at >= ?1`,
+      cairoMonthStart(now),
+    );
+    return c.json({ ocrMonth: { scans: ocr?.n ?? 0, inputTokens: ocr?.tin ?? 0, outputTokens: ocr?.tout ?? 0 }, pendingPayments: pendingPayments?.n ?? 0, total: total?.n ?? 0, active30: active?.n ?? 0, trials: trials?.n ?? 0, paid: paidNow, byPlan, mrrMinor: mrr, churn30: churn, requestsPerBusinessDay: { avg: req?.avg ?? 0, max: req?.max ?? 0 } });
   });
 
   return app;

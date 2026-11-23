@@ -24,10 +24,10 @@ export function UpgradeSheet() {
       <View style={{ alignItems: 'center', gap: 8 }}>
         <IconBadge name={promo ? 'shield' : 'card'} hue="primary" size={56} />
         <Text variant="title" style={{ textAlign: 'center' }}>
-          {t(reason === 'trialEnd' ? 'upgrade.trialEndTitle' : reason === 'nudge' ? 'upgrade.nudgeTitle' : reason === 'feature' ? 'upgrade.featureTitle' : 'upgrade.limitTitle')}
+          {t(reason === 'ocr' ? 'upgrade.ocrTitle' : reason === 'ocrQuota' ? 'upgrade.ocrQuotaTitle' : reason === 'trialEnd' ? 'upgrade.trialEndTitle' : reason === 'nudge' ? 'upgrade.nudgeTitle' : reason === 'feature' ? 'upgrade.featureTitle' : 'upgrade.limitTitle')}
         </Text>
         <Text variant="body" style={{ textAlign: 'center' }}>
-          {t(reason === 'trialEnd' ? 'upgrade.trialEndBody' : reason === 'nudge' ? 'upgrade.nudgeBody' : reason === 'feature' ? 'upgrade.featureBody' : 'upgrade.limitBody', { what: t(`upgrade.what.${reason ?? 'x'}`, { defaultValue: '' }) })}
+          {t(reason === 'ocr' ? 'upgrade.ocrBody' : reason === 'ocrQuota' ? 'upgrade.ocrQuotaBody' : reason === 'trialEnd' ? 'upgrade.trialEndBody' : reason === 'nudge' ? 'upgrade.nudgeBody' : reason === 'feature' ? 'upgrade.featureBody' : 'upgrade.limitBody', { what: t(`upgrade.what.${reason ?? 'x'}`, { defaultValue: '' }) })}
         </Text>
       </View>
       {promo ? (

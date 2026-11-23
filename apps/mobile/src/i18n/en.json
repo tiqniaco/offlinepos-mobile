@@ -274,8 +274,11 @@
       "expenses": "Expenses & shifts",
       "expiry": "Expiry & batches",
       "advReports": "Advanced reports & profit",
-      "customRoles": "Custom roles"
-    }
+      "customRoles": "Custom roles",
+      "ocr": "Scan supplier invoices with the camera ({{n}} a month)",
+      "ocrUnlimited": "Unlimited supplier invoice scans"
+    },
+    "ocrLimit": "Invoice scans / month"
   },
   "errors": {
     "network": "No internet connection. Check it and try again.",
@@ -299,7 +302,13 @@
     "password_not_set": "This account has no password. Sign in with an SMS code",
     "receipt_invalid": "Receipt photo not accepted. Upload a JPG or PNG under 2 MB.",
     "too_many_pending": "You have requests still under review. Please wait for them.",
-    "rate_limited": "Too many requests today. Try tomorrow."
+    "rate_limited": "Too many requests today. Try tomorrow.",
+    "image_invalid": "File not accepted. Upload a JPG or PNG photo or a PDF under 1.5 MB.",
+    "pdf_too_large": "File too large — upload one page or a photo",
+    "ocr_not_in_plan": "Supplier invoice scanning is available on paid plans only.",
+    "ocr_quota_exceeded": "You've used all invoice scans for this month.",
+    "ocr_failed": "We couldn't read the invoice. Retake it in good light with the whole invoice visible.",
+    "ocr_unavailable": "Invoice reading is not available right now. Try again in a bit."
   },
   "audit": {
     "intact": "The log is intact — nothing was edited",
@@ -1389,7 +1398,8 @@
       "products": "Products",
       "parties": "Customers & suppliers",
       "invoices_month": "Invoices this month",
-      "users": "Users"
+      "users": "Users",
+      "ocr_month": "Supplier invoice scans"
     },
     "nudgeTitle": "Take Kashiro to the next level",
     "nudgeBody": "You're on the free plan. Subscribe to any plan to remove ads instantly and unlock stronger features:",
@@ -1401,7 +1411,11 @@
       "users": "More staff with permissions",
       "reports": "Profit and advanced reports",
       "offers": "Offers, coupons and multiple units"
-    }
+    },
+    "ocrTitle": "Snap the supplier invoice, it fills itself",
+    "ocrBody": "On paid plans you photograph the supplier invoice and items, quantities and prices are filled in for you. Subscribe to unlock it.",
+    "ocrQuotaTitle": "You've used this month's invoice scans",
+    "ocrQuotaBody": "You can still enter the invoice by hand, or upgrade for more scans every month."
   },
   "search": {
     "placeholder": "Search products, customers, invoices or what to do",
@@ -1518,5 +1532,50 @@
       "parties": "Customers / suppliers",
       "users": "Users"
     }
+  },
+  "ocr": {
+    "button": "Scan or upload supplier's invoice",
+    "needsNet": "Needs internet — you can finish the rest of the invoice offline",
+    "left": "{{n}} scans left this month",
+    "leftUnlimited": "Unlimited invoice scans",
+    "paidOnly": "Available on paid plans",
+    "chooseTitle": "Supplier invoice",
+    "camera": "Take a photo",
+    "gallery": "Photo from gallery",
+    "pdf": "PDF file",
+    "pdfHint": "Up to 3 pages and 1.5 MB",
+    "cameraDenied": "We need camera permission to photograph the invoice. You can pick a photo from the gallery instead.",
+    "offlineTitle": "No internet",
+    "offline": "Scanning the invoice needs internet. Turn it on and try again, or add the items by hand.",
+    "retry": "Try again",
+    "manual": "I'll add them by hand",
+    "reading": "Reading the invoice…",
+    "readingHint": "This takes a few seconds. Please stay on this screen.",
+    "reviewTitle": "Review invoice items",
+    "reviewHint": "Check each item before it is added to the invoice. You can change the product, quantity or cost.",
+    "supplier": "Supplier",
+    "supplierRead": "On the invoice: {{name}}",
+    "supplierNone": "Not set — tap to pick a supplier",
+    "invoiceNo": "Supplier invoice no.: {{no}}",
+    "invoiceTotal": "Printed invoice total: {{total}}",
+    "exact": "Matched",
+    "contains": "Similar name — check it",
+    "picked": "Picked",
+    "new": "New product",
+    "noMatch": "You don't have this product yet",
+    "read": "On the invoice: {{name}}",
+    "pick": "Pick product",
+    "change": "Change product",
+    "addNew": "Add as new product",
+    "skip": "Skip",
+    "include": "Include",
+    "skipped": "Skipped — will not be added",
+    "confirm": "Add {{n}} items to the invoice",
+    "added": "{{n}} items added — review the invoice and save it",
+    "none": "No items were recognised. Try a clearer photo.",
+    "pickTitle": "Pick product",
+    "searchPh": "Search products",
+    "unitCost": "Unit cost",
+    "noProductsHint": "Items without a product will not be added. Pick one or add it as a new product."
   }
 }

@@ -27,6 +27,7 @@ import { addReleaseRoutes } from './releases';
 import { matches, sendExpoPush, type PushMessage, type Target } from '../announce/announce';
 import { addPhase6Routes, commitBackup, setIntegrityChecker, startBackup } from './phase6';
 import { addManualBillingRoutes } from '../billing/manual';
+import { addOcrRoutes, type OcrClient } from '../ocr/scan';
 import { blocks, verifyIntegrity, type IntegrityInput } from '../integrity/verify';
 
 /** Verify (or just record) device integrity; throws only when policy says so. */
@@ -43,6 +44,8 @@ export interface Deps {
   provider: (env: Env) => OtpProvider;
   /** Push sender (Expo); injected in tests. */
   push?: (env: Env, messages: PushMessage[]) => Promise<[number, number]>;
+  /** Claude client for invoice scans; tests inject a fake so they never hit the network. null = not configured. */
+  ocrClient?: (env: Env) => OcrClient | null;
 }
 export const defaultDeps: Deps = { now: () => Date.now(), provider: providerFor, push: sendExpoPush };
 
@@ -352,5 +355,6 @@ export function v1Routes(deps: Deps = defaultDeps) {
   setIntegrityChecker(checkIntegrity);
   addPhase6Routes(app, deps, registerDevice, countRequest);
   addManualBillingRoutes(app, deps, countRequest);
+  addOcrRoutes(app, deps);
   return app;
 }

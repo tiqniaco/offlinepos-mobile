@@ -129,6 +129,7 @@ export default function Subscription() {
             { k: 'usersLimit', v: lim(l?.limits.users), icon: 'users' as const, hue: 'amber' as const },
             { k: 'productsLimit', v: lim(l?.limits.products), icon: 'list' as const, hue: 'sky' as const },
             { k: 'invoicesLimit', v: lim(l?.limits.invoices_month), icon: 'book' as const, hue: 'primary' as const },
+            { k: 'ocrLimit', v: lim(l?.limits.ocr_month ?? 0), icon: 'scan' as const, hue: 'leaf' as const },
           ].map((x) => (
             <View key={x.k} className="flex-1 items-center gap-1.5">
               <IconBadge name={x.icon} hue={x.hue} size={40} />
@@ -164,6 +165,12 @@ export default function Subscription() {
                   <Text variant="body">{t(`subscription.f.${FEATURE_KEYS[f] ?? f}`)}</Text>
                 </View>
               ))}
+              {p.limits.ocr_month !== 0 ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Icon name="check" size={15} color={colors.leaf[600]} />
+                  <Text variant="body">{p.limits.ocr_month < 0 ? t('subscription.f.ocrUnlimited') : t('subscription.f.ocr', { n: p.limits.ocr_month })}</Text>
+                </View>
+              ) : null}
               <Text variant="caption">{t('subscription.limitsLine', { users: lim(p.limits.users), products: lim(p.limits.products) })}</Text>
             </View>
             {current ? <Banner tone="success" text={t('subscription.current')} /> : (
