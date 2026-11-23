@@ -41,7 +41,7 @@ function Login({ onDone }: { onDone: () => void }) {
   return (
     <div className="login">
       <form className="card" onSubmit={submit}>
-        <h2>دفترك — لوحة التحكم</h2>
+        <h2>كاشيرو — لوحة التحكم</h2>
         <label>
           البريد الإلكتروني
           <input className="ltr" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />
@@ -562,7 +562,7 @@ export function App() {
   return (
     <div className="shell">
       <aside className="side">
-        <h1>دفترك</h1>
+        <h1>كاشيرو</h1>
         {nav({ name: 'dashboard' }, 'لوحة الأرقام')}
         {nav({ name: 'businesses' }, 'الأنشطة')}
         {nav({ name: 'codes' }, 'أكواد التفعيل')}

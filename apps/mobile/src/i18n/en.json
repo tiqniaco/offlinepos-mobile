@@ -1,7 +1,7 @@
 {
   "app": {
-    "name": "Daftarak",
-    "tagline": "Your shop's ledger, on your phone, offline"
+    "name": "Kashiro",
+    "tagline": "Cashier, invoices and stock… on your phone, even offline"
   },
   "common": {
     "next": "Next",
@@ -21,7 +21,7 @@
     "saved": "Saved"
   },
   "welcome": {
-    "title": "Welcome to Daftarak",
+    "title": "Welcome to Kashiro",
     "body": "Sales, stock, customers and suppliers — all on your phone, working without internet.",
     "start": "Let's start",
     "point1": "100% offline",
@@ -84,8 +84,8 @@
     "pinConfirm": "Repeat the PIN",
     "mismatch": "The PINs don't match",
     "weak": "That PIN is easy to guess, pick another",
-    "finish": "Done — open Daftarak",
-    "creating": "Setting up your Daftarak…",
+    "finish": "Done — open Kashiro",
+    "creating": "Setting up Kashiro…",
     "sectionYou": "You",
     "sectionPin": "PIN",
     "pinNote": "You'll use it every time you open the app. You can enable biometrics later.",
@@ -99,7 +99,7 @@
     "wrong": "Wrong PIN",
     "lockedFor": "Locked for now. Try again in {{time}}",
     "biometric": "Unlock with biometrics",
-    "biometricPrompt": "Unlock Daftarak",
+    "biometricPrompt": "Unlock Kashiro",
     "switchUser": "Another user",
     "welcomeBack": "Welcome back",
     "chooseUser": "Choose your account",
@@ -116,7 +116,7 @@
     "todaySales": "Today's sales",
     "nextPhaseTitle": "Selling and products arrive in the next update",
     "nextPhaseBody": "The foundation is ready: account, lock, users and licence. Products, selling and printing come in the next phase.",
-    "setupTitle": "Set up Daftarak",
+    "setupTitle": "Set up Kashiro",
     "setupProgress": "{{done}} of {{total}} done",
     "taskOwner": "Owner account created",
     "taskTeam": "Add your staff, each with a PIN",
@@ -190,7 +190,7 @@
     "offers": "Offers & coupons",
     "backup": "Backup",
     "sessions": "Signed-in phones",
-    "inbox": "Messages from Daftarak"
+    "inbox": "Messages from Kashiro"
   },
   "users": {
     "title": "Users",
@@ -253,7 +253,7 @@
     "redeem": "Activate",
     "codeOk": "{{plan}} plan activated ✓",
     "contactSales": "Message us on WhatsApp",
-    "salesMessage": "Hi, I'd like to subscribe to Daftarak for: {{name}}",
+    "salesMessage": "Hi, I'd like to subscribe to Kashiro for: {{name}}",
     "limitsLine": "Up to {{users}} users · {{products}} products",
     "f": {
       "noAds": "No ads",
@@ -1313,7 +1313,7 @@
   },
   "notify": {
     "channel": "Daily summary",
-    "morningTitle": "Good morning ☀️ your Daftarak summary",
+    "morningTitle": "Good morning ☀️ your shop summary",
     "late": "{{n}} customers are late — {{amount}}",
     "supplierDue": "{{n}} suppliers due — {{amount}}",
     "out": "{{n}} items out of stock",
@@ -1322,7 +1322,7 @@
     "graceTitle": "Your plan needs renewal",
     "trialBody": "{{n}} days left. Subscribe to keep every feature.",
     "backupTitle": "No recent backup",
-    "backupBody": "Open Daftarak and back up so your data stays safe."
+    "backupBody": "Open Kashiro and back up so your data stays safe."
   },
   "tips": {
     "ok": "Got it",
@@ -1332,15 +1332,15 @@
     "reports": "Every report has a date filter and can be shared as PDF, Excel, WhatsApp or printed."
   },
   "inbox": {
-    "title": "Messages from Daftarak",
-    "subtitle": "Offers, updates and alerts from the Daftarak team",
+    "title": "Messages from Kashiro",
+    "subtitle": "Offers, updates and alerts from the Kashiro team",
     "readAll": "Mark all read",
     "empty": "No messages yet",
-    "emptyBody": "Offers and important updates from Daftarak will appear here.",
+    "emptyBody": "Offers and important updates from Kashiro will appear here.",
     "open": "Open",
     "update": "Update the app",
-    "many": "{{n}} new messages from Daftarak",
-    "channel": "Messages from Daftarak"
+    "many": "{{n}} new messages from Kashiro",
+    "channel": "Messages from Kashiro"
   },
   "login": {
     "have": "I have an account — sign in",

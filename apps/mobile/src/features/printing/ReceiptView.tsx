@@ -118,7 +118,7 @@ export function ReceiptView({ d, dots }: { d: ReceiptData; dots: number }) {
         </T>
       ) : null}
       <T s={16} center>
-        دفترك
+        كاشيرو
       </T>
     </View>
   );

@@ -1,10 +1,10 @@
-# Daftarak — store listing (English)
+# Kashiro — store listing (English)
 
-**Name:** Daftarak — POS, Inventory & Accounts
-**Short description (80):** Barcode POS, stock, customers & suppliers, statements — works offline.
+**Name (30):** Kashiro: POS, Invoices & Stock
+**Short description (80):** Start free — barcode POS, invoices, stock and statements, even offline.
 
 **Full description:**
-Daftarak runs your shop from your phone: scan-and-sell in seconds, accurate stock, customer and supplier accounts,
+Kashiro runs your shop from your phone: scan-and-sell in seconds, accurate stock, customer and supplier accounts,
 and clear reports — all working without internet.
 
 • Fast checkout: scan with the camera or a scanner; cash, card, wallet or credit; print to a Bluetooth printer or send

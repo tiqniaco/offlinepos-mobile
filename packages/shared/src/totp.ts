@@ -63,6 +63,6 @@ export function verifyTotp(secretBase32: string, code: string, timeMs: number, w
   return null;
 }
 
-export function totpUri(secretBase32: string, account: string, issuer = 'Daftarak Admin'): string {
+export function totpUri(secretBase32: string, account: string, issuer = 'Kashiro Admin'): string {
   return `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(account)}?secret=${secretBase32}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
 }

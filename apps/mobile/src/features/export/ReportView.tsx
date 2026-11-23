@@ -61,7 +61,7 @@ export function ReportView({ d, dots }: { d: ReportDoc; dots: number }) {
       {d.totals.map((s) => <KV key={s.label} label={s.label} value={s.value} b={s.strong} s={s.strong ? 26 : 22} />)}
       {d.note ? <T s={20}>{d.note}</T> : null}
       <Rule />
-      <T s={18} center>{d.footer ?? 'دفترك'}</T>
+      <T s={18} center>{d.footer ?? 'كاشيرو'}</T>
       <View style={{ height: 24 }} />
     </View>
   );

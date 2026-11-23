@@ -1,4 +1,6 @@
-# دفترك — Daftarak
+# كاشيرو — Kashiro
+
+> Formerly «دفترك / Daftarak». Internal identifiers (package `app.daftarak`, `@daftarak/*`, server names) stay unchanged on purpose.
 
 Arabic-first, offline-first mobile POS & inventory for shops in Egypt and Saudi Arabia.
 The phone is the system; the server only handles sign-up, licences, backups and super-admin.

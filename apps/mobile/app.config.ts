@@ -3,7 +3,7 @@ import type { ExpoConfig } from 'expo/config';
 // Build-time configuration. API URL comes from the environment so dev/staging/prod builds differ
 // only by env (see docs/dev-setup.md). Nothing secret belongs here — it ships inside the app.
 const config: ExpoConfig = {
-  name: 'دفترك',
+  name: 'كاشيرو',
   slug: 'daftarak',
   scheme: 'daftarak',
   version: process.env.APP_VERSION || '1.0.0',

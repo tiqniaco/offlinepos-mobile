@@ -22,5 +22,5 @@ const totp = base32(randomBytes(20));
 const sql = `INSERT INTO admin_users (id, email, password_hash, password_salt, totp_secret, created_at) VALUES ('${randomUUID()}', '${email.toLowerCase().replace(/'/g, "''")}', '${hash}', '${salt}', '${totp}', ${Date.now()});`;
 console.log('\nSQL:\n' + sql);
 console.log('\nAdd this to your authenticator app (scan as QR or type the secret):');
-console.log(`otpauth://totp/Daftarak%20Admin:${encodeURIComponent(email)}?secret=${totp}&issuer=Daftarak%20Admin&algorithm=SHA1&digits=6&period=30`);
+console.log(`otpauth://totp/Kashiro%20Admin:${encodeURIComponent(email)}?secret=${totp}&issuer=Kashiro%20Admin&algorithm=SHA1&digits=6&period=30`);
 console.log(`secret: ${totp}\n`);

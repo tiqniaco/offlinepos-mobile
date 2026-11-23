@@ -42,6 +42,6 @@ ${d.summary.length ? `<div class="sum">${d.summary.map((s) => `<div><span>${esc(
 ${d.rows.length ? `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>` : ''}
 ${d.totals.length ? `<div class="tot">${kv(d.totals)}</div>` : ''}
 ${d.note ? `<div class="note">${esc(d.note)}</div>` : ''}
-<div class="foot">${esc(d.footer ?? 'دفترك')}</div>
+<div class="foot">${esc(d.footer ?? 'كاشيرو')}</div>
 </body></html>`;
 }

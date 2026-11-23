@@ -54,7 +54,7 @@ export default function Printers() {
       title: 'تجربة طباعة',
       number: 'TEST',
       date: Date.now(),
-      businessName: business?.name ?? 'دفترك',
+      businessName: business?.name ?? 'كاشيرو',
       address: null,
       phones: [],
       vatNumber: null,

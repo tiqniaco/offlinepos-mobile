@@ -359,7 +359,7 @@ export default function DevGallery() {
           { key: 'l', icon: 'globe', hue: 'leaf', title: 'اللغة', value: 'العربية', onPress: noop },
         ]}
         onLock={noop}
-        footer="دفترك 0.1.0 · عن التطبيق · A"
+        footer="كاشيرو 0.1.0 · عن التطبيق · A"
       />
     );
   return (
