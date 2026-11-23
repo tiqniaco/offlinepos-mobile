@@ -125,6 +125,15 @@ export async function cloudBackupOverdue(now = Date.now()): Promise<{ days: numb
   return now - ref >= BACKUP_STALE_MS ? { days: Math.floor((now - ref) / 86_400_000), never } : null;
 }
 
+/**
+ * True when automatic cloud backups are off because this phone has no server backup key for its shop (joined an
+ * existing shop without the key). The key can only be fetched with an SMS step-up (there is no step-up-free path), so
+ * the home screen shows a banner leading to «اربط الموبايل» (settings/link-device) instead of retrying silently.
+ */
+export async function backupKeyMissing(): Promise<boolean> {
+  return (await getMeta(getDb(), 'backup.keyMissing')) === '1';
+}
+
 // ── automatic daily backup (rides on the check-in: PLAN.md §9.3) ──
 
 let prepared: (BuiltBackup & { photos: boolean }) | null = null;

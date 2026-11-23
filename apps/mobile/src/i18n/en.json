@@ -328,7 +328,8 @@
     "business_limit_reached": "This account already has the maximum number of shops (2).",
     "pdf_unsupported": "We cannot read this PDF. Take photos of the invoice pages and upload them as images.",
     "business_suspended": "This account is suspended. Contact us.",
-    "backup_too_large": "The backup is larger than your plan allows."
+    "backup_too_large": "The backup is larger than your plan allows.",
+    "concurrent_update": "Something changed at the same time, please try again."
   },
   "audit": {
     "intact": "The log is intact — nothing was edited",
@@ -1500,7 +1501,13 @@
     "cloudStale": "The last cloud backup was {{n}} days ago. Connect to the internet and back up now.",
     "cloudStaleAction": "Back up",
     "excelRange": "Invoices, payments and vouchers in the Excel file from:",
-    "excelBuilding": "Preparing the Excel file…"
+    "excelBuilding": "Preparing the Excel file…",
+    "keyMissingBanner": "Cloud backup is paused — link this phone",
+    "keyMissingAction": "Link this phone",
+    "keyTitle": "Turn backups back on",
+    "keyBody": "This phone needs your shop's backup key. We'll text you a code, then daily backups work again.",
+    "keyRestored": "Backups are on again",
+    "keyFailed": "Couldn't get the key. Check your connection and try again."
   },
   "sessions": {
     "title": "Signed-in phones",

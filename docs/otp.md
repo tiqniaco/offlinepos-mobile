@@ -5,6 +5,9 @@ Rules (`packages/shared/src/api.ts → OTP_POLICY`, enforced in `apps/api/src/ot
 max 5 codes per phone per hour and 10 per day, max 20 per IP per hour, only Egyptian (+20) and Saudi
 (+966) mobiles. Codes are stored only as `HMAC-SHA256(OTP_PEPPER, phone|purpose|code)`.
 Requesting a new code invalidates older unused ones.
+Verify limits only count calls made while the phone HAS a live code (junk guesses for a phone without one never lock
+its owner out): 10 per (phone, IP) per hour, 30 per phone per hour from all networks, 60 per IP per hour. A phone whose
+codes were burned (5 wrong tries each) 4 times in a day gets no more checks until the next day.
 
 ## Providers
 Interface `OtpProvider.send(phone, code, locale)` in `apps/api/src/otp/providers.ts`.

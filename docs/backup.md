@@ -22,7 +22,13 @@ request/day** (+1 R2 PUT) — tested over a 3-day simulated run.
 **Manual:** More → النسخ الاحتياطي → "backup now" (upload-url + PUT + commit).
 **Offline:** encrypted `.obk` to the share sheet, and an Excel workbook of all data (products & stock, customers,
 suppliers, invoices, payments, purchases, vouchers) — allowed even in read-only mode.
-**Retention:** plan `backups_kept` (free 3, basic 7, pro 30) applied at each commit; older R2 objects deleted.
+**Retention:** plan `backups_kept` (free 3, basic 7, pro 30) applied per device at each commit; older R2 objects deleted.
+On top, a hard cap per business (all devices) on committed backups — free 3 × 50 MB, basic 7 × 300 MB, pro 30 × 1 GB
+(count and total bytes) — whatever the retention / shrink rules decided; the shrink guard keeps at most ONE extra older
+backup (the one with the most records). Check-in starts at most 1 automatic backup per business per UTC day; manual
+"backup now" is capped at 6 per day.
+If this phone joined a shop without its server backup key (`backup.keyMissing`), automatic backups stay off and owners
+see a home banner «النسخ الاحتياطي متوقف — اربط الموبايل» that opens Link device (fetching the key needs an SMS step-up).
 
 ## Restore / move to a new phone
 OTP login → choose the business → list of cloud backups → **step-up OTP** (fresh code) → download → key released

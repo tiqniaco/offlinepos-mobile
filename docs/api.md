@@ -20,6 +20,11 @@ with codes from `API_ERROR_CODES` (`packages/shared/src/api.ts`). All bodies are
 
 `device` = `{installId, platform: android|ios, model?, appVersion}`.
 Tokens: access 15 min (HMAC); refresh 90 days, rotating, only SHA-256 stored.
+Refresh reuse (`apps/api/src/auth/tokens.ts`): the previous token is accepted ONCE within 2 min (a lost check-in
+response) only while the new token has never been presented and the optional `installId` (on `/auth/refresh` and
+`/checkin`) matches the session's; that grace refresh keeps the superseded token as an "orphan". Presenting the orphan,
+the previous token outside those rules, or any older token revokes the whole session (`refresh_reuse`): when a thief
+raced the owner both get `session_revoked` and the owner signs in again by SMS.
 
 ## Admin (`/admin`) — CORS only for `ADMIN_ORIGIN`
 `POST /login {email, password, totp}` → `{token, expiresAt}` (8 h). Then `Authorization: Bearer <token>`.

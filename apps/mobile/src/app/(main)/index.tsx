@@ -18,7 +18,7 @@ import { partyTotals } from '../../domain/parties/parties';
 import { customersDue } from '../../domain/parties/statement';
 import { currentShift } from '../../domain/shifts/shifts';
 import { verifyChainSinceCheckpoint } from '../../domain/integrity/chain';
-import { cloudBackupOverdue } from '../../features/backup/service';
+import { backupKeyMissing, cloudBackupOverdue } from '../../features/backup/service';
 import { planNotifications } from '../../features/notify/notify';
 import { latestUnread, unreadCount } from '../../domain/inbox/inbox';
 import { addSampleData, hasSampleData, removeSampleData } from '../../domain/sample/sample';
@@ -61,6 +61,7 @@ export default function Home() {
   const [news, setNews] = useState<Awaited<ReturnType<typeof latestUnread>>>(null);
   const [lastFile, setLastFile] = useState<number | null | undefined>(undefined);
   const [cloudStale, setCloudStale] = useState<{ days: number; never: boolean } | null>(null);
+  const [keyMissing, setKeyMissing] = useState(false);
   const restoreUnlinked = useApp((s) => s.restoreUnlinked);
   const dataVersion = useApp((s) => s.dataVersion);
   /** What the figures on screen were loaded for: reload only when data changed, inputs changed, or after 60 s. */
@@ -145,6 +146,8 @@ export default function Home() {
       if (roleHas(user.permissions, 'backup.manage')) void lastPortableExport(db).then(setLastFile, () => undefined);
       // Owners: remind when the automatic cloud backup has not succeeded for 3+ days.
       if (user.roleKey === 'owner' && !useApp.getState().restoreUnlinked) void cloudBackupOverdue().then(setCloudStale, () => undefined);
+      // Owners: automatic backups are off while this phone has no server backup key (linking fetches it).
+      if (user.roleKey === 'owner' && !useApp.getState().restoreUnlinked) void backupKeyMissing().then(setKeyMissing, () => undefined);
       // Daily background integrity check for owners/managers (tamper alert on the home screen).
       if (device && integrityCheckedDay !== day && roleHas(user.permissions, 'settings.manage')) {
         integrityCheckedDay = day;
@@ -191,7 +194,10 @@ export default function Home() {
       {fileNudge ? (
         <Banner tone="warn" icon="file" text={fileNudge.days == null ? t('portable.never') : t('portable.lastAgo', { n: fileNudge.days })} action={t('portable.remindAction')} onAction={() => router.push('/settings/backup')} />
       ) : null}
-      {cloudStale && !restoreUnlinked && inv?.products ? (
+      {keyMissing && !restoreUnlinked ? (
+        <Banner tone="warn" icon="cloudOff" text={t('backup.keyMissingBanner')} action={t('backup.keyMissingAction')} onAction={() => router.push('/settings/backup-key')} />
+      ) : null}
+      {cloudStale && !keyMissing && !restoreUnlinked && inv?.products ? (
         <Banner tone="warn" icon="cloudOff" text={cloudStale.never ? t('backup.cloudNever') : t('backup.cloudStale', { n: cloudStale.days })} action={t('backup.cloudStaleAction')} onAction={() => router.push('/settings/backup')} />
       ) : null}
       {tamper ? <Banner tone="danger" title={t('integrity.alertTitle')} text={t('integrity.alertBody')} action={t('integrity.open')} onAction={() => router.push('/settings/integrity')} /> : null}

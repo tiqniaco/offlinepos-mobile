@@ -7,7 +7,10 @@
 - **Webhook:** `POST /v1/webhooks/revenuecat`, header `Authorization: Bearer <REVENUECAT_WEBHOOK_SECRET>`; idempotent by
   event id (`billing_events`). Purchase / renewal / product change → plan until the store expiry (`plan_source =
   store`); billing issue → `past_due`; cancellation/expiration need nothing (the licence falls to grace, then the free
-  plan — never read-only for that, D-20).
+  plan — never read-only for that, D-20). Paid manual time (activation code / manual payment / admin) is kept apart in
+  `manual_plan_code` + `manual_until`: a higher store plan runs until its store expiry, then EXPIRATION (or a refund, or
+  the next check-in when the webhook is late) falls back to the manual plan until `manual_until`; a lower store plan never
+  replaces a better running manual plan.
 - **Activation codes:** admin → أكواد التفعيل → generate a batch (plan, days, count, note) → CSV for the sales rep.
   Owner: الاشتراك → "عندك كود تفعيل؟". One use, revocable; renewing the same plan extends from the current expiry.
 - **After any change** the app runs a check-in to fetch the new signed licence (paid plan hides ads at once).
