@@ -44,7 +44,7 @@ export default function Security() {
     setErr(null);
     try {
       if (v) {
-        const r = await LocalAuthentication.authenticateAsync({ promptMessage: t('lock.biometricEnable'), disableDeviceFallback: true, biometricsSecurityLevel: 'strong', fallbackLabel: '' });
+        const r = await LocalAuthentication.authenticateAsync({ promptMessage: t('lock.biometricEnable'), disableDeviceFallback: false, fallbackLabel: t('lock.usePhoneCode') });
         if (!r.success) return;
       }
       await updateUser(getDb(), user, user.id, { biometricEnabled: v }, device);

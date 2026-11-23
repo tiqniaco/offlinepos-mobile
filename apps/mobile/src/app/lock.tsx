@@ -36,7 +36,7 @@ export default function LockScreen() {
     async (u: LockUser) => {
       // Fingerprint / face first; if it fails the phone offers its own passcode (device fallback).
       try {
-        const r = await LocalAuthentication.authenticateAsync({ promptMessage: t('lock.biometricPrompt'), disableDeviceFallback: true, biometricsSecurityLevel: 'strong', fallbackLabel: '', cancelLabel: t('common.cancel') });
+        const r = await LocalAuthentication.authenticateAsync({ promptMessage: t('lock.biometricPrompt'), disableDeviceFallback: false, fallbackLabel: t('lock.usePhoneCode'), cancelLabel: t('common.cancel') });
         if (r.success) useApp.getState().unlock(await unlockWithBiometric(getDb(), u.id));
       } catch {
         setMsg(t(u.secretKind === 'password' ? 'lock.wrongPassword' : 'lock.wrong'));

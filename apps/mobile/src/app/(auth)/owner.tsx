@@ -56,7 +56,7 @@ export default function OwnerScreen() {
       const ownerUser = (await listActiveUsers(db))[0]!;
       let session = await sessionAfterSetup(db, ownerUser.id);
       if (bio && bioAvailable) {
-        const r = await LocalAuthentication.authenticateAsync({ promptMessage: t('lock.biometricEnable'), disableDeviceFallback: true, biometricsSecurityLevel: 'strong', cancelLabel: t('common.cancel') });
+        const r = await LocalAuthentication.authenticateAsync({ promptMessage: t('lock.biometricEnable'), disableDeviceFallback: false, cancelLabel: t('common.cancel') });
         if (r.success) {
           await setBiometric(db, session, true);
           session = await unlockWithBiometric(db, ownerUser.id);
