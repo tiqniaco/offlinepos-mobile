@@ -6,7 +6,9 @@ import { Modal, View } from 'react-native';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Text, Sheet, Logo, colors, fonts } from '../../ui';
+import Constants from 'expo-constants';
 import { installUpdate, useUpdate, watchForUpdates } from './update';
+import { openWhatsApp } from '../export/whatsapp';
 
 function Progress({ value }: { value: number }) {
   return (
@@ -21,6 +23,7 @@ export function UpdateGate() {
   const { latest, forced, snoozed, progress, error, set } = useUpdate();
   useEffect(() => watchForUpdates(), []);
   if (!latest) return null;
+  const support = (Constants.expoConfig?.extra as { supportWhatsApp?: string } | undefined)?.supportWhatsApp ?? '';
 
   const body = (
     <View style={{ gap: 12 }}>
@@ -31,7 +34,7 @@ export function UpdateGate() {
           <Text variant="caption">{t('update.downloading', { p: Math.round(progress * 100) })}</Text>
         </View>
       ) : null}
-      {error ? <Text style={{ color: colors.rose[700], fontSize: 13 }}>{t('update.failed')}</Text> : null}
+      {error ? <Text style={{ color: colors.rose[700], fontSize: 13 }}>{t(error === 'checksum' ? 'update.checksum' : 'update.failed')}</Text> : null}
     </View>
   );
 
@@ -47,7 +50,17 @@ export function UpdateGate() {
             </Text>
           </View>
           {body}
-          <Button testID="update-now" icon="download" title={t('update.now')} loading={progress != null && progress < 1} onPress={() => void installUpdate(latest)} />
+          {latest.url ? (
+            <Button testID="update-now" icon="download" title={t('update.now')} loading={progress != null && progress < 1} onPress={() => void installUpdate(latest)} />
+          ) : (
+            // No download link (e.g. store build): tell the user how to get the new version instead of a dead button.
+            <>
+              <Text variant="body" style={{ textAlign: 'center' }}>
+                {t('update.noUrl')}
+              </Text>
+              {support ? <Button kind="secondary" icon="whatsapp" title={t('update.contactSupport')} onPress={() => void openWhatsApp(support, t('update.supportMessage', { v: latest.name }))} /> : null}
+            </>
+          )}
           <Text variant="caption" style={{ textAlign: 'center' }}>
             {t('update.safe')}
           </Text>

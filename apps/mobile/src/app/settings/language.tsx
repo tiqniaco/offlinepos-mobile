@@ -1,4 +1,4 @@
-import { View } from 'react-native';
+import { Alert, I18nManager, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Screen, Text, Choice } from '../../ui';
 import { getDb } from '../../db/client';
@@ -6,6 +6,8 @@ import { changeSetting } from '../../domain/settings/settings';
 import { useApp } from '../../state/app';
 import { ensureDirection, initI18n, type Lang } from '../../i18n';
 import { reloadAppData } from '../../state/boot';
+import { toast } from '../../state/toast';
+import { errorMessage } from '../../lib/errors';
 
 export default function Language() {
   const { t } = useTranslation();
@@ -14,10 +16,17 @@ export default function Language() {
   const lang = useApp((s) => s.settings.language ?? 'ar');
   const choose = async (l: Lang) => {
     if (l === lang) return;
-    await changeSetting(getDb(), 'language', l, { userId: user.id, deviceId: device.id });
-    await reloadAppData();
-    initI18n(l);
-    await ensureDirection(l);
+    try {
+      await changeSetting(getDb(), 'language', l, { userId: user.id, deviceId: device.id });
+      await reloadAppData();
+      initI18n(l);
+      // Switching between RTL and LTR needs a reload; if the app could not reload itself, ask the user to reopen it.
+      const needsReload = I18nManager.isRTL !== (l === 'ar');
+      const reloaded = await ensureDirection(l);
+      if (needsReload && !reloaded) Alert.alert(t('language.reopenTitle'), t('language.reopenBody'), [{ text: t('common.done') }]);
+    } catch (e) {
+      toast(errorMessage(t, e), 'error');
+    }
   };
   return (
     <Screen back title={t('more.language')}>

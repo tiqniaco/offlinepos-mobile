@@ -75,7 +75,7 @@ export default function Subscription() {
     }
   };
   const purchase = async (p: StorePlan) => {
-    const bought = await once(`buy-${p.code}`, () => buy(p));
+    const bought = await once(`buy-${p.plan}`, () => buy(p));
     if (bought) await afterChange(t('subscription.thanks'));
   };
   const redeem = async () => {

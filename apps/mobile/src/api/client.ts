@@ -8,7 +8,11 @@ import {
   authResponseSchema,
   checkinResponseSchema,
   createBusinessResponseSchema,
+  createPaymentRequestResponseSchema,
+  manualBillingInfoSchema,
+  paymentRequestListSchema,
   type ApiErrorCode,
+  type CreatePaymentRequest,
   type BackupMeta,
   backupPutSchema,
   type DeviceInfo,
@@ -79,6 +83,11 @@ export const api = {
   backupKey: (token: string, businessId: string) => request('/v1/backups/key', z.object({ backupKey: z.string() }), { body: { businessId }, token }),
   activateDevice: (token: string, businessId: string, device: DeviceInfo, backupId?: string, integrity?: Integrity) => request('/v1/devices/activate', createBusinessResponseSchema, { body: { businessId, device, backupId, integrity }, token }),
   redeemCode: (token: string, businessId: string, code: string) => request('/v1/licence/activation-code', z.object({ plan: z.string(), expiresAt: z.number() }), { body: { businessId, code }, token }),
+  /** Manual payment (InstaPay / Vodafone Cash): numbers, SLA and paid plan prices (EGP minor units). */
+  billingInfo: (token: string, businessId: string) => request(`/v1/billing/manual/info?businessId=${encodeURIComponent(businessId)}`, manualBillingInfoSchema, { token }),
+  /** Sends the receipt (base64 JPEG/PNG ≤ 2 MB). Errors: receipt_invalid, invalid_phone, too_many_pending (409), rate_limited (429). */
+  createPaymentRequest: (token: string, payload: CreatePaymentRequest) => request('/v1/billing/manual/requests', createPaymentRequestResponseSchema, { body: payload, token }),
+  listPaymentRequests: (token: string, businessId: string) => request(`/v1/billing/manual/requests?businessId=${encodeURIComponent(businessId)}`, paymentRequestListSchema, { token }),
   sessions: (token: string) =>
     request('/v1/sessions', z.object({ sessions: z.array(z.object({ id: z.string(), created_at: z.number(), last_used_at: z.number().nullable(), platform: z.string().nullable(), model: z.string().nullable(), app_version: z.string().nullable(), current: z.boolean() })) }), { token }),
   revokeSession: (token: string, id: string) => request(`/v1/sessions/${id}`, z.object({ ok: z.boolean() }), { method: 'DELETE', token }),

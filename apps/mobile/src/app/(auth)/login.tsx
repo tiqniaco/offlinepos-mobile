@@ -26,6 +26,7 @@ export default function Login() {
   };
 
   const submit = async () => {
+    if (busy) return;
     const phone = (() => { const p = normalizePhone(raw); return p && (!EGYPT_ONLY || isEgyptianMobile(p)) ? p : null; })();
     if (!phone) return setError(t('phone.invalid'));
     if (!password) return setError(t('login.enterPassword'));

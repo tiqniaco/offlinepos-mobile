@@ -8,6 +8,7 @@ import { changeSetting } from '../../domain/settings/settings';
 import { reloadAppData } from '../../state/boot';
 import { useApp } from '../../state/app';
 import { toast } from '../../state/toast';
+import { errorMessage } from '../../lib/errors';
 import { defaultDots, driverFor, platformDrivers } from '../../features/printing/printerConfig';
 import { renderReceiptBytes } from '../../features/printing/PrintHost';
 import { sendToPrinter } from '../../features/printing/actions';
@@ -40,10 +41,14 @@ export default function Printers() {
   };
 
   const save = async (c: PrinterConfig | null) => {
-    await changeSetting(getDb(), 'printer', c, { userId: user.id, deviceId: device.id });
-    await reloadAppData();
-    setCfg(c);
-    toast(t('printers.saved'));
+    try {
+      await changeSetting(getDb(), 'printer', c, { userId: user.id, deviceId: device.id });
+      await reloadAppData();
+      setCfg(c);
+      toast(t('printers.saved'));
+    } catch (e) {
+      toast(errorMessage(t, e), 'error');
+    }
   };
 
   const test = async () => {

@@ -109,7 +109,9 @@
     "useBiometric": "Open with fingerprint",
     "usePhoneCode": "Use phone passcode",
     "biometricEnable": "Confirm to turn on fingerprint",
-    "open": "Open"
+    "open": "Open",
+    "minutes": "{{n}} min",
+    "seconds": "{{n}} s"
   },
   "home": {
     "greeting": "Good morning, {{name}}",
@@ -212,7 +214,9 @@
     "empty": "No other users yet",
     "emptyHint": "Add a cashier or manager, each with their own PIN",
     "disabled": "Disabled",
-    "you": "You"
+    "you": "You",
+    "passwordUser": "The owner unlocks with the account password, not a PIN.",
+    "changePassword": "Change password"
   },
   "security": {
     "autoLock": "Auto-lock after",
@@ -221,12 +225,15 @@
     "biometric": "Biometric unlock for my account",
     "screenshots": "Block screenshots",
     "screenshotsHint": "On profit, cost, reports and backup screens",
-    "biometricHint": "If it fails, the phone passcode is offered. Your password always works."
+    "biometricHint": "If it fails, the phone passcode is offered. Your password always works.",
+    "managedOnly": "Only the owner or a manager can change these settings."
   },
   "language": {
     "ar": "العربية",
     "en": "English",
-    "restart": "The app will restart to change direction."
+    "restart": "The app will restart to change direction.",
+    "reopenTitle": "Close and reopen the app",
+    "reopenBody": "To apply the new direction, fully close the app and open it again."
   },
   "subscription": {
     "plan": "Plan",
@@ -1428,7 +1435,10 @@
     }
   },
   "unlockReset": {
-    "body": "Needs internet. We'll text a code to the account's number"
+    "body": "Needs internet. We'll text a code to the account's number",
+    "noPhone": "We couldn't find the account number on this phone. Sign in with the password or contact support.",
+    "otherAccount": "This code belongs to another account, not this shop's owner. Use the owner's number.",
+    "phoneLabel": "We'll text the code to the account number"
   },
   "update": {
     "title": "Update available {{v}}",
@@ -1438,6 +1448,10 @@
     "later": "Later",
     "downloading": "Downloading update… {{p}}%",
     "failed": "The download didn't finish. Check the connection and try again.",
-    "safe": "All your data and sales stay as they are."
+    "safe": "All your data and sales stay as they are.",
+    "checksum": "The update file is damaged. Try downloading it again.",
+    "noUrl": "Get the new version from the store, or contact support for the link.",
+    "contactSupport": "Contact support on WhatsApp",
+    "supportMessage": "I need to update Kashiro to version {{v}}"
   }
 }

@@ -68,8 +68,12 @@ export default function ReceiptSettings() {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
           <Pressable
             onPress={async () => {
-              const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.9 });
-              if (!r.canceled && r.assets[0]) setLogo(await saveProductImage(r.assets[0].uri, `logo-${uuidv7()}`));
+              try {
+                const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.9 });
+                if (!r.canceled && r.assets[0]) setLogo(await saveProductImage(r.assets[0].uri, `logo-${uuidv7()}`));
+              } catch (e) {
+                toast(errorMessage(t, e), 'error');
+              }
             }}
             style={{ width: 84, height: 84, borderRadius: 20, backgroundColor: colors.paper.sunk, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
           >

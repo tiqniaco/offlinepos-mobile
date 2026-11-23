@@ -58,6 +58,13 @@ export function watchForUpdates() {
   return () => sub.remove();
 }
 
+/** SHA-256 (hex) computed natively by expo-file-system (`File.digest`, streamed; not in its TS types yet). */
+async function sha256OfFile(file: File): Promise<string | null> {
+  const digest = (file as unknown as { digest?: (algorithm: 'SHA-256') => Promise<string> }).digest;
+  if (typeof digest !== 'function') return null;
+  return digest.call(file, 'SHA-256');
+}
+
 export async function installUpdate(r: Release) {
   const st = useUpdate.getState();
   if (!r.url) return;
@@ -77,6 +84,15 @@ export async function installUpdate(r: Release) {
     });
     const file = await task.downloadAsync();
     if (!file) throw new Error('download');
+    // Never hand a corrupted / tampered APK to the installer: it must match the hash the server published.
+    if (r.sha256) {
+      const got = await sha256OfFile(file);
+      if (!got || got.toLowerCase() !== r.sha256.toLowerCase()) {
+        if (file.exists) file.delete();
+        useUpdate.getState().set({ progress: null, error: 'checksum' });
+        return;
+      }
+    }
     useUpdate.getState().set({ progress: 1 });
     const contentUri = await getContentUriAsync(file.uri);
     // FLAG_GRANT_READ_URI_PERMISSION (1): the installer reads our cached APK.

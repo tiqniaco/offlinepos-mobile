@@ -38,7 +38,8 @@ export default function Sell() {
   const [search, setSearch] = useState('');
   // Hits remember the query they answer, so Enter never adds a stale result.
   const [hitState, setHitState] = useState<{ q: string; rows: SearchHit[] }>(NO_HITS_STATE);
-  const hits = hitState.q === search.trim() ? hitState.rows : NO_HITS;
+  // The list may lag one keystroke behind while typing (no flicker); Enter only trusts a fresh one.
+  const hits = search.trim() ? hitState.rows : NO_HITS;
   const [lineKey, setLineKey] = useState<string | null>(null);
   const [custOpen, setCustOpen] = useState(false);
   const [discOpen, setDiscOpen] = useState(false);

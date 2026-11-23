@@ -17,6 +17,7 @@ export default function PhoneScreen() {
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
+    if (busy) return;
     const phone = (() => { const p = normalizePhone(raw); return p && (!EGYPT_ONLY || isEgyptianMobile(p)) ? p : null; })();
     if (!phone) return setError(t('phone.invalid'));
     setError(null);
