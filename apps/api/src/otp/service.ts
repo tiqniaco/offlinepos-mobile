@@ -80,6 +80,12 @@ export async function requestOtp(
     .run();
 
   const sent = await provider.send(phone, code, args.locale);
+  // Keep the provider's reply for diagnostics (masked phone, no code). Best-effort.
+  await db
+    .prepare(`INSERT INTO otp_send_log (id, phone_masked, provider, ok, detail, at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`)
+    .bind(uuidv7(now), `${phone.slice(0, 5)}****${phone.slice(-2)}`, provider.name, sent.ok ? 1 : 0, [sent.error ?? sent.providerRef ?? '', sent.detail ?? ''].filter(Boolean).join(' | ').slice(0, 300), now)
+    .run()
+    .catch(() => undefined);
   if (!sent.ok) {
     console.error('otp send failed', sent.error);
     throw new ApiError(502, 'otp_send_failed', 'could not send the code');

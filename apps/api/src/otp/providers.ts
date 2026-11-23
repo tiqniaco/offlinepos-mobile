@@ -8,6 +8,8 @@ export interface SendResult {
   ok: boolean;
   providerRef?: string;
   error?: string;
+  /** Provider reply text (no credentials) for diagnostics. */
+  detail?: string;
 }
 
 export interface OtpProvider {
@@ -105,7 +107,7 @@ export class SmsMisrSmsProvider implements OtpProvider {
         codeField = text.trim().slice(0, 40);
       }
       if (res.ok && codeField === '1901') return { ok: true, providerRef: codeField };
-      return { ok: false, error: `smsmisr-sms:${res.status}:${codeField}` };
+      return { ok: false, error: `smsmisr-sms:${res.status}:${codeField}`, detail: text.slice(0, 200) };
     } catch (e) {
       return { ok: false, error: `smsmisr-sms:network:${(e as Error).message}` };
     }

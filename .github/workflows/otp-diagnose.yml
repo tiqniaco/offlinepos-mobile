@@ -1,0 +1,29 @@
+# Shows the last SMS deliveries (masked phone, provider, provider reply). No codes or credentials are stored.
+name: otp-diagnose
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  show:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      - name: Last SMS deliveries
+        run: |
+          ID=$(npx wrangler d1 list --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const r=JSON.parse(s).find(x=>x.name==="daftarak");process.stdout.write(r?r.uuid:"")})')
+          sed -i "s/00000000-0000-0000-0000-000000000000/$ID/g" wrangler.jsonc
+          npx wrangler d1 execute daftarak --remote --env production --command \
+            "SELECT datetime(at/1000,'unixepoch') AS time, phone_masked, provider, ok, detail FROM otp_send_log ORDER BY at DESC LIMIT 15"

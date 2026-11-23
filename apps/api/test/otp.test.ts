@@ -137,6 +137,6 @@ describe('SMS Misr normal SMS (no template)', () => {
     expect(f.get('message')).toContain('482913');
     expect(f.get('message')).toContain('كاشيرو');
     const bad = new SmsMisrSmsProvider({ baseUrl: 'x:', environment: '1', username: 'u', password: 'p', sender: 't' }, (async () => new Response(JSON.stringify({ code: '1903' }))) as unknown as typeof fetch);
-    expect(await bad.send('201012345678', '1', 'en')).toEqual({ ok: false, error: 'smsmisr-sms:200:1903' });
+    expect(await bad.send('201012345678', '1', 'en')).toMatchObject({ ok: false, error: 'smsmisr-sms:200:1903' });
   });
 });
