@@ -1888,9 +1888,15 @@
     "reset": "Restore default design",
     "printThermal": "Print thermal",
     "a4Title": "PDF A4",
-    "a4Body": "Send the file or print it?",
+    "a4Body": "Download it to the phone, send it, or print it?",
     "a4Share": "Send (WhatsApp…)",
-    "a4Print": "Print / save"
+    "a4Print": "Print / save",
+    "a4Download": "Download PDF to the phone",
+    "a4Saved": "Saved to Downloads",
+    "a4Open": "Open",
+    "livePreview": "Live preview — pinch to zoom",
+    "longSample": "Long invoice (2 pages)",
+    "previewFailed": "Full preview unavailable — showing a sketch"
   },
   "countReport": {
     "title": "Stock count report",

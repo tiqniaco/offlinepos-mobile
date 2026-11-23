@@ -61,3 +61,30 @@ export function sampleReceiptData(kind: 'INVOICE' | 'QUOTATION', template: Requi
     template,
   };
 }
+
+const MORE = ['مكرونة اسباجتي 400 جم', 'صابون غسيل أطباق ليمون 1 لتر', 'بسكويت بالشوكولاتة', 'عصير مانجو 1 لتر', 'تونة قطع 185 جم', 'لبن كامل الدسم 1 لتر'];
+
+/** The same sample with many lines (two A4 pages) — to preview page breaks and the repeated table header. */
+export function longSample(d: ReceiptData, count = 32): ReceiptData {
+  const base = [...LINES, ...MORE.map((name, i) => ({ name, code: `62212345001${String(i).padStart(2, '0')}`, qtyMilli: 1000 * (1 + (i % 3)), unit: 'علبة', priceMinor: 1750 + i * 1325, discountMinor: 0 }))];
+  const lines = Array.from({ length: count }, (_, i) => {
+    const l = base[i % base.length]!;
+    return { ...l, totalMinor: Math.round((l.priceMinor * l.qtyMilli) / 1000) - l.discountMinor };
+  });
+  const net = lines.reduce((a, l) => a + l.totalMinor, 0);
+  const tax = d.taxRatePct ? Math.round((net * d.taxRatePct) / 100) : 0;
+  const total = net + tax;
+  const quote = d.kind === 'QUOTATION';
+  const tendered = Math.ceil(total / 10000) * 10000;
+  return {
+    ...d,
+    lines,
+    discountMinor: lines.reduce((a, l) => a + l.discountMinor, 0),
+    netMinor: net,
+    taxMinor: tax,
+    totalMinor: total,
+    tenderedMinor: quote ? 0 : tendered,
+    changeMinor: quote ? 0 : tendered - total,
+    payments: quote ? [] : [{ method: 'cash', label: null, amountMinor: total }],
+  };
+}

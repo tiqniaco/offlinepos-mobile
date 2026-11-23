@@ -1,32 +1,42 @@
 /**
  * A4 invoice / quotation / return → expo-print PDF (HTML built by ./a4.ts). Arabic shaping is handled by the WebView;
- * the Readex Pro font is embedded as a data URI so the PDF looks the same on every phone.
+ * the app's Arabic font is embedded as a data URI so the PDF looks the same on every phone.
  */
 import { Asset } from 'expo-asset';
 import { File } from 'expo-file-system';
 import i18n from 'i18next';
 import { colors } from '../../ui';
+import { currentFont, FONT_FAMILIES } from '../../ui/fonts';
 import type { ReceiptData } from './receiptData';
-import { buildA4Html, type A4Options } from './a4';
+import { a4FontFaceCss, buildA4Html, type A4Options } from './a4';
 
-let fontCss: string | null = null;
+/** @font-face CSS per app font family, cached in memory (≈ 270 KB of base64 for regular + bold). */
+const fontCache = new Map<string, string>();
 
+/**
+ * The app's selected Arabic font (المظهر; Readex Pro by default), regular + bold only, embedded as base64 so the PDF
+ * renders the same on every phone. Any failure → '' and the HTML falls back to the system Arabic font.
+ */
 export async function embeddedFontCss(): Promise<string> {
-  if (fontCss) return fontCss;
+  const fam = FONT_FAMILIES.find((f) => f.id === currentFont) ?? FONT_FAMILIES[0]!;
+  const hit = fontCache.get(fam.id);
+  if (hit != null) return hit;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const f = require('@expo-google-fonts/readex-pro');
-    const face = async (mod: number, weight: number) => {
+    const mods = fam.load();
+    const b64 = async (name: string) => {
+      const mod = mods[name];
+      if (mod == null) return null;
       const a = Asset.fromModule(mod);
       await a.downloadAsync();
-      const b64 = await new File(a.localUri ?? a.uri).base64();
-      return `@font-face{font-family:'Readex';font-weight:${weight};src:url(data:font/ttf;base64,${b64}) format('truetype');}`;
+      return new File(a.localUri ?? a.uri).base64();
     };
-    fontCss = (await face(f.ReadexPro_400Regular, 400)) + (await face(f.ReadexPro_700Bold, 700));
+    const [regular, bold] = await Promise.all([b64(fam.set.regular), b64(fam.set.bold)]);
+    const css = a4FontFaceCss(regular, bold);
+    fontCache.set(fam.id, css);
+    return css;
   } catch {
-    fontCss = '';
+    return '';
   }
-  return fontCss;
 }
 
 export { esc } from './a4';

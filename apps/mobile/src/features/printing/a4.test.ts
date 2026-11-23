@@ -1,4 +1,4 @@
-import { buildA4Html, esc, safeColor } from './a4';
+import { a4FontFaceCss, A4_FONT, buildA4Html, esc, pdfFileName, safeColor } from './a4';
 import { sampleReceiptData } from './sample';
 import { DEFAULT_RECEIPT } from '../../domain/settings/settings';
 
@@ -60,5 +60,50 @@ describe('A4 HTML builder', () => {
     const d = sampleReceiptData('INVOICE', { ...DEFAULT_RECEIPT, brandColor: 'red;}</style><script>x</script>' }, shop);
     expect(buildA4Html(d)).not.toContain('<script>x');
     expect(esc(`a&b'`)).toBe('a&amp;b&#39;');
+  });
+
+  it('prints on A4 with real margins, a content wrapper, repeated header rows and unsplit rows', () => {
+    const html = buildA4Html(sampleReceiptData('INVOICE', DEFAULT_RECEIPT, shop));
+    expect(html).toContain('@page{size:A4;margin:14mm 12mm 16mm');
+    expect(html).toContain('class="doc-page"');
+    expect(html).toContain('صفحة " counter(page) " من " counter(pages)');
+    expect(html).toContain('thead{display:table-header-group}');
+    expect(html).toContain('break-inside:avoid');
+    expect(html).toContain('print-color-adjust:exact');
+    expect(html).toContain('<colgroup>');
+    expect(html).toMatch(/font-size:10\.5pt;line-height:1\.6/);
+  });
+
+  it('embeds the font only when one is provided', () => {
+    expect(a4FontFaceCss(null, null)).toBe('');
+    const css = a4FontFaceCss('AAAA', 'BBBB');
+    expect(css).toContain(`font-family:'${A4_FONT}';font-weight:400`);
+    expect(css).toContain('base64,BBBB');
+    const d = sampleReceiptData('INVOICE', DEFAULT_RECEIPT, shop);
+    expect(buildA4Html(d, { fontCss: css })).toContain('@font-face');
+    expect(buildA4Html(d)).not.toContain('@font-face');
+    expect(buildA4Html(d)).toContain(`'${A4_FONT}'`); // still asks for it first, system Arabic fonts as fallback
+  });
+
+  it('isolates numbers as LTR and keeps the brand colour valid for 3-digit hex', () => {
+    const d = sampleReceiptData('INVOICE', { ...DEFAULT_RECEIPT, brandColor: '#0a7' }, shop);
+    const html = buildA4Html(d, { style: 'modern' });
+    expect(html).toContain('<bdi class="num" dir="ltr">INV-000245</bdi>');
+    expect(html).toContain('#00aa7714');
+    expect(html).not.toMatch(/[\u0660-\u0669]/); // Latin digits only
+  });
+
+  it('returns get their own total label', () => {
+    const d = { ...sampleReceiptData('INVOICE', DEFAULT_RECEIPT, shop), kind: 'RETURN' as const, title: 'مرتجع' };
+    expect(buildA4Html(d)).toContain('إجمالي المرتجع');
+  });
+
+  it('builds a safe, readable PDF file name', () => {
+    expect(pdfFileName('فاتورة', 'INV-000245', 'سوبر ماركت النور')).toBe('فاتورة INV-000245 - سوبر ماركت النور.pdf');
+    expect(pdfFileName('عرض سعر', 'Q/17', 'محل "أبو علي": <الأصلي>')).toBe('عرض سعر Q 17 - محل أبو علي الأصلي.pdf');
+    expect(pdfFileName('..فاتورة', null, '  ')).toBe('فاتورة.pdf');
+    expect(pdfFileName('', '', '\u202Eevil\n')).toBe('evil.pdf');
+    expect(pdfFileName('', null, null)).toBe('document.pdf');
+    expect(pdfFileName('فاتورة', 'INV-1', 'ا'.repeat(300)).length).toBeLessThanOrEqual(94);
   });
 });
