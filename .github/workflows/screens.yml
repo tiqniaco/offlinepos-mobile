@@ -4,7 +4,7 @@ name: screens
 on:
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write   # pushes screenshots to the ci-screens branch (test output only)
 concurrency:
   group: screens
   cancel-in-progress: true
@@ -66,6 +66,17 @@ jobs:
       - name: API log
         if: always()
         run: tail -200 /tmp/api.log > tour-out/api.log || true
+
+      - name: Publish screenshots to the ci-screens branch (readable without artifact downloads)
+        if: always()
+        run: |
+          curl -sf https://daftarak-api.mallimerp.com/v1/licence/public-key > tour-out/licence-key.json || true
+          cd tour-out
+          rm -rf debug/*/screenshot-* 2>/dev/null || true
+          git init -q -b ci-screens
+          git config user.name "screens-bot"; git config user.email "screens-bot@users.noreply.github.com"
+          git add -A && git commit -qm "screens ${{ github.run_id }}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" ci-screens
 
       - uses: actions/upload-artifact@v4
         if: always()
