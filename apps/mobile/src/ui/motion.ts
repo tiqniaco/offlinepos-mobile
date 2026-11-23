@@ -19,6 +19,8 @@ export function stackOptions() {
     animationMatchesGesture: true,
     animation: (Platform.OS === 'android' ? (rtl ? 'ios_from_left' : 'ios_from_right') : 'default') as 'default',
     animationDuration: 280,
+    // Screens behind the current one stop re-rendering (smoother transitions, less JS work).
+    freezeOnBlur: true,
   };
 }
 

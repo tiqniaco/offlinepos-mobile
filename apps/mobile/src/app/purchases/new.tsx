@@ -195,7 +195,7 @@ export default function NewPurchase() {
         </View>
         {mode === 'credit' && !cart.supplierId ? <Banner tone="warn" text={t('purchase.needSupplier')} /> : null}
         {mode !== 'credit' ? (
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {(['cash', 'wallet', 'bank', 'card'] as const).map((m) => (
               <MethodCard key={m} label={t(`pay.methods.${m}`)} icon={m === 'cash' ? 'layers' : m === 'wallet' ? 'phone' : m === 'bank' ? 'book' : 'card'} selected={method === m} onPress={() => setMethod(m)} />
             ))}

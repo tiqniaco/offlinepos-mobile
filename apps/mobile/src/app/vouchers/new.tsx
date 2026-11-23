@@ -109,7 +109,7 @@ export default function NewVoucher() {
 
       {!cashOnly ? (
         <>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {METHODS.map((x) => (
               <MethodCard key={x.m} label={t(`pay.methods.${x.m}`)} icon={x.icon === 'cash' ? 'layers' : x.icon} selected={method === x.m} onPress={() => { setMethod(x.m); setLabel(x.m === 'wallet' ? (wallets[0] ?? null) : null); }} />
             ))}

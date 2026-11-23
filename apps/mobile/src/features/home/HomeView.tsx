@@ -104,21 +104,30 @@ export function HomeView({
         </View>
       </Hero>
 
-      <View className="gap-3 px-4" style={{ marginTop: -14 }}>
+      <View className="gap-3 px-4" style={{ marginTop: 12 }}>
         {banner}
         {onSell ? <Button testID="home-sell" icon="scan" title={t('home.startSale')} onPress={onSell} /> : null}
         {stats && stats.length ? (
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            {stats.map((st) => (
-              <Card key={st.key} onPress={st.onPress} style={{ flex: 1 }}>
-                <View style={{ gap: 8 }}>
-                  <IconBadge name={st.icon} hue={st.hue} size={32} />
-                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={{ fontFamily: fonts.bold, fontSize: 16, lineHeight: 23, color: colors.ink.DEFAULT }}>{st.value}</Text>
-                  <Text variant="caption" numberOfLines={1}>{st.label}</Text>
-                </View>
-              </Card>
-            ))}
-          </View>
+          <>
+            <SectionTitle>{t('home.summary')}</SectionTitle>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {stats.map((st) => (
+                <Card key={st.key} onPress={st.onPress} padded={false} style={{ flexBasis: '31%', flexGrow: 1, paddingVertical: 10, paddingHorizontal: 10 }}>
+                  <View style={{ gap: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <IconBadge name={st.icon} hue={st.hue} size={22} />
+                      <Text variant="caption" numberOfLines={1} style={{ flex: 1 }}>
+                        {st.label}
+                      </Text>
+                    </View>
+                    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={{ fontFamily: fonts.bold, fontSize: 15, color: colors.ink.DEFAULT }}>
+                      {st.value}
+                    </Text>
+                  </View>
+                </Card>
+              ))}
+            </View>
+          </>
         ) : null}
         {alerts}
         {quick && quick.length ? (

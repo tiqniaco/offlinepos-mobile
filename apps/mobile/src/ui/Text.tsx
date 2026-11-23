@@ -5,13 +5,13 @@ type Variant = 'display' | 'title' | 'subtitle' | 'body' | 'label' | 'caption' |
 
 /** Compact, calm type scale (sizes at text size "medium"; المظهر → حجم الخط scales everything). */
 const VARIANTS: Record<Variant, { cls: string; font: keyof typeof fonts; size: number; line: number }> = {
-  display: { cls: 'text-ink', font: 'bold', size: 22, line: 32 },
-  title: { cls: 'text-ink', font: 'bold', size: 17, line: 26 },
-  subtitle: { cls: 'text-ink', font: 'semibold', size: 14.5, line: 22 },
-  body: { cls: 'text-ink-soft', font: 'regular', size: 13.5, line: 21 },
-  label: { cls: 'text-ink-soft', font: 'medium', size: 12.5, line: 19 },
-  caption: { cls: 'text-ink-mute', font: 'regular', size: 11.5, line: 17 },
-  money: { cls: 'text-ink', font: 'bold', size: 17, line: 26 },
+  display: { cls: 'text-ink', font: 'bold', size: 20, line: 30 },
+  title: { cls: 'text-ink', font: 'bold', size: 15.5, line: 24 },
+  subtitle: { cls: 'text-ink', font: 'semibold', size: 13.5, line: 21 },
+  body: { cls: 'text-ink-soft', font: 'regular', size: 13, line: 20 },
+  label: { cls: 'text-ink-soft', font: 'medium', size: 12, line: 18 },
+  caption: { cls: 'text-ink-mute', font: 'regular', size: 11, line: 16 },
+  money: { cls: 'text-ink', font: 'bold', size: 16, line: 24 },
 };
 
 /**

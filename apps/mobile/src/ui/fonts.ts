@@ -78,7 +78,7 @@ export const fonts: FontSet = { ...FONT_FAMILIES[0]!.set };
 export type TextSize = 'sm' | 'md' | 'lg';
 export const TEXT_SIZES: Record<TextSize, number> = { sm: 0.92, md: 1, lg: 1.1 };
 /** Live type settings: `scale` = user's text size; `legacy` shrinks hard-coded sizes to the compact scale. */
-export const type = { scale: 1, legacy: 0.85, size: 'md' as TextSize };
+export const type = { scale: 1, legacy: 0.8, size: 'md' as TextSize };
 /** The phone's own font-size setting may enlarge text up to this factor (readable, but layouts don't break). */
 export const MAX_FONT_MULTIPLIER = 1.15;
 /** Readex Pro's Arabic glyphs are tall: anything below ~1.6× clips the top/bottom on Android. */

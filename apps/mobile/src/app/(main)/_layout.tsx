@@ -59,6 +59,8 @@ export default function MainLayout() {
       screenOptions={{
         headerShown: false,
         animation: 'fade',
+        freezeOnBlur: true,
+        lazy: true,
         tabBarActiveTintColor: colors.primary[700],
         tabBarInactiveTintColor: colors.ink.mute,
         tabBarStyle: {

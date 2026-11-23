@@ -9,6 +9,7 @@ import { getDb } from '../../db/client';
 import { activeUserCount } from '../../domain/auth/users';
 import { inventorySummary, type InventorySummary } from '../../domain/inventory/products';
 import { todaySummary } from '../../domain/sales/sales';
+import { dashboard, type Dashboard } from '../../domain/reports/reports';
 import { partyTotals } from '../../domain/parties/parties';
 import { customersDue } from '../../domain/parties/statement';
 import { currentShift } from '../../domain/shifts/shifts';
@@ -41,6 +42,7 @@ export default function Home() {
   const [inv, setInv] = useState<InventorySummary | null>(null);
   const [today, setToday] = useState<Awaited<ReturnType<typeof todaySummary>> | null>(null);
   const [owedToUs, setOwedToUs] = useState(0);
+  const [dash, setDash] = useState<Dashboard | null>(null);
   const [late, setLate] = useState(0);
   const [shiftOpen, setShiftOpen] = useState(true);
   const [tamper, setTamper] = useState(false);
@@ -86,6 +88,7 @@ export default function Home() {
       void activeUserCount(db).then(setUsers);
       void inventorySummary(db).then(setInv);
       void todaySummary(db, day).then(setToday);
+      if (roleHas(user.permissions, 'reports.view')) void dashboard(db, day).then(setDash, () => undefined);
       void partyTotals(db, 'C').then((x) => setOwedToUs(x.owedMinor));
       void customersDue(db, day, reminderDays).then((d) => setLate(d.length));
       if (device) void currentShift(db, device.id).then((s) => setShiftOpen(!!s));
@@ -162,7 +165,14 @@ export default function Home() {
         today
           ? [
               { key: 's', label: t('home.todayInvoices', { n: today.invoices }), value: money(today.salesMinor - today.returnsMinor, cur, i18n.language), icon: 'card' as const, hue: 'primary' as const, onPress: () => router.push('/sales') },
+              ...(dash
+                ? [
+                    { key: 'p', label: t('home.todayProfit'), value: money(dash.todayProfitMinor, cur, i18n.language), icon: 'chart' as const, hue: dash.todayProfitMinor >= 0 ? ('leaf' as const) : ('rose' as const), onPress: () => router.push('/reports/pnl') },
+                    { key: 'm', label: t('home.monthSales'), value: money(dash.monthSalesMinor, cur, i18n.language), icon: 'calendar' as const, hue: 'sky' as const, onPress: () => router.push('/reports/sales_day') },
+                  ]
+                : []),
               { key: 'c', label: t('home.owedToUs'), value: money(owedToUs, cur, i18n.language), icon: 'users' as const, hue: owedToUs ? ('rose' as const) : ('leaf' as const), onPress: () => router.push({ pathname: '/(main)/parties', params: { type: 'C', filter: 'owing' } }) },
+              ...(dash ? [{ key: 'ap', label: t('home.weOwe'), value: money(dash.payablesMinor, cur, i18n.language), icon: 'truck' as const, hue: 'amber' as const, onPress: () => router.push({ pathname: '/(main)/parties', params: { type: 'S' } }) }] : []),
               { key: 'l', label: t('home.statLow'), value: String(inv?.lowStock ?? 0), icon: 'warning' as const, hue: inv?.lowStock ? ('amber' as const) : ('leaf' as const), onPress: () => router.push('/(main)/products') },
             ]
           : undefined

@@ -155,9 +155,9 @@ export function PosMenu({ visible, onClose, items }: { visible: boolean; onClose
 /** Tappable card used on the payment screen for each method. */
 export function MethodCard({ label, icon, selected, onPress }: { label: string; icon: 'card' | 'phone' | 'layers' | 'users' | 'book'; selected: boolean; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => ({ flex: 1, minWidth: '30%', alignItems: 'center', gap: 6, paddingVertical: 12, borderRadius: 16, borderWidth: 2, borderColor: selected ? colors.primary[500] : colors.paper.line, backgroundColor: selected ? colors.primary[50] : colors.paper.card, opacity: pressed ? 0.85 : 1 })}>
-      <Icon name={icon} color={selected ? colors.primary[700] : colors.ink.mute} />
-      <Text style={{ fontFamily: fonts.semibold, fontSize: 13.5, lineHeight: 20, color: selected ? colors.primary[800] : colors.ink.soft }}>{label}</Text>
+    <Pressable onPress={onPress} style={({ pressed }) => ({ flexGrow: 1, flexBasis: '22%', minWidth: 72, alignItems: 'center', gap: 4, paddingVertical: 10, paddingHorizontal: 4, borderRadius: 14, borderWidth: 2, borderColor: selected ? colors.primary[500] : colors.paper.line, backgroundColor: selected ? colors.primary[50] : colors.paper.card, opacity: pressed ? 0.85 : 1 })}>
+      <Icon name={icon} size={20} color={selected ? colors.primary[700] : colors.ink.mute} />
+      <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 12.5, color: selected ? colors.primary[800] : colors.ink.soft }}>{label}</Text>
     </Pressable>
   );
 }

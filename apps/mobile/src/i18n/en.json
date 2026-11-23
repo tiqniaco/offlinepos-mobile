@@ -138,7 +138,11 @@
     "taskSample": "Try with sample data (20 products & customers)",
     "taskSampleRemove": "Remove the sample data",
     "sampleAdded": "{{n}} sample products added — try a sale now",
-    "sampleRemoved": "Sample data removed"
+    "sampleRemoved": "Sample data removed",
+    "summary": "Quick summary",
+    "todayProfit": "Today's profit",
+    "monthSales": "This month",
+    "weOwe": "We owe suppliers"
   },
   "licence": {
     "trial": "Trial: {{days}} days left",
