@@ -4,6 +4,7 @@
  */
 import { and, asc, eq, isNull, count } from 'drizzle-orm';
 import { HybridLogicalClock, SYSTEM_ROLES, uuidv7, roleHas, type Permission } from '@daftarak/shared';
+import { phonePermissions } from '../sync/role';
 import type { Db as AppDb } from '../../db/types';
 import { withTx } from '../../db/tx';
 import { roles, users } from '../../db/schema';
@@ -147,7 +148,7 @@ export async function listRoles(db: AppDb) {
   return db.select().from(roles).where(isNull(roles.deletedAt)).orderBy(asc(roles.createdAt));
 }
 
-async function toSessionUser(db: AppDb, userId: string): Promise<SessionUser> {
+export async function toSessionUser(db: AppDb, userId: string): Promise<SessionUser> {
   const r = await db.select().from(users).innerJoin(roles, eq(roles.id, users.roleId)).where(eq(users.id, userId)).limit(1);
   const row = r[0]!;
   return {
@@ -157,7 +158,8 @@ async function toSessionUser(db: AppDb, userId: string): Promise<SessionUser> {
     roleId: row.roles.id,
     roleKey: row.roles.key,
     roleName: row.roles.name,
-    permissions: JSON.parse(row.roles.permissionsJson) as Permission[],
+    // On a cashier phone (joined by QR) everyone only sells, whatever their role.
+    permissions: phonePermissions(JSON.parse(row.roles.permissionsJson) as Permission[]),
     maxItemDiscountBp: row.roles.maxItemDiscountBp,
     maxInvoiceDiscountBp: row.roles.maxInvoiceDiscountBp,
     biometricEnabled: row.users.biometricEnabled,

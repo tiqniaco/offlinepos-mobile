@@ -807,3 +807,26 @@ export const inbox = sqliteTable(
   },
   (t) => [index('inbox_at').on(t.at)],
 );
+
+// ─────────────────────────── Multi-user on one shop (sync) ───────────────────────────
+
+/** Cashier phone: operations (sales…) waiting to reach the shop's main phone. seq is sent as is (idempotent). */
+export const syncOutbox = sqliteTable('sync_outbox', {
+  seq: integer('seq').primaryKey({ autoIncrement: true }),
+  kind: text('kind').notNull(),
+  /** JSON payload (sealed only when sent). */
+  payload: text('payload').notNull(),
+  /** Stock effect not yet in the shop's catalog: [[productId, baseQtyMilli]…] (JSON). */
+  stockJson: text('stock_json'),
+  createdAt: integer('created_at').notNull(),
+  pushedAt: integer('pushed_at'),
+  appliedAt: integer('applied_at'),
+});
+
+/** Main phone: operations from cashier phones already applied (never twice). */
+export const syncApplied = sqliteTable('sync_applied', {
+  key: text('key').primaryKey(),
+  docId: text('doc_id'),
+  appliedAt: integer('applied_at').notNull(),
+  error: text('error'),
+});

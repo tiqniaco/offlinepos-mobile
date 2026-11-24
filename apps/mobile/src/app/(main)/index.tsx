@@ -28,6 +28,8 @@ import { errorMessage } from '../../lib/errors';
 import { Tip } from '../../features/Tip';
 import { lastPortableExport, portableReminder } from '../../domain/backup/portable';
 import { LicenceBanner } from '../../features/LicenceBanner';
+import { SyncBadge } from '../../features/sync/SyncBadge';
+import { isCashierPhone } from '../../domain/sync/role';
 import { HomeView, type SetupTask } from '../../features/home/HomeView';
 import { EyeToggle } from '../../features/privacy/EyeToggle';
 import { useSensitive } from '../../state/privacy';
@@ -148,9 +150,9 @@ export default function Home() {
       void latestUnread(db).then(setNews);
       if (roleHas(user.permissions, 'backup.manage')) void lastPortableExport(db).then(setLastFile, () => undefined);
       // Owners: remind when the automatic cloud backup has not succeeded for 3+ days.
-      if (user.roleKey === 'owner' && !useApp.getState().restoreUnlinked) void cloudBackupOverdue().then(setCloudStale, () => undefined);
+      if (user.roleKey === 'owner' && !useApp.getState().restoreUnlinked && !isCashierPhone()) void cloudBackupOverdue().then(setCloudStale, () => undefined);
       // Owners: automatic backups are off while this phone has no server backup key (linking fetches it).
-      if (user.roleKey === 'owner' && !useApp.getState().restoreUnlinked) void backupKeyMissing().then(setKeyMissing, () => undefined);
+      if (user.roleKey === 'owner' && !useApp.getState().restoreUnlinked && !isCashierPhone()) void backupKeyMissing().then(setKeyMissing, () => undefined);
       // Daily background integrity check for owners/managers (tamper alert on the home screen).
       if (device && integrityCheckedDay !== day && roleHas(user.permissions, 'settings.manage')) {
         integrityCheckedDay = day;
@@ -203,6 +205,7 @@ export default function Home() {
       {cloudStale && !keyMissing && !restoreUnlinked && inv?.products ? (
         <Banner tone="warn" icon="cloudOff" text={cloudStale.never ? t('backup.cloudNever') : t('backup.cloudStale', { n: cloudStale.days })} action={t('backup.cloudStaleAction')} onAction={() => router.push('/settings/backup')} />
       ) : null}
+      <SyncBadge />
       {tamper ? <Banner tone="danger" title={t('integrity.alertTitle')} text={t('integrity.alertBody')} action={t('integrity.open')} onAction={() => router.push('/settings/integrity')} /> : null}
       {requireShift && !shiftOpen && can('sales.create') ? <Banner tone="warn" text={t('shift.mustOpen')} action={t('shift.open')} onAction={() => router.push('/shifts')} /> : null}
       {late > 0 && can('parties.manage') ? (
@@ -224,7 +227,7 @@ export default function Home() {
       dateLabel={dateLabel(i18n.language)}
       planChip={planChip}
       planCard={
-        licence && usage ? (
+        licence && usage && !isCashierPhone() ? (
           <PlanCard
             planName={planName ?? licence.plan}
             status={licence.trialDaysLeft != null ? t('planCard.trial', { n: licence.trialDaysLeft }) : licence.graceDaysLeft != null ? t('planCard.grace', { n: licence.graceDaysLeft }) : licence.mode === 'free' || plan?.isFree ? t('planCard.free') : licence.mode === 'full' ? t('planCard.activeTag') : t('planCard.limited')}

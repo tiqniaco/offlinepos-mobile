@@ -82,7 +82,7 @@ export const shopDevicesResponseSchema = z.object({
     z.object({
       id: z.string(),
       code: z.string(),
-      role: z.enum(['main', 'follower']),
+      role: z.enum(['main', 'follower', 'cashier']),
       model: z.string().nullable(),
       platform: z.string().nullable(),
       activatedAt: z.number(),

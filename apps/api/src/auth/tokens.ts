@@ -40,13 +40,13 @@ async function issueAccess(env: Env, sid: string, aid: string, now: number) {
 
 export async function createSession(
   env: Env,
-  args: { accountId: string; device: DeviceInfo; ip: string; now: number },
+  args: { accountId: string; device: DeviceInfo; ip: string; now: number; deviceBusinessId?: string },
 ): Promise<IssuedTokens & { sessionId: string }> {
   const sid = uuidv7(args.now);
   const secret = randomToken();
   await env.DB.prepare(
-    `INSERT INTO sessions (id, account_id, refresh_hash, created_at, last_used_at, expires_at, install_id, platform, model, app_version, ip)
-     VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`,
+    `INSERT INTO sessions (id, account_id, refresh_hash, created_at, last_used_at, expires_at, install_id, platform, model, app_version, ip, device_business_id)
+     VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`,
   )
     .bind(
       sid,
@@ -59,6 +59,7 @@ export async function createSession(
       args.device.model ?? null,
       args.device.appVersion,
       args.ip,
+      args.deviceBusinessId ?? null,
     )
     .run();
   return { sessionId: sid, refreshToken: `${sid}.${secret}`, ...(await issueAccess(env, sid, args.accountId, args.now)) };
@@ -77,6 +78,7 @@ interface SessionRow {
   install_id: string | null;
   expires_at: number;
   revoked_at: number | null;
+  device_business_id: string | null;
 }
 
 /**
@@ -93,6 +95,8 @@ export interface CheckedRefresh {
   /** "current" = the live token; "grace" = the immediately-previous token inside the grace window. */
   kind: 'current' | 'grace';
   presentedHash: string;
+  /** Set for a cashier phone's session (limited to the shop sync endpoints + check-in). */
+  deviceBusinessId: string | null;
 }
 
 /**
@@ -113,7 +117,7 @@ export async function checkRefresh(env: Env, refreshToken: string, now: number, 
   const sid = refreshToken.slice(0, dot);
   const secretHash = await sha256HexAsync(refreshToken.slice(dot + 1));
   const s = await env.DB.prepare(
-    `SELECT id, account_id, refresh_hash, prev_refresh_hash, prev_rotated_at, prev_grace_used, orphan_refresh_hash, current_used_at, refresh_history, install_id, expires_at, revoked_at
+    `SELECT id, account_id, refresh_hash, prev_refresh_hash, prev_rotated_at, prev_grace_used, orphan_refresh_hash, current_used_at, refresh_history, install_id, expires_at, revoked_at, device_business_id
      FROM sessions WHERE id = ?1`,
   )
     .bind(sid)
@@ -128,13 +132,13 @@ export async function checkRefresh(env: Env, refreshToken: string, now: number, 
   if (safeEqual(secretHash, s.refresh_hash)) {
     // Mark the live token as used: from now on its predecessor no longer gets the grace path.
     if (s.current_used_at == null) await env.DB.prepare(`UPDATE sessions SET current_used_at = ?2 WHERE id = ?1 AND refresh_hash = ?3 AND current_used_at IS NULL`).bind(sid, now, secretHash).run();
-    return { sessionId: sid, accountId: s.account_id, kind: 'current', presentedHash: secretHash };
+    return { sessionId: sid, accountId: s.account_id, kind: 'current', presentedHash: secretHash, deviceBusinessId: s.device_business_id };
   }
   if (s.orphan_refresh_hash && safeEqual(secretHash, s.orphan_refresh_hash)) return reuse();
   if (s.prev_refresh_hash && safeEqual(secretHash, s.prev_refresh_hash)) {
     const sameInstall = !installId || !s.install_id || installId === s.install_id;
     if (s.prev_rotated_at != null && now - s.prev_rotated_at <= REFRESH_GRACE_MS && !s.prev_grace_used && s.current_used_at == null && sameInstall) {
-      return { sessionId: sid, accountId: s.account_id, kind: 'grace', presentedHash: secretHash };
+      return { sessionId: sid, accountId: s.account_id, kind: 'grace', presentedHash: secretHash, deviceBusinessId: s.device_business_id };
     }
     return reuse();
   }
@@ -189,14 +193,30 @@ export async function revokeSession(env: Env, sid: string, reason: string, now: 
   await env.DB.prepare(`UPDATE sessions SET revoked_at = ?2, revoke_reason = ?3 WHERE id = ?1 AND revoked_at IS NULL`).bind(sid, now, reason).run();
 }
 
-/** Loads and checks the session behind an access token (revocation takes effect immediately). */
-export async function requireSession(env: Env, authHeader: string | undefined, now: number): Promise<AccessClaims & { stepUpUntil: number | null }> {
+async function loadSession(env: Env, authHeader: string | undefined, now: number) {
   if (!authHeader?.startsWith('Bearer ')) throw new ApiError(401, 'unauthorized');
   const claims = await verifyAccess(env, authHeader.slice(7), now);
-  const s = await env.DB.prepare(`SELECT revoked_at, step_up_until FROM sessions WHERE id = ?1`)
+  const s = await env.DB.prepare(`SELECT revoked_at, step_up_until, device_business_id FROM sessions WHERE id = ?1`)
     .bind(claims.sid)
-    .first<{ revoked_at: number | null; step_up_until: number | null }>();
+    .first<{ revoked_at: number | null; step_up_until: number | null; device_business_id: string | null }>();
   if (!s) throw new ApiError(401, 'unauthorized');
   if (s.revoked_at) throw new ApiError(401, 'session_revoked');
+  return { claims, s };
+}
+
+/**
+ * The owner's session behind an access token (revocation takes effect immediately). A cashier phone's session is
+ * refused here: it only reaches the shop sync endpoints (requireDeviceSession) and the check-in.
+ */
+export async function requireSession(env: Env, authHeader: string | undefined, now: number): Promise<AccessClaims & { stepUpUntil: number | null }> {
+  const { claims, s } = await loadSession(env, authHeader, now);
+  if (s.device_business_id) throw new ApiError(403, 'wrong_device_role');
   return { ...claims, stepUpUntil: s.step_up_until };
+}
+
+/** A cashier phone's session: bound to one shop. */
+export async function requireDeviceSession(env: Env, authHeader: string | undefined, now: number): Promise<AccessClaims & { businessId: string }> {
+  const { claims, s } = await loadSession(env, authHeader, now);
+  if (!s.device_business_id) throw new ApiError(403, 'wrong_device_role');
+  return { ...claims, businessId: s.device_business_id };
 }

@@ -11,6 +11,7 @@ import { auditLog } from '../../db/schema';
 export type AuditAction =
   | 'business.create'
   | 'device.register'
+  | 'device.join'
   | 'user.create'
   | 'user.update'
   | 'user.disable'

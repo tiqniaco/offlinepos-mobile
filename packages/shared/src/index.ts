@@ -20,3 +20,4 @@ export * from './backupCodec';
 export * from './portableBackup';
 export * from './password';
 export * from './follow';
+export * from './sync';

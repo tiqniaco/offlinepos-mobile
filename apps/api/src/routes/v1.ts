@@ -31,6 +31,7 @@ import { addManualBillingRoutes } from '../billing/manual';
 import { storeEndStatement } from '../billing/activate';
 import { addOcrRoutes, type OcrClient } from '../ocr/scan';
 import { addFollowRoutes, countFollowers } from './follow';
+import { addSyncRoutes, countCashierPhones } from './sync';
 import { blocks, verifyIntegrity, type IntegrityInput } from '../integrity/verify';
 import { meterBusiness, track } from '../usage/meter';
 
@@ -316,15 +317,18 @@ export function v1Routes(deps: Deps = defaultDeps) {
     // of a lost response is accepted once within the grace window (auth/tokens.ts).
     const t = await checkRefresh(c.env, b.refreshToken, now, b.installId);
     const device = await c.env.DB.prepare(
-      `SELECT d.id, d.business_id, d.code, d.deactivated_at, d.role FROM devices d
+      `SELECT d.id, d.business_id, d.code, d.deactivated_at, d.role, d.session_id FROM devices d
        JOIN businesses bz ON bz.id = d.business_id
        WHERE d.id = ?1 AND bz.owner_account_id = ?2`,
     )
       .bind(b.deviceId, t.accountId)
-      .first<DeviceRow & { role: string }>();
+      .first<DeviceRow & { role: string; session_id: string | null }>();
     if (!device) throw new ApiError(404, 'not_found', 'device not registered');
-    // A follower phone never checks in as the shop (no licence, anchors or backups): it only reads the summary.
-    if (device.role !== 'main') throw new ApiError(403, 'wrong_device_role');
+    // A follower phone never checks in (it only reads the summary). A cashier phone checks in for its licence only,
+    // with its own device session; the owner's phone never with a cashier phone's session.
+    const cashier = device.role === 'satellite';
+    if (device.role !== 'main' && !cashier) throw new ApiError(403, 'wrong_device_role');
+    if (cashier ? t.deviceBusinessId !== device.business_id || device.session_id !== t.sessionId : t.deviceBusinessId) throw new ApiError(403, 'wrong_device_role');
     let business = (await c.env.DB.prepare(`SELECT * FROM businesses WHERE id = ?1`).bind(device.business_id).first<BusinessRow & { plan_source?: string; manual_until?: number | null }>())!;
     // A store plan that ran out while paid manual time remains (the store's EXPIRATION webhook may be late or lost):
     // fall back to the manual plan now.
@@ -352,7 +356,8 @@ export function v1Routes(deps: Deps = defaultDeps) {
     const rows = await pendingAnnouncements(c.env, { ...business, status: effectiveStatus(business, now) }, since.u, since.a, now);
     const announcements = rows.filter((a) => !excludedFor(a.target_json, device.id)).map((a) => ({ id: a.id, titleAr: a.title_ar, bodyAr: a.body_ar, titleEn: a.title_en, bodyEn: a.body_en, url: a.url, at: a.created_at }));
     const licence = await buildLicence(c.env, business, device, now);
-    const followers = device.deactivated_at ? 0 : await countFollowers(c.env, business.id);
+    const followers = device.deactivated_at || cashier ? 0 : await countFollowers(c.env, business.id);
+    const cashiers = device.deactivated_at || cashier ? 0 : await countCashierPhones(c.env, business.id);
 
     // Rotate the token BEFORE any one-shot side effect: a check-in that loses the token race (parallel / replayed
     // request) must not move the announcement cursor, store an anchor or start a backup. A lost response after this
@@ -361,7 +366,7 @@ export function v1Routes(deps: Deps = defaultDeps) {
 
     let anchorReceipt = null;
     const effects: D1PreparedStatement[] = [];
-    if (b.anchor && !device.deactivated_at) {
+    if (b.anchor && !device.deactivated_at && !cashier) {
       effects.push(
         c.env.DB.prepare(
           `INSERT INTO anchors (id, business_id, device_id, chain_seq, chain_head, audit_seq, audit_head, server_time)
@@ -384,10 +389,10 @@ export function v1Routes(deps: Deps = defaultDeps) {
 
     // Backups ride on the daily check-in (no extra request): commit yesterday's upload, hand out today's PUT URL.
     let backupCommitted: boolean | undefined;
-    if (b.committedBackupId) backupCommitted = await commitBackup(c.env, b.committedBackupId, business.id, now).catch(() => false);
+    if (b.committedBackupId && !cashier) backupCommitted = await commitBackup(c.env, b.committedBackupId, business.id, now).catch(() => false);
     let backupError: string | undefined;
     let backupPut: Awaited<ReturnType<typeof startBackup>> | null = null;
-    if (b.backupMeta && !device.deactivated_at) {
+    if (b.backupMeta && !device.deactivated_at && !cashier) {
       // At most CHECKIN_BACKUPS_PER_DAY automatic backups per shop per UTC day (the app backs up once a day).
       if ((await bumpCounter(c.env.DB, `backup-checkin:${business.id}`, DAY_MS, now)) > CHECKIN_BACKUPS_PER_DAY) backupError = 'rate_limited';
       else
@@ -411,6 +416,7 @@ export function v1Routes(deps: Deps = defaultDeps) {
       ...(backupError ? { backupError } : {}),
       notices,
       followers,
+      cashiers,
     });
   });
 
@@ -419,5 +425,6 @@ export function v1Routes(deps: Deps = defaultDeps) {
   addManualBillingRoutes(app, deps, countRequest);
   addOcrRoutes(app, deps);
   addFollowRoutes(app, deps, checkIntegrity);
+  addSyncRoutes(app, deps, checkIntegrity);
   return app;
 }

@@ -2234,6 +2234,37 @@
     "since": "Since {{at}}",
     "stop": "Stop",
     "stopConfirm": "This follow-up phone will no longer see the shop’s figures.",
-    "cashierSoon": "Coming soon: every user (owner or cashier) works on the same shop from their own phone, in the same app, with their own permissions."
+    "cashier": "Cashier phone",
+    "add": "Add a cashier phone",
+    "addHint": "Every user can sell from their own phone in the same shop; sales reach this phone by themselves. A cashier phone only sells (no product edits or reports).",
+    "failed": "{{n}} invoice(s) from a cashier phone could not be recorded here. Contact us on WhatsApp."
+  },
+  "addPhone": {
+    "title": "Add a cashier phone",
+    "subtitle": "Another phone selling in the same shop",
+    "expires": "This code works for {{time}}",
+    "newCode": "Make a new code",
+    "joined": "The phone joined the shop ✓",
+    "joinedHint": "The cashier signs in with their own PIN; every sale they make reaches this phone by itself.",
+    "step1": "On the other phone: install Kashiro and open it.",
+    "step2": "Choose “Join an existing shop (cashier phone)”.",
+    "step3": "Scan this code; the shop is ready on the other phone within seconds.",
+    "secret": "This code is like the shop’s key: never send a photo of it, and don’t let a stranger scan it."
+  },
+  "join": {
+    "entry": "Join an existing shop (cashier phone)",
+    "title": "Join a shop",
+    "subtitle": "Scan the code shown on the shop’s phone",
+    "how": "On the shop phone: More → Shop phones → Add a cashier phone.",
+    "notOurs": "That is not a Kashiro code. Scan the code from “Add a cashier phone”.",
+    "codeInvalid": "This code was already used or has expired. Make a new one on the shop phone.",
+    "working": "Setting up the shop on this phone…",
+    "failed": "We could not finish. Check the internet and try again."
+  },
+  "sync": {
+    "pending": "{{n}} invoice(s) waiting for internet to reach the shop phone",
+    "allSent": "All sales reached the shop phone",
+    "stopped": "This phone was removed from the shop. Selling is stopped; contact the shop owner.",
+    "cashierPhone": "Cashier phone"
   }
 }

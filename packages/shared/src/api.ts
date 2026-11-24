@@ -153,6 +153,8 @@ export const checkinResponseSchema = z.object({
   announcements: z.array(z.object({ id: z.string(), titleAr: z.string(), bodyAr: z.string(), titleEn: z.string().nullable(), bodyEn: z.string().nullable(), url: z.string().nullable(), at: z.number() })).optional(),
   /** Active follower phones («موبايل متابعة»): the main phone pushes its summary only while > 0. */
   followers: z.number().int().optional(),
+  /** Active cashier phones of the shop: the main phone syncs (catalog out, sales in) only while > 0. */
+  cashiers: z.number().int().optional(),
 });
 export type CheckinResponse = z.infer<typeof checkinResponseSchema>;
 

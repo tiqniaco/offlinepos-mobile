@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { SNAPSHOT_MAX_BYTES, SNAPSHOT_MIN_INTERVAL_MS, followShopSchema, putSnapshotSchema, uuidv7 } from '@daftarak/shared';
 import type { AppEnv, Env } from '../env';
 import { ApiError, body } from '../lib/http';
-import { requireSession } from '../auth/tokens';
+import { requireSession, revokeSession } from '../auth/tokens';
 import { effectiveLimits } from '../licence/issue';
 import { limitReached, track } from '../usage/meter';
 import { bumpCounter } from '../otp/service';
@@ -145,7 +145,7 @@ export function addFollowRoutes(app: Hono<AppEnv>, deps: Deps, checkIntegrity: C
       devices: rows.results.map((d) => ({
         id: d.id,
         code: d.code,
-        role: d.role === 'follower' ? 'follower' : 'main',
+        role: d.role === 'follower' ? 'follower' : d.role === 'satellite' ? 'cashier' : 'main',
         model: d.model,
         platform: d.platform,
         activatedAt: d.activated_at,
@@ -155,16 +155,19 @@ export function addFollowRoutes(app: Hono<AppEnv>, deps: Deps, checkIntegrity: C
     });
   });
 
-  /** Ends a follower phone (from the main phone, or the follower itself). The main phone is never stopped here. */
+  /** Ends a follower or cashier phone (from the main phone). The main phone is never stopped here. */
   app.post('/devices/:id/stop', async (c) => {
     const now = deps.now();
     const s = await requireSession(c.env, c.req.header('Authorization'), now);
     const b = await body(c, z.object({ businessId: z.string() }));
     const business = await ownedBusiness(c.env, b.businessId, s.aid);
-    const r = await c.env.DB.prepare(`UPDATE devices SET deactivated_at = ?3 WHERE id = ?1 AND business_id = ?2 AND role = 'follower' AND deactivated_at IS NULL`)
-      .bind(c.req.param('id'), business.id, now)
-      .run();
-    if (r.meta.changes !== 1) throw new ApiError(404, 'not_found');
+    const d = await c.env.DB.prepare(`SELECT id, role, session_id FROM devices WHERE id = ?1 AND business_id = ?2 AND role IN ('follower', 'satellite') AND deactivated_at IS NULL`)
+      .bind(c.req.param('id'), business.id)
+      .first<{ id: string; role: string; session_id: string | null }>();
+    if (!d) throw new ApiError(404, 'not_found');
+    await c.env.DB.prepare(`UPDATE devices SET deactivated_at = ?2 WHERE id = ?1`).bind(d.id, now).run();
+    // A cashier phone's session exists only for this shop: end it too (its unsent sales stay on that phone).
+    if (d.role === 'satellite' && d.session_id) await revokeSession(c.env, d.session_id, 'device_stopped', now);
     return c.json({ ok: true });
   });
 }

@@ -25,6 +25,12 @@ import {
   putSnapshotResponseSchema,
   shopDevicesResponseSchema,
   type ShopSnapshot,
+  syncInviteResponseSchema,
+  syncJoinResponseSchema,
+  syncOpsPushResponseSchema,
+  syncOpsPullResponseSchema,
+  syncStatusResponseSchema,
+  syncCatalogPutResponseSchema,
 } from '@daftarak/shared';
 import { API_URL } from '../config/env';
 
@@ -72,6 +78,15 @@ async function request<T extends z.ZodType>(path: string, schema: T, init: { met
     throw new ApiError('internal', `HTTP ${res.status}`);
   }
   return schema.parse(json);
+}
+
+function toApiError(json: unknown, status: number): ApiError {
+  const err = apiErrorSchema.safeParse(json);
+  if (err.success) {
+    const x = err.data.error;
+    return new ApiError(x.code as ApiErrorCode, x.message, x.retryAfterMs, x.key != null ? { key: x.key, limit: x.limit, used: x.used } : undefined);
+  }
+  return new ApiError('internal', `HTTP ${status}`);
 }
 
 export const api = {
@@ -144,5 +159,35 @@ export const api = {
     request(`/v1/snapshot?businessId=${encodeURIComponent(businessId)}&deviceId=${encodeURIComponent(deviceId)}`, getSnapshotResponseSchema, { token }),
   shopDevices: (token: string, businessId: string) => request(`/v1/devices?businessId=${encodeURIComponent(businessId)}`, shopDevicesResponseSchema, { token }),
   stopDevice: (token: string, businessId: string, id: string) => request(`/v1/devices/${encodeURIComponent(id)}/stop`, z.object({ ok: z.boolean() }), { body: { businessId }, token }),
+  // ── Multi-user on one shop (cashier phones by QR) ──
+  syncInvite: (token: string, businessId: string, deviceId: string) => request('/v1/sync/invite', syncInviteResponseSchema, { body: { businessId, deviceId }, token }),
+  syncJoin: (code: string, device: DeviceInfo, integrity?: Integrity) => request('/v1/sync/join', syncJoinResponseSchema, { body: { code, device, integrity } }),
+  syncStatus: (token: string, deviceId: string) => request(`/v1/sync/status?deviceId=${encodeURIComponent(deviceId)}`, syncStatusResponseSchema, { token }),
+  syncPushOps: (token: string, deviceId: string, ops: { seq: number; data: string }[]) => request('/v1/sync/ops', syncOpsPushResponseSchema, { body: { deviceId, ops }, token, timeoutMs: 45_000 }),
+  syncPullOps: (token: string, businessId: string, deviceId: string) =>
+    request(`/v1/sync/ops?businessId=${encodeURIComponent(businessId)}&deviceId=${encodeURIComponent(deviceId)}`, syncOpsPullResponseSchema, { token, timeoutMs: 45_000 }),
+  syncAckOps: (token: string, businessId: string, deviceId: string, ids: number[]) => request('/v1/sync/ops/ack', z.object({ ok: z.boolean() }), { body: { businessId, deviceId, ids }, token }),
+  /** Sealed catalog (binary). */
+  syncPutCatalog: async (token: string, businessId: string, deviceId: string, blob: Uint8Array) => {
+    let res: Response;
+    try {
+      res = await fetch(`${API_URL}/v1/sync/catalog`, { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/octet-stream', 'X-Business-Id': businessId, 'X-Device-Id': deviceId }, body: blob as unknown as BodyInit });
+    } catch (e) {
+      throw new ApiError('network', (e as Error).message);
+    }
+    const json: unknown = await res.json().catch(() => null);
+    if (!res.ok) throw toApiError(json, res.status);
+    return syncCatalogPutResponseSchema.parse(json);
+  },
+  syncGetCatalog: async (token: string, deviceId: string): Promise<{ version: number; blob: Uint8Array }> => {
+    let res: Response;
+    try {
+      res = await fetch(`${API_URL}/v1/sync/catalog?deviceId=${encodeURIComponent(deviceId)}`, { headers: { Authorization: `Bearer ${token}` } });
+    } catch (e) {
+      throw new ApiError('network', (e as Error).message);
+    }
+    if (!res.ok) throw toApiError(await res.json().catch(() => null), res.status);
+    return { version: Number(res.headers.get('X-Catalog-Version') ?? 0), blob: new Uint8Array(await res.arrayBuffer()) };
+  },
   revokeSession: (token: string, id: string) => request(`/v1/sessions/${id}`, z.object({ ok: z.boolean() }), { method: 'DELETE', token }),
 };

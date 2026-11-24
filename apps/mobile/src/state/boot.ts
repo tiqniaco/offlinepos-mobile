@@ -22,8 +22,9 @@ import { runFolderBackup } from '../features/backup/folderBackup';
 import { cleanBackupCache } from '../features/backup/files';
 import { flushPendingErrors, reportClientError } from '../features/errors/CrashScreen';
 
-// Daily automatic backup rides on the check-in (features/backup/service.ts).
-hooks.prepareBackup = prepareAutoBackup;
+// Daily automatic backup rides on the check-in (features/backup/service.ts). Not on a cashier phone: its sales live
+// on the shop's main phone (and in that phone's backups).
+hooks.prepareBackup = () => (isCashierPhone() ? Promise.resolve(undefined) : prepareAutoBackup());
 hooks.pendingBackupId = pendingBackupId;
 // Device integrity once a week (Google/Apple quotas; the server only records it at check-in).
 hooks.integrity = async () => {
@@ -40,6 +41,7 @@ hooks.onAnnouncements = async (fresh) => {
   await showAnnouncements(fresh);
 };
 hooks.onFollowers = noteFollowers;
+hooks.onCashiers = noteCashiers;
 hooks.afterCheckin = async (put, committed, backupError) => {
   await markCommitted(committed);
   await noteBackupError(backupError).catch(() => undefined);
@@ -48,6 +50,8 @@ hooks.afterCheckin = async (put, committed, backupError) => {
 import { subscribeLicence } from '../domain/licence/guard';
 import { noteFollowers, scheduleSnapshot, watchSnapshotTriggers } from '../features/follow/push';
 import { followedShop } from '../features/follow/store';
+import { noteCashiers, scheduleSync, watchSync } from '../features/sync/engine';
+import { isCashierPhone, loadPhoneRole } from '../domain/sync/role';
 import { ensureDirection, initI18n } from '../i18n';
 import { bumpData, useApp } from './app';
 import { onDataCommitted } from '../db/tx';
@@ -56,6 +60,8 @@ import { onDataCommitted } from '../db/tx';
 // a «موبايل متابعة» exists) queues a fresh summary for it.
 onDataCommitted(bumpData);
 onDataCommitted(() => scheduleSnapshot());
+// Multi-user on one shop: a sale on a cashier phone leaves within seconds; the main phone refreshes the catalog.
+onDataCommitted(() => scheduleSync(isCashierPhone() ? 3_000 : 60_000));
 
 let subscribed = false;
 
@@ -105,6 +111,7 @@ async function bootInner(): Promise<void> {
   // A cloud restore installed but never activated (app killed in between): set that data aside → onboarding.
   if (await abandonIncompleteRestore()) await openDatabase();
   const db = getDb();
+  await loadPhoneRole(db);
   if (!subscribed) {
     subscribeLicence((l) => useApp.getState().set({ licence: l }));
     subscribed = true;
@@ -142,6 +149,7 @@ async function bootInner(): Promise<void> {
   void backgroundCheckin().catch(() => undefined);
   watchSnapshotTriggers();
   scheduleSnapshot(20_000);
+  watchSync();
 }
 
 type CheckinResult = Awaited<ReturnType<typeof runCheckin>> | null;
@@ -167,7 +175,7 @@ export function backgroundCheckin(force = false): Promise<CheckinResult> {
   // snapshot. Silent; the backup screen shows the last success / a warning.
   void p
     .catch(() => null)
-    .then(() => runFolderBackup())
+    .then(() => (isCashierPhone() ? undefined : runFolderBackup()))
     .catch(() => undefined);
   return p;
 }

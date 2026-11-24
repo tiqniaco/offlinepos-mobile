@@ -45,7 +45,7 @@ export interface OwnerForm {
 }
 
 /** Document prefixes per device; numbers look like INV-A-000123 (SPEC §4). */
-const DOC_PREFIXES: Record<string, string> = {
+export const DOC_PREFIXES: Record<string, string> = {
   SALES_INVOICE: 'INV',
   SALES_RETURN: 'RET',
   QUOTATION: 'QUO',

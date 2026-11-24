@@ -27,7 +27,7 @@ import {
   type OffersResult,
 } from '@daftarak/shared';
 import { loadOffers, toDef } from '../offers/offers';
-import { products, productUnits, salesDocs, salesLines, payments, units, journalEntries, journalLines, accounts, customers, offers as offersTable, stockMovements } from '../../db/schema';
+import { products, productUnits, salesDocs, salesLines, payments, units, journalEntries, journalLines, accounts, customers, offers as offersTable, stockMovements, syncOutbox } from '../../db/schema';
 import type { Db } from '../../db/types';
 import { withTx } from '../../db/tx';
 import { appendAudit } from '../audit/audit';
@@ -44,6 +44,7 @@ import { partyBalance, postPartyLedger } from '../parties/customers';
 import { shiftIdFor } from '../shifts/shifts';
 import { assertVoidWindow } from '../vouchers/vouchers';
 import { rollupDoc } from '../reports/rollup';
+import { isCashierPhone } from '../sync/role';
 
 export interface SalesSettings {
   pricesIncludeVat: boolean;
@@ -203,28 +204,40 @@ export interface PostResult {
   changeMinor: number;
 }
 
-export async function postSale(ctx: SalesCtx, draft: SaleDraft, pays: PaymentInput[], opts: { approvedBy?: SessionUser | null } = {}): Promise<PostResult> {
-  requirePermission(ctx.user, 'sales.create');
+/**
+ * A sale made on a cashier phone, posted on the shop's main phone: same id, number and time as on that phone; the
+ * checks were done there (permissions, approvals, credit limit, coupon, invoice limit, shift), so they are not
+ * repeated (the sale happened and cannot be refused any more).
+ */
+export interface ImportedSale {
+  docId: string;
+  number: string;
+  at: number;
+}
+
+export async function postSale(ctx: SalesCtx, draft: SaleDraft, pays: PaymentInput[], opts: { approvedBy?: SessionUser | null; imported?: ImportedSale } = {}): Promise<PostResult> {
+  const imp = opts.imported;
+  if (!imp) requirePermission(ctx.user, 'sales.create');
   assertCanWrite();
   if (!draft.lines.length) throw new SalesError('empty_cart');
-  const tPrice = now(ctx);
+  const tPrice = imp ? imp.at : now(ctx);
   const priced = priceDraft(draft, ctx.settings, { offers: await loadOffers(ctx.db), day: businessDay(tPrice, ctx.timezone) });
-  if (draft.couponCode && priced.offers?.couponError) throw new SalesError('coupon_invalid', { reason: priced.offers.couponError });
+  if (!imp && draft.couponCode && priced.offers?.couponError) throw new SalesError('coupon_invalid', { reason: priced.offers.couponError });
   const need = approvalsNeeded(ctx.user, draft, priced);
   const approver = opts.approvedBy ?? null;
-  if (need.priceChanges.length && !(approver && roleHas(approver.permissions, 'price.change'))) throw new SalesError('price_change_not_allowed', { keys: need.priceChanges });
-  if (need.violations.length && !(approver && discountViolations(priced, approver).length === 0)) throw new SalesError('discount_over_cap', { violations: need.violations });
+  if (!imp && need.priceChanges.length && !(approver && roleHas(approver.permissions, 'price.change'))) throw new SalesError('price_change_not_allowed', { keys: need.priceChanges });
+  if (!imp && need.violations.length && !(approver && discountViolations(priced, approver).length === 0)) throw new SalesError('discount_over_cap', { violations: need.violations });
   const settlement = settle(priced.totalMinor, pays, !!draft.customerId);
 
   return withTx(ctx.db, async (tx) => {
-    const t = now(ctx);
+    const t = imp ? imp.at : now(ctx);
     const head = await chainHead(tx, ctx.device.id);
-    if (t < head.postedAt) throw new SalesError('clock_behind');
+    if (!imp && t < head.postedAt) throw new SalesError('clock_behind');
     const day = businessDay(t, ctx.timezone);
-    await assertInvoiceLimit(tx, day);
+    if (!imp) await assertInvoiceLimit(tx, day);
     // Coupon uses are counted again INSIDE the transaction (the offers were loaded before it began).
     const coupon = priced.offers?.coupon;
-    if (coupon) {
+    if (coupon && !imp) {
       const row = (await tx.select({ maxUses: offersTable.maxUses }).from(offersTable).where(eq(offersTable.id, coupon.offerId)).limit(1))[0];
       if (row?.maxUses != null) {
         const used = Number((await tx.select({ n: sql<number>`count(*)` }).from(salesDocs).where(and(eq(salesDocs.couponOfferId, coupon.offerId), eq(salesDocs.type, 'INVOICE'), eq(salesDocs.status, 'POSTED'))))[0]?.n ?? 0);
@@ -233,7 +246,7 @@ export async function postSale(ctx: SalesCtx, draft: SaleDraft, pays: PaymentInp
     }
     // Credit limit (حد الائتمان): new balance may not pass it unless a manager approves.
     let creditOverride = false;
-    if (settlement.creditMinor > 0 && draft.customerId) {
+    if (!imp && settlement.creditMinor > 0 && draft.customerId) {
       const c = (await tx.select({ limit: customers.creditLimitMinor }).from(customers).where(eq(customers.id, draft.customerId)).limit(1))[0];
       const limit = c?.limit ?? null;
       if (limit != null && limit > 0) {
@@ -244,9 +257,9 @@ export async function postSale(ctx: SalesCtx, draft: SaleDraft, pays: PaymentInp
         }
       }
     }
-    const shiftId = await shiftIdFor(tx, ctx.device.id, !!ctx.settings.requireShift);
-    const number = await nextDocNumber(tx, ctx.device, 'SALES_INVOICE', 'INV');
-    const docId = uuidv7(t);
+    const shiftId = imp ? null : await shiftIdFor(tx, ctx.device.id, !!ctx.settings.requireShift);
+    const number = imp ? imp.number : await nextDocNumber(tx, ctx.device, 'SALES_INVOICE', 'INV');
+    const docId = imp ? imp.docId : uuidv7(t);
     const base = { createdAt: t, updatedAt: t, createdBy: ctx.user.id, deviceId: ctx.device.id };
 
     // Stock first: valued at moving average; blocked here if the negative-stock policy says so.
@@ -386,6 +399,17 @@ export async function postSale(ctx: SalesCtx, draft: SaleDraft, pays: PaymentInp
         userId: approver.id,
         deviceId: ctx.device.id,
         at: t,
+      });
+    }
+    // Cashier phone: the sale goes to the shop's main phone (same transaction: never posted without being queued).
+    if (!imp && isCashierPhone()) {
+      const { sourceId: _s, quotationId: _q, ...rest } = draft;
+      const stock = draft.lines.filter((l) => tracked.has(l.productId)).map((l) => [l.productId, toBaseQty(l.qtyMilli, l.factorMilli)]);
+      await tx.insert(syncOutbox).values({
+        kind: 'sale',
+        payload: JSON.stringify({ docId, number, at: t, userId: ctx.user.id, approvedById: approver?.id ?? null, draft: rest, pays, settings: ctx.settings }),
+        stockJson: JSON.stringify(stock),
+        createdAt: t,
       });
     }
     return { docId, number, totalMinor: priced.totalMinor, changeMinor: settlement.changeMinor };
