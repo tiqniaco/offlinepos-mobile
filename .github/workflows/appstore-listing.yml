@@ -35,6 +35,26 @@ jobs:
           json.dump({'key_id': os.environ['ASC_KEY_ID'], 'issuer_id': os.environ['ASC_ISSUER_ID'], 'key': k, 'in_house': False},
                     open(os.path.join(os.environ['RUNNER_TEMP'], 'asc.json'), 'w'))
           EOF
+      # A brand-new app has no "App Review Information" record yet and deliver crashes reading it ("No data"):
+      # create an empty one first (the contact details and demo account are filled in App Store Connect).
+      - name: Review details record
+        env:
+          BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'app.daftarak' }}
+        run: |
+          ruby -e '
+            require "spaceship"; require "json"
+            k = JSON.parse(File.read(File.join(ENV["RUNNER_TEMP"], "asc.json")))
+            Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.create(key_id: k["key_id"], issuer_id: k["issuer_id"], key: k["key"])
+            app = Spaceship::ConnectAPI::App.find(ENV["BUNDLE_ID"]) or abort("app #{ENV["BUNDLE_ID"]} not found in App Store Connect")
+            v = app.get_edit_app_store_version(platform: Spaceship::ConnectAPI::Platform::IOS) or abort("no editable App Store version")
+            puts "Editable version: #{v.version_string}"
+            begin
+              v.fetch_app_store_review_detail
+              puts "Review details record exists"
+            rescue => e
+              v.create_app_store_review_detail(attributes: {})
+              puts "Created an empty review details record"
+            end'
       - name: Upload texts + screenshots
         working-directory: apps/mobile/store/ios
         env:
