@@ -189,7 +189,8 @@ jobs:
           key: pods-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app.config.ts') }}
       - name: CocoaPods
         working-directory: apps/mobile/ios
-        run: pod install
+        # Large prebuilt React Native downloads sometimes drop mid-transfer: retry before failing the build.
+        run: pod install || (sleep 20 && pod install) || (sleep 60 && pod install)
 
       - name: Project name
         working-directory: apps/mobile/ios
