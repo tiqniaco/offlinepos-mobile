@@ -3,6 +3,7 @@ import { cors } from 'hono/cors';
 import type { AppEnv, Env } from './env';
 import { runCleanup } from './cron/cleanup';
 import { setPublicOrigin } from './backups/r2';
+import { publicPages } from './pages/public';
 import { ApiError, errorResponse } from './lib/http';
 import { defaultDeps, v1Routes, type Deps } from './routes/v1';
 import { adminRoutes } from './admin/routes';
@@ -27,6 +28,8 @@ export function createApp(deps: Deps = defaultDeps) {
   });
 
   app.get('/health', (c) => c.json({ ok: true }));
+  // Home, privacy policy, terms, account deletion (Google sign-in consent screen + Google Play).
+  app.route('/', publicPages());
 
   // The mobile app is not a browser: no CORS on /v1.
   app.route('/v1', v1Routes(deps));
