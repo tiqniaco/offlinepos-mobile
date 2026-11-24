@@ -206,7 +206,7 @@ describe('admin usage & overrides', () => {
 
     const t = await c.call('GET', '/admin/usage/businesses?sort=requests', undefined, h);
     const row = t.json.businesses.find((b: any) => b.id === s.businessId);
-    expect(row).toMatchObject({ plan: 'pro', devices: 1, limits: { sms_day: 20, backup_storage_mb: 1024, api_requests_day: 15000 } });
+    expect(row).toMatchObject({ plan: 'pro', devices: 1, limits: { sms_day: 20, backup_storage_mb: 100, api_requests_day: 15000 } });
 
     expect((await c.call('PUT', `/admin/businesses/${s.businessId}/limits`, { limits: { sms_day: 3, backup_storage_mb: 50, bogus: 1 } }, h)).status).toBe(400);
     expect((await c.call('PUT', `/admin/businesses/${s.businessId}/limits`, { limits: { sms_day: 3, backup_storage_mb: 50 }, note: 'VIP' }, h)).status).toBe(200);

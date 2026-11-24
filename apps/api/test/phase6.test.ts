@@ -30,7 +30,7 @@ describe('cloud backups', () => {
     const { business, reg, h } = await onboard(c, '01044444441');
     const meta = { size: 11, sha256: SHA, counts: { invoices: 5 }, schemaVersion: 11 };
     const ids: string[] = [];
-    // Pro trial keeps 30; switch the business to basic (7) to exercise retention.
+    // Pro trial keeps 7; switch the business to basic (5) to exercise retention.
     await c.env.DB.prepare(`UPDATE businesses SET plan_code = 'basic' WHERE id = ?1`).bind(business.id).run();
     for (let i = 0; i < 9; i++) {
       c.advance(60_000);
@@ -47,7 +47,7 @@ describe('cloud backups', () => {
       ids.push(u.json.backupId);
     }
     const list = await c.call('GET', `/v1/backups?businessId=${business.id}`, undefined, h);
-    expect(list.json.backups.map((b: any) => b.id)).toEqual(ids.slice(-7).reverse());
+    expect(list.json.backups.map((b: any) => b.id)).toEqual(ids.slice(-5).reverse());
     expect(list.json.backups[0]).toMatchObject({ size: 11, counts: { invoices: 5 }, deviceCode: 'A' });
     const oldKey = `b/${business.id}/${reg.deviceId}/${ids[0]}.obk`;
     expect(await c.env.BACKUPS.head(oldKey)).toBeNull();

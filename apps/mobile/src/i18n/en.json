@@ -1482,8 +1482,8 @@
     }
   },
   "restore": {
-    "title": "Have a backup file?",
-    "subtitle": "Bring the shop back from the backup file you saved, or start without data",
+    "title": "Restore your data",
+    "subtitle": "Pick a server backup, or restore from a backup file you saved",
     "start": "Restore this backup",
     "startEmpty": "Start without data",
     "verify": "Confirm and restore",
@@ -1513,7 +1513,9 @@
     },
     "fromFile": "Restore from a backup file",
     "fromFileHint": "A file whose name starts with Kashiro — from your backup folder, Files or WhatsApp.",
-    "emptyHint": "You start with an empty shop on the same account."
+    "emptyHint": "You start with an empty shop on the same account.",
+    "loading": "Loading backups…",
+    "none": "No server backups yet. You can restore from a backup file or start without data."
   },
   "backup": {
     "title": "Backup",
@@ -1538,7 +1540,17 @@
     "keyTitle": "Turn backups back on",
     "keyBody": "This phone needs your shop's backup key. We'll text you a code, then daily backups work again.",
     "keyRestored": "Backups are on again",
-    "keyFailed": "Couldn't get the key. Check your connection and try again."
+    "keyFailed": "Couldn't get the key. Check your connection and try again.",
+    "cloudCount": "{{n}} backups in the cloud",
+    "cloudNever": "There's no cloud backup of the shop's data yet.",
+    "cloudStale": "The last cloud backup was {{n}} days ago. Connect to the internet and back up now.",
+    "cloudStaleAction": "Back up",
+    "keyMissingBanner": "Cloud backup is paused — link this phone",
+    "keyMissingAction": "Link this phone",
+    "autoHint": "A small automatic copy goes to the server every day — data only, without product photos — on Wi-Fi, without stopping your work. Only the last few copies are kept.",
+    "now": "Back up now",
+    "done": "Backup uploaded ✓",
+    "uploading": "Uploading…"
   },
   "sessions": {
     "title": "Signed-in phones",
@@ -2150,7 +2162,9 @@
       "folder_lost": "We cannot reach the folder. Pick it again.",
       "write_failed": "The copy was not saved to the folder. Try again.",
       "not_set": "Pick a folder first."
-    }
+    },
+    "cloudTitle": "Cloud backup",
+    "cloudPaidOnly": "Automatic server backup is in the paid plans — until then, use the folder and the backup file."
   },
   "limitReached": {
     "sms_day": "This shop reached today's SMS code limit ({{limit}}). Sign in with the password or try tomorrow.",

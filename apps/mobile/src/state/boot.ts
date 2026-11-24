@@ -17,12 +17,15 @@ import { integrityToken } from '../features/integrity/integrity';
 import { pushToken, showAnnouncements } from '../features/notify/notify';
 import { getMeta, setMeta } from '../domain/device';
 import { isUnlinked } from '../domain/backup/portable';
-import { abandonIncompleteRestore } from '../features/backup/service';
+import { finishAutoBackup, markCommitted, noteBackupError, pendingBackupId, prepareAutoBackup, abandonIncompleteRestore } from '../features/backup/service';
 import { runFolderBackup } from '../features/backup/folderBackup';
 import { cleanBackupCache } from '../features/backup/files';
 import { flushPendingErrors, reportClientError } from '../features/errors/CrashScreen';
 
-// No server backups: the shop's data stays with the shop (its folder backup and its own backup files).
+// Daily automatic backup rides on the check-in (features/backup/service.ts). Not on a cashier phone: its sales live
+// on the shop's main phone (and in that phone's backups).
+hooks.prepareBackup = () => (isCashierPhone() ? Promise.resolve(undefined) : prepareAutoBackup());
+hooks.pendingBackupId = pendingBackupId;
 // Device integrity once a week (Google/Apple quotas; the server only records it at check-in).
 hooks.integrity = async () => {
   const db = getDb();
@@ -39,6 +42,11 @@ hooks.onAnnouncements = async (fresh) => {
 };
 hooks.onFollowers = noteFollowers;
 hooks.onCashiers = noteCashiers;
+hooks.afterCheckin = async (put, committed, backupError) => {
+  await markCommitted(committed);
+  await noteBackupError(backupError).catch(() => undefined);
+  void finishAutoBackup(put);
+};
 import { subscribeLicence } from '../domain/licence/guard';
 import { noteFollowers, scheduleSnapshot, watchSnapshotTriggers } from '../features/follow/push';
 import { followedShop } from '../features/follow/store';

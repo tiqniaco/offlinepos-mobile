@@ -47,7 +47,7 @@ const HOME_AR = `<h1>كاشيرو — تطبيق كاشير ومخازن وفو�
 <li>حسابات العملاء والموردين، فواتير الشراء، المصروفات، والورديات.</li>
 <li>تقارير المبيعات والأرباح، وتصدير PDF وإكسيل.</li>
 <li>أكتر من مستخدم بصلاحيات، وموبايلات كاشير على نفس المحل.</li>
-<li>نسخ احتياطي بيفضل مع صاحب المحل: نسخة يومية محمية بكلمة سر في فولدر على الموبايل، وملف نسخة يحفظه أو يبعته لنفسه.</li>
+<li>نسخ احتياطي: نسخة يومية محمية بكلمة سر في فولدر على الموبايل، وملف نسخة يحفظه صاحب المحل، ونسخة تلقائية مشفّرة على سيرفر كاشيرو في الباقات المدفوعة.</li>
 </ul>
 <h2>روابط</h2>
 <p><a href="/privacy">سياسة الخصوصية</a> · <a href="/terms">شروط الاستخدام</a> · <a href="/delete-account">حذف الحساب</a> · للتواصل: <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
@@ -61,7 +61,7 @@ const HOME_EN = `<h1>Kashiro — point-of-sale, inventory and invoicing app for 
 <li>Customer and supplier accounts, purchase invoices, expenses and cash shifts.</li>
 <li>Sales and profit reports, with PDF and Excel export.</li>
 <li>Several users with permissions, and cashier phones on the same shop.</li>
-<li>Backups that stay with the shop owner: a daily password-protected copy in a folder on the phone, and a backup file they keep or send to themselves.</li>
+<li>Backups: a daily password-protected copy in a folder on the phone, a backup file the owner keeps, and an automatic encrypted copy on the Kashiro server on paid plans.</li>
 </ul>
 <h2>Links</h2>
 <p><a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms of Use</a> · <a href="/delete-account">Delete account</a> · Contact: <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
@@ -76,6 +76,7 @@ const PRIVACY_AR = `<h1>سياسة الخصوصية</h1><p class="muted">آخر 
 <li><b>رقم الموبايل</b> لإنشاء الحساب وتسجيل الدخول (بكود SMS أو كلمة سر)، و<b>اسم المحل</b> ونوعه.</li>
 <li><b>بيانات الجهاز</b>: موديل الموبايل، إصدار التطبيق، معرّف التثبيت، وفحص سلامة الجهاز من جوجل/أبل — عشان الترخيص والحماية من الاحتيال.</li>
 <li><b>الاشتراك والدفع</b>: الباقة وتواريخها؛ ولو دفعت بإنستاباي/فودافون كاش، صورة الإيصال ورقم المحوّل منه لمراجعة الدفع.</li>
+<li><b>النسخ الاحتياطي على السيرفر</b> (الباقات المدفوعة): نسخة يومية مشفّرة من بيانات المحل من غير صور المنتجات، وبنحتفظ بآخر كام نسخة بس. مفتاح التشفير محفوظ عندنا بشكل محمي عشان تقدر ترجّع بياناتك على موبايل جديد بعد تأكيد رقمك بكود SMS.</li>
 <li><b>موبايلات الكاشير</b> (لو استخدمتها): المبيعات والكتالوج بيعدّوا على السيرفر <b>مشفّرين بمفتاح المحل</b> اللي موجود في كود الـ QR بس — سيرفرنا ما يقدرش يقراهم.</li>
 <li><b>ملخص المحل</b> لموبايل المتابعة (لو فعّلته): أرقام مجمّعة زي مبيعات اليوم وآخر الفواتير.</li>
 <li><b>تقارير الأعطال</b>: رسالة الخطأ وإصدار التطبيق، عشان نصلّح المشاكل.</li>
@@ -90,11 +91,11 @@ const PRIVACY_AR = `<h1>سياسة الخصوصية</h1><p class="muted">آخر 
 <li><b>Google Play / App Store</b> لو اشتركت من المتجر.</li>
 </ul>
 <h2>4. النسخ الاحتياطي</h2>
-<p>النسخ الاحتياطية مش بتتبعت لسيرفرنا. التطبيق بيعمل نسخة يومية محمية بكلمة سر في فولدر أنت اللي بتختاره على الموبايل، وتقدر تحفظ «ملف نسخة» وتبعته لأي مكان تختاره (الملفات، واتساب، الإيميل). ترجيع البيانات بيتم من الملف ده بس، بكلمة السر اللي اخترتها.</p>
+<p>التطبيق بيعمل نسخة يومية محمية بكلمة سر في فولدر أنت اللي بتختاره على الموبايل، وتقدر تحفظ «ملف نسخة» وتبعته لأي مكان تختاره (الملفات، واتساب، الإيميل) وترجّع منه بكلمة السر. في الباقات المدفوعة كمان بتتبعت نسخة صغيرة مشفّرة كل يوم لسيرفرنا (البيانات من غير صور)، وبيتمسح القديم منها تلقائيًا، وترجيعها على موبايل جديد بيحتاج كود SMS على رقمك.</p>
 <h2>5. الصلاحيات على الموبايل</h2>
 <p>الكاميرا (مسح الباركود وتصوير الفواتير)، البلوتوث (الطابعة الحرارية)، الإشعارات، والبصمة (فتح التطبيق). كلها اختيارية وبتتطلب وقت الاستخدام.</p>
 <h2>6. المدة والحذف</h2>
-<p>بنحتفظ ببيانات الحساب طول ما الحساب شغال. تقدر تطلب حذف حسابك وكل بياناتك من سيرفرنا في أي وقت — شوف <a href="/delete-account">حذف الحساب</a>. البيانات اللي على موبايلك بتتمسح لما تمسح التطبيق.</p>
+<p>بنحتفظ ببيانات الحساب طول ما الحساب شغال. النسخ على السيرفر بيتمسح القديم منها تلقائيًا. تقدر تطلب حذف حسابك وكل بياناتك من سيرفرنا في أي وقت — شوف <a href="/delete-account">حذف الحساب</a>. البيانات اللي على موبايلك بتتمسح لما تمسح التطبيق.</p>
 <h2>7. الأمان</h2>
 <p>الاتصال مشفّر (HTTPS)، قاعدة البيانات على الموبايل مشفّرة، ملفات النسخ مشفّرة بكلمة سر، والدخول على الإعدادات الحساسة محمي بكلمة سر المالك.</p>
 <h2>8. الأطفال</h2><p>التطبيق موجّه لأصحاب المحلات والعاملين فيها، ومش موجّه للأطفال.</p>
@@ -107,6 +108,7 @@ const PRIVACY_EN = `<h1>Privacy Policy</h1><p class="muted">Last updated: ${UPDA
 <li><b>Phone number</b> to create the account and sign in (SMS code or password), and the <b>shop name</b> and type.</li>
 <li><b>Device data</b>: model, app version, install ID and Google/Apple device-integrity checks — for licensing and fraud protection.</li>
 <li><b>Subscription and payment</b>: plan and dates; for InstaPay / Vodafone Cash payments, the receipt photo and sender number to review the payment.</li>
+<li><b>Server backups</b> (paid plans): a daily encrypted copy of the shop data without product photos; only the last few copies are kept. The encryption key is stored protected on our side so you can restore on a new phone after confirming your number by SMS.</li>
 <li><b>Cashier phones</b> (if used): sales and the catalog pass through our server <b>encrypted with the shop key</b> that exists only in the QR code — our server cannot read them.</li>
 <li><b>Shop summary</b> for a follow-up phone (if enabled): aggregated figures such as today's sales and recent invoices.</li>
 <li><b>Crash reports</b>: the error message and app version, to fix problems.</li>
@@ -117,9 +119,9 @@ const PRIVACY_EN = `<h1>Privacy Policy</h1><p class="muted">Last updated: ${UPDA
 <li><b>Anthropic (Claude)</b>: when you photograph a supplier invoice or a product list, the image is sent to be read and turned into items and prices. It is not used for anything else.</li>
 <li><b>Google AdMob</b>: ads on the free plan only; AdMob may use the device advertising ID under Google's policies. Paid plans have no ads.</li>
 <li><b>Google Play / App Store</b> if you subscribe through the store.</li></ul>
-<h2>4. Backups</h2><p>Backups are not sent to our server. The app makes a daily password-protected copy in a folder you choose on the phone, and you can save a “backup file” and send it anywhere you choose (Files, WhatsApp, e-mail). Data is restored only from that file, with the password you chose.</p>
+<h2>4. Backups</h2><p>The app makes a daily password-protected copy in a folder you choose on the phone, and you can save a “backup file”, send it anywhere you choose (Files, WhatsApp, e-mail) and restore from it with your password. On paid plans a small encrypted copy (data without photos) is also sent to our server every day; old copies are deleted automatically, and restoring one on a new phone needs an SMS code sent to your number.</p>
 <h2>5. Phone permissions</h2><p>Camera (barcode scanning, invoice photos), Bluetooth (thermal printer), notifications and biometrics (unlocking the app). All optional and requested when used.</p>
-<h2>6. Retention and deletion</h2><p>Account data is kept while the account is active. You can ask us to delete your account and all your data from our server at any time — see <a href="/delete-account">Delete account</a>. Data on your phone is removed when you uninstall the app.</p>
+<h2>6. Retention and deletion</h2><p>Account data is kept while the account is active. Old server backups are deleted automatically. You can ask us to delete your account and all your data from our server at any time — see <a href="/delete-account">Delete account</a>. Data on your phone is removed when you uninstall the app.</p>
 <h2>7. Security</h2><p>Connections use HTTPS, the on-phone database is encrypted, backup files are encrypted with a password, and sensitive settings are protected by the owner's password.</p>
 <h2>8. Children</h2><p>The app is meant for shop owners and staff, not for children.</p>
 <h2>9. Your choices and rights</h2><p>You can view and export your shop data from the app (PDF/Excel), correct it at any time, and ask us to delete your account and data (see <a href="/delete-account">Delete account</a>).</p><h2>10. Contact</h2><p>Kashiro is developed by TIQNIA. Questions or requests: <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>. If this policy changes we will update the date above and tell you in the app.</p>`;
@@ -145,13 +147,13 @@ const DELETE_AR = `<h1>حذف الحساب والبيانات</h1>
 <p>تقدر تطلب حذف حسابك في كاشيرو وكل بياناته من سيرفرنا في أي وقت:</p>
 <ol><li>ابعت رسالة على <a href="mailto:${SUPPORT_EMAIL}?subject=Kashiro%20account%20deletion">${SUPPORT_EMAIL}</a> بعنوان «حذف حساب كاشيرو» ومعاها رقم الموبايل المسجل واسم المحل.</li>
 <li>هنتأكد إن الطلب من صاحب الرقم (هنبعتلك كود أو نتصل بيك).</li>
-<li>هنحذف خلال 30 يوم: الحساب، المحلات، الأجهزة، طلبات الدفع وصور الإيصالات، والبيانات المشفّرة لموبايلات الكاشير.</li></ol>
+<li>هنحذف خلال 30 يوم: الحساب، المحلات، الأجهزة، النسخ الاحتياطية على السيرفر، طلبات الدفع وصور الإيصالات، والبيانات المشفّرة لموبايلات الكاشير.</li></ol>
 <p><b>اللي ممكن يفضل:</b> سجلات الدفع اللي القانون بيطلب الاحتفاظ بيها (لو فيه) لمدة القانون بس. البيانات اللي على موبايلك وملفات النسخ بتاعتك تحت إيدك أنت — امسح التطبيق أو الملفات بنفسك.</p>`;
 const DELETE_EN = `<h1>Delete your account and data</h1>
 <p>You can ask us to delete your Kashiro account and all its data from our server at any time:</p>
 <ol><li>Email <a href="mailto:${SUPPORT_EMAIL}?subject=Kashiro%20account%20deletion">${SUPPORT_EMAIL}</a> with the subject “Kashiro account deletion”, your registered phone number and shop name.</li>
 <li>We confirm the request comes from the number's owner (a code or a call).</li>
-<li>Within 30 days we delete: the account, shops, devices, payment requests and receipt photos, and the encrypted cashier-phone data.</li></ol>
+<li>Within 30 days we delete: the account, shops, devices, server backups, payment requests and receipt photos, and the encrypted cashier-phone data.</li></ol>
 <p><b>What may remain:</b> payment records we must keep by law (if any), only for the legal period. Data on your phone and your backup files are under your control — uninstall the app or delete the files yourself.</p>`;
 
 export function publicPages() {

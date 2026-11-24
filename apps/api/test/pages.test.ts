@@ -16,7 +16,7 @@ describe('public pages', () => {
       expect(html).not.toMatch(/<script/i);
     }
     const p = await (await app.request('/privacy', {}, c.env)).text();
-    expect(p).toContain('not sent to our server');
+    expect(p).toContain('Server backups');
     expect(p).not.toContain('Drive');
   });
 });

@@ -65,10 +65,10 @@ describe('licence token', () => {
     const pick = (l: (typeof DEFAULT_PLANS)[number]['limits']) => [l.sms_day, l.backup_storage_mb, l.receipt_uploads_month, l.api_requests_day, l.devices];
     expect(DEFAULT_PLANS.map((p) => [p.code, ...pick(p.limits)])).toEqual([
       ['free', 5, 0, 5, 2000, 1],
-      ['basic', 10, 150, 10, 5000, 2],
-      ['pro', 20, 1024, 20, 15000, 5],
+      ['basic', 10, 50, 10, 5000, 2],
+      ['pro', 20, 100, 20, 15000, 5],
     ]);
-    expect(defaultUsageLimits('pro', false).backup_storage_mb).toBe(1024);
+    expect(defaultUsageLimits('pro', false).backup_storage_mb).toBe(100);
     expect(defaultUsageLimits('gold', false).sms_day).toBe(10); // unknown paid plan → basic
     expect(defaultUsageLimits('promo_free', true).backup_storage_mb).toBe(0);
   });

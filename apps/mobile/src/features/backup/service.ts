@@ -23,7 +23,6 @@ import { restoreBusinessId } from './restoreState';
 import { integrityToken } from '../integrity/integrity';
 import { backupHeader, buildBackup, decryptBackup, downloadBackup, installSnapshot, openSnapshot, uploadBackup, type BuiltBackup } from './files';
 import { Directory, File, Paths } from 'expo-file-system';
-import { folderBackupHealthy, getFolderConfig } from '../../domain/backup/folder';
 
 export interface LastBackup {
   at: number;
@@ -34,10 +33,11 @@ export interface LastBackup {
 
 export const SCHEMA_VERSION = Object.keys(migrations.migrations).length;
 const AUTO_EVERY_MS = 20 * 3_600_000;
-/** The automatic backup carries product photos once a week (they rarely change and dominate the file size). */
-const PHOTOS_EVERY_MS = 7 * 86_400_000;
-/** With a healthy folder backup on the phone (domain/backup/folder.ts) the cloud copy is refreshed weekly only. */
-const AUTO_EVERY_WITH_FOLDER_MS = 7 * 86_400_000;
+/**
+ * Server backups stay small: the data only, never the product photos (they dominate the size; the folder backup and
+ * the shop's backup file carry them). Daily even with a folder backup: that one lives on the same phone.
+ */
+const SERVER_PHOTOS = false;
 /** After the server refused the automatic backup for the shop's storage limit, wait this long before trying again. */
 const CLOUD_LIMITED_PAUSE_MS = 7 * 86_400_000;
 export const CLOUD_LIMITED_META = 'backup.cloudLimitedAt';
@@ -105,7 +105,7 @@ export async function backupNow(onProgress?: (p: number, stage: 'build' | 'uploa
   const { header: h, serverBusinessId } = await header();
   // Same guard as prepareAutoBackup: never upload a backup sealed with a key the server does not have.
   if ((await getMeta(getDb(), 'backup.keyMissing')) === '1') throw new ApiError('step_up_required', 'backup key missing');
-  const built = await buildBackup(await getOrCreateBackupKey(), h, (p) => onProgress?.(p, 'build'));
+  const built = await buildBackup(await getOrCreateBackupKey(), h, (p) => onProgress?.(p, 'build'), { photos: SERVER_PHOTOS });
   try {
     const token = await accessToken();
     const put = await api.backupUploadUrl(token, { businessId: serverBusinessId, deviceId: h.deviceId, meta: { size: built.size, sha256: built.sha256, counts: h.counts, schemaVersion: SCHEMA_VERSION }, kind: 'manual' });
@@ -121,7 +121,7 @@ export async function backupNow(onProgress?: (p: number, stage: 'build' | 'uploa
   }
 }
 
-// The shop's own copy (Drive / Files) is the passphrase-protected ".kashiro" file: features/backup/portable.ts.
+// The shop's own copy (Files / WhatsApp / e-mail) is the passphrase-protected ".kashiro" file: features/backup/portable.ts.
 // (An .obk exported with this phone's backup key could not be opened on a new phone without our server.)
 
 /**
@@ -173,10 +173,8 @@ export async function prepareAutoBackup(): Promise<{ size: number; sha256: strin
     const limitedAt = Number((await getMeta(db, CLOUD_LIMITED_META)) ?? 0);
     if (limitedAt && Date.now() - limitedAt < CLOUD_LIMITED_PAUSE_MS) return undefined;
     const last = await lastBackup();
-    const every = folderBackupHealthy(await getFolderConfig(db)) ? AUTO_EVERY_WITH_FOLDER_MS : AUTO_EVERY_MS;
     const lastCloud = await lastCloudBackupAt();
-    if (last && Date.now() - last.at < AUTO_EVERY_MS) return undefined;
-    if (lastCloud && Date.now() - lastCloud < every) return undefined;
+    if (lastCloud && Date.now() - lastCloud < AUTO_EVERY_MS) return undefined;
     if ((await getMeta(db, 'backup.lastHead')) === (await chainHead(db, dev.id)).hash && last) return undefined;
     // Network first: never spend battery building a file that cannot leave the phone today.
     const net = await Network.getNetworkStateAsync();
@@ -184,9 +182,7 @@ export async function prepareAutoBackup(): Promise<{ size: number; sha256: strin
     const wifi = net.type === Network.NetworkStateType.WIFI;
     const waitedLong = last ? Date.now() - last.at > 72 * 3_600_000 : true;
     if (!wifi && !waitedLong) return undefined;
-    const photosAt = Number((await getMeta(db, 'backup.photosAt')) ?? 0);
-    // Photos weekly, and only on Wi-Fi (mobile data uploads stay small).
-    const photos = wifi && Date.now() - photosAt >= PHOTOS_EVERY_MS;
+    const photos = SERVER_PHOTOS;
     const { header: h } = await header();
     const built = await buildBackup(await getOrCreateBackupKey(), h, undefined, { photos });
     if (!wifi && built.size >= 20 * 1024 * 1024) {

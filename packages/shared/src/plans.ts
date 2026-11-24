@@ -80,7 +80,7 @@ export const DEFAULT_PLANS: PlanDefinition[] = [
     nameEn: 'Basic',
     monthly: { EGP: 14_900, SAR: 3_900 },
     yearly: { EGP: 149_000, SAR: 39_000 },
-    limits: { users: 3, products: 3000, parties: UNLIMITED, invoices_month: 3000, backups_kept: 7, ocr_month: 30, sms_day: 10, backup_storage_mb: 150, receipt_uploads_month: 10, api_requests_day: 5000, devices: 2 },
+    limits: { users: 3, products: 3000, parties: UNLIMITED, invoices_month: 3000, backups_kept: 5, ocr_month: 30, sms_day: 10, backup_storage_mb: 50, receipt_uploads_month: 10, api_requests_day: 5000, devices: 2 },
     features: ['no_ads', 'multi_unit', 'offers', 'expenses_shifts'],
     isFree: false,
     trialDays: 0,
@@ -91,7 +91,7 @@ export const DEFAULT_PLANS: PlanDefinition[] = [
     nameEn: 'Pro',
     monthly: { EGP: 29_900, SAR: 7_900 },
     yearly: { EGP: 299_000, SAR: 79_000 },
-    limits: { users: 10, products: UNLIMITED, parties: UNLIMITED, invoices_month: UNLIMITED, backups_kept: 30, ocr_month: 150, sms_day: 20, backup_storage_mb: 1024, receipt_uploads_month: 20, api_requests_day: 15000, devices: 5 },
+    limits: { users: 10, products: UNLIMITED, parties: UNLIMITED, invoices_month: UNLIMITED, backups_kept: 7, ocr_month: 150, sms_day: 20, backup_storage_mb: 100, receipt_uploads_month: 20, api_requests_day: 15000, devices: 5 },
     // custom_roles stays a known feature (old licences carry it) but is not offered: the feature is not built.
     features: ['no_ads', 'multi_unit', 'offers', 'expenses_shifts', 'expiry', 'adv_reports'],
     isFree: false,
