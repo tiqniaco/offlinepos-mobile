@@ -242,9 +242,10 @@ export function buildFlush(db: D1Database, t: Tracker): D1PreparedStatement | nu
     rows.push(`(${biz === GLOBAL ? `'*'` : param(biz)}, ?1, '${metric}', ${Math.trunc(count)}, ${typeof bytes === 'number' ? Math.trunc(bytes) : bytes})`);
   };
   const global = new Map<string, { count: number; bytes: number }>();
+  // One request: on its shop (the global row is derived from it below) or, without a shop, globally only.
   if (t.request) {
-    add(global, 'api_requests', 1, 0);
     if (t.businessId) add(t.adds, `${t.businessId}|api_requests`, 1, 0);
+    else add(global, 'api_requests', 1, 0);
   }
   for (const [k, v] of t.adds) {
     const [biz, metric] = k.split('|') as [string, string];

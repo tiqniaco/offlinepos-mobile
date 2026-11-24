@@ -65,7 +65,7 @@ export async function freeTierStatus(env: Env, now: number) {
 }
 
 const overridesSchema = z.object({
-  limits: z.record(z.enum(LIMIT_KEYS), z.number().int().min(-1).max(1_000_000_000).nullable()),
+  limits: z.partialRecord(z.enum(LIMIT_KEYS), z.number().int().min(-1).max(1_000_000_000).nullable()),
   note: z.string().trim().max(200).optional(),
 });
 

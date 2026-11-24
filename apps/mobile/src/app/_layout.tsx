@@ -23,6 +23,7 @@ import { colors, useTheme, applyTheme } from '../ui';
 import { CrashScreen, persistClientError, reportClientError } from '../features/errors/CrashScreen';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { UpdateGate } from '../features/update/UpdateGate';
+import { AppSwitcherCover } from '../features/privacy/AppSwitcherCover';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -128,6 +129,7 @@ export default function RootLayout() {
             <UpgradeSheet />
           </>
         ) : null}
+        <AppSwitcherCover />
       </View>
     </SafeAreaProvider>
     </KeyboardProvider>

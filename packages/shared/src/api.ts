@@ -271,7 +271,15 @@ export const ocrListResponseSchema = z.object({ mode: z.literal('list'), lines: 
 export type OcrListResponse = z.infer<typeof ocrListResponseSchema>;
 
 export const apiErrorSchema = z.object({
-  error: z.object({ code: z.string(), message: z.string(), retryAfterMs: z.number().optional() }),
+  error: z.object({
+    code: z.string(),
+    message: z.string(),
+    retryAfterMs: z.number().optional(),
+    /** limit_reached: which limit (sms_day, backup_storage_mb, …), its value and what is used. */
+    key: z.string().optional(),
+    limit: z.number().optional(),
+    used: z.number().optional(),
+  }),
 });
 
 /** Error codes the app translates into Arabic messages. */

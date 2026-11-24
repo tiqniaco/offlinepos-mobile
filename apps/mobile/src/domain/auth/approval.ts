@@ -101,7 +101,7 @@ export interface Approval {
   token: string;
 }
 
-/** Tokens live in memory only, for 2 minutes, and are used once. */
+/** Tokens live in memory only, for 2 minutes (wall clock), and are used once. */
 export const APPROVAL_TTL_MS = 2 * 60_000;
 const tokens = new Map<string, { approver: SessionUser; action: SensitiveAction; exp: number }>();
 
@@ -121,7 +121,7 @@ export function canApprove(u: SessionUser, action: SensitiveAction): boolean {
 export async function approveWithPin(db: Db, approverId: string, pin: string, action: SensitiveAction, now = Date.now()): Promise<{ user: SessionUser; approval: Approval }> {
   const user = await unlockWithPin(db, approverId, pin, now);
   if (!canApprove(user, action)) throw new ApprovalError('no_right', action);
-  return { user, approval: issue(user, action, now) };
+  return { user, approval: issue(user, action, Date.now()) };
 }
 
 /**
@@ -145,8 +145,9 @@ export async function assertApproval(
   const at = ctx.at ?? Date.now();
   const entry = tokens.get(opts.approvedBy.token);
   tokens.delete(opts.approvedBy.token);
-  if (!entry || entry.exp <= at || entry.action !== action || entry.approver.id !== opts.approvedBy.userId) throw new ApprovalError('approval_invalid', action);
-  if (!canApprove(entry.approver, action) || (lacks && !roleHas(entry.approver.permissions, opts.permission!))) throw new ApprovalError('no_right', action);
+  if (!entry || entry.exp <= Date.now() || entry.action !== action || entry.approver.id !== opts.approvedBy.userId) throw new ApprovalError('approval_invalid', action);
+  // Someone else approves: a manager cannot confirm their own sensitive action.
+  if (entry.approver.id === ctx.user.id || !canApprove(entry.approver, action) || (lacks && !roleHas(entry.approver.permissions, opts.permission!))) throw new ApprovalError('no_right', action);
   await appendAudit(tx, {
     action: AUDIT_ACTION[action],
     entity: opts.entity,

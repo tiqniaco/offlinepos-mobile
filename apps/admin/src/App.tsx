@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { call, fmtDate, fmtMoney, session, AdminApiError, blobUrl, timeAgo } from './api';
+import { BusinessUsage, UsageBanner, UsagePage } from './Usage';
 
-type View = { name: 'dashboard' } | { name: 'codes' } | { name: 'notify'; businessId?: string; businessName?: string } | { name: 'businesses' } | { name: 'business'; id: string } | { name: 'plans' } | { name: 'audit' } | { name: 'settings' } | { name: 'payments' } | { name: 'errors' };
+type View = { name: 'dashboard' } | { name: 'codes' } | { name: 'notify'; businessId?: string; businessName?: string } | { name: 'businesses' } | { name: 'business'; id: string } | { name: 'plans' } | { name: 'audit' } | { name: 'settings' } | { name: 'payments' } | { name: 'errors' } | { name: 'usage' } | { name: 'usage-business'; id: string; from: 'usage' | 'business' };
 
 // "expired" is computed by the API from plan_expires_at (the stored status only changes on events).
 const STATUS_AR: Record<string, string> = { trial: 'تجربة', active: 'مشترك', past_due: 'متأخر في الدفع', suspended: 'موقوف', expired: 'منتهي' };
@@ -102,7 +103,7 @@ function Businesses({ open }: { open: (id: string) => void }) {
   );
 }
 
-function BusinessDetail({ id, back, notify }: { id: string; back: () => void; notify: (name: string) => void }) {
+function BusinessDetail({ id, back, notify, usage }: { id: string; back: () => void; notify: (name: string) => void; usage: () => void }) {
   const { data, error, reload } = useLoad(() => call(`/businesses/${id}`), [id]);
   const plans = useLoad(() => call('/plans'), []);
   const [days, setDays] = useState(7);
@@ -128,6 +129,7 @@ function BusinessDetail({ id, back, notify }: { id: string; back: () => void; no
         <button className="btn ghost" onClick={back}>→ رجوع</button>
         <h2 style={{ margin: 0 }}>{b.name}</h2>
         <button onClick={() => notify(b.name)}>إرسال إشعار</button>
+        <button onClick={usage}>الاستهلاك والحدود</button>
         <span className={`pill ${b.status}`}>{STATUS_AR[b.status] ?? b.status}</span>
       </div>
       <div className="grid two">
@@ -221,7 +223,7 @@ function BusinessDetail({ id, back, notify }: { id: string; back: () => void; no
 
 const PRICE_KEYS = ['monthly_egp', 'monthly_sar', 'yearly_egp', 'yearly_sar'] as const;
 const PRICE_LABELS: Record<string, string> = { monthly_egp: 'شهري (ج.م)', monthly_sar: 'شهري (ر.س)', yearly_egp: 'سنوي (ج.م)', yearly_sar: 'سنوي (ر.س)' };
-const LIMIT_DEFAULTS = { users: 0, products: 0, parties: 0, invoices_month: 0, backups_kept: 0, ocr_month: 0 };
+const LIMIT_DEFAULTS = { users: 0, products: 0, parties: 0, invoices_month: 0, backups_kept: 0, ocr_month: 0, sms_day: -1, backup_storage_mb: -1, receipt_uploads_month: -1, api_requests_day: -1, devices: -1 };
 const LIMIT_LABELS: Record<string, string> = {
   users: 'مستخدمين (users)',
   products: 'منتجات (products)',
@@ -229,6 +231,11 @@ const LIMIT_LABELS: Record<string, string> = {
   invoices_month: 'فواتير/شهر (invoices_month)',
   backups_kept: 'نسخ احتياطية (backups_kept)',
   ocr_month: 'مسح فواتير الموردين/شهر (ocr_month) — 0 = مش في الباقة',
+  sms_day: 'رسائل SMS/يوم لكل نشاط (sms_day)',
+  backup_storage_mb: 'مساحة النسخ على السيرفر MB (backup_storage_mb) — 0 = النسخ في فولدر على الموبايل بس',
+  receipt_uploads_month: 'إيصالات دفع/شهر (receipt_uploads_month)',
+  api_requests_day: 'طلبات السيرفر/يوم (api_requests_day)',
+  devices: 'أجهزة (devices)',
 };
 
 function Plans() {
@@ -291,7 +298,7 @@ function Plans() {
                 <td>{p.name_ar}</td>
                 <td>{fmtMoney(p.monthly_egp)} / {fmtMoney(p.monthly_sar)}</td>
                 <td>{fmtMoney(p.yearly_egp)} / {fmtMoney(p.yearly_sar)}</td>
-                <td className="muted">مستخدمين {p.limits.users} · منتجات {p.limits.products} · فواتير/شهر {p.limits.invoices_month} · مسح فواتير/شهر {p.limits.ocr_month ?? 0}</td>
+                <td className="muted">مستخدمين {p.limits.users} · منتجات {p.limits.products} · فواتير/شهر {p.limits.invoices_month} · مسح فواتير/شهر {p.limits.ocr_month ?? 0} · SMS/يوم {p.limits.sms_day ?? '—'} · نسخ السيرفر {p.limits.backup_storage_mb ?? '—'} MB</td>
                 <td>{p.trial_days} يوم</td>
                 <td><button className="btn ghost" onClick={() => { const e = JSON.parse(JSON.stringify(p)); e.limits = { ...LIMIT_DEFAULTS, ...e.limits }; for (const k of PRICE_KEYS) e[k] = String((Number(e[k]) || 0) / 100); setEdit(e); }}>تعديل</button></td>
               </tr>
@@ -405,7 +412,7 @@ function Audit() {
   );
 }
 
-function Dashboard({ openPayments }: { openPayments: () => void }) {
+function Dashboard({ openPayments, openUsage }: { openPayments: () => void; openUsage: () => void }) {
   const { data, error } = useLoad(() => call('/metrics'), []);
   const tile = (label: string, value: string | number) => (
     <div className="card" style={{ flex: 1, minWidth: 160 }}>
@@ -419,6 +426,7 @@ function Dashboard({ openPayments }: { openPayments: () => void }) {
       {error ? <div className="err">{error}</div> : null}
       {data ? (
         <>
+          <UsageBanner alert={data.usageAlert} open={openUsage} />
           {data.pendingPayments > 0 ? (
             <div className="card alert row" style={{ marginBottom: 12 }}>
               <div style={{ flex: 1 }}>
@@ -884,6 +892,7 @@ export function App() {
         {nav({ name: 'dashboard' }, 'لوحة الأرقام')}
         {nav({ name: 'payments' }, 'طلبات الدفع', pending)}
         {nav({ name: 'businesses' }, 'الأنشطة')}
+        {nav({ name: 'usage' }, 'الاستهلاك')}
         {nav({ name: 'codes' }, 'أكواد التفعيل')}
         {nav({ name: 'notify' }, 'الإشعارات')}
         {nav({ name: 'plans' }, 'الباقات')}
@@ -894,12 +903,14 @@ export function App() {
         <button onClick={() => call('/logout', { body: {} }).finally(() => { session.clear(); setAuthed(false); })}>خروج</button>
       </aside>
       <main>
-        {view.name === 'dashboard' && <Dashboard openPayments={() => setView({ name: 'payments' })} />}
+        {view.name === 'dashboard' && <Dashboard openPayments={() => setView({ name: 'payments' })} openUsage={() => setView({ name: 'usage' })} />}
         {view.name === 'payments' && <Payments onCount={setPending} />}
         {view.name === 'codes' && <Codes />}
         {view.name === 'notify' && <Notify key={view.businessId ?? 'all'} businessId={view.businessId} businessName={view.businessName} />}
         {view.name === 'businesses' && <Businesses open={(id) => setView({ name: 'business', id })} />}
-        {view.name === 'business' && <BusinessDetail id={view.id} back={() => setView({ name: 'businesses' })} notify={(name) => setView({ name: 'notify', businessId: view.id, businessName: name })} />}
+        {view.name === 'business' && <BusinessDetail id={view.id} back={() => setView({ name: 'businesses' })} notify={(name) => setView({ name: 'notify', businessId: view.id, businessName: name })} usage={() => setView({ name: 'usage-business', id: view.id, from: 'business' })} />}
+        {view.name === 'usage' && <UsagePage open={(id) => setView({ name: 'usage-business', id, from: 'usage' })} />}
+        {view.name === 'usage-business' && <BusinessUsage id={view.id} back={() => setView(view.from === 'business' ? { name: 'business', id: view.id } : { name: 'usage' })} />}
         {view.name === 'plans' && <Plans />}
         {view.name === 'audit' && <Audit />}
         {view.name === 'errors' && <ClientErrors />}

@@ -26,7 +26,13 @@ import { API_URL } from '../config/env';
 type Integrity = { platform: 'android' | 'ios'; token: string; requestHash: string; keyId?: string };
 
 export class ApiError extends Error {
-  constructor(public readonly code: ApiErrorCode | 'network', message: string, public readonly retryAfterMs?: number) {
+  constructor(
+    public readonly code: ApiErrorCode | 'network',
+    message: string,
+    public readonly retryAfterMs?: number,
+    /** limit_reached: {key, limit, used} from the server. */
+    public readonly details?: { key?: string; limit?: number; used?: number },
+  ) {
     super(message);
   }
 }
@@ -54,7 +60,10 @@ async function request<T extends z.ZodType>(path: string, schema: T, init: { met
   const json: unknown = await res.json().catch(() => null);
   if (!res.ok) {
     const err = apiErrorSchema.safeParse(json);
-    if (err.success) throw new ApiError(err.data.error.code as ApiErrorCode, err.data.error.message, err.data.error.retryAfterMs);
+    if (err.success) {
+      const x = err.data.error;
+      throw new ApiError(x.code as ApiErrorCode, x.message, x.retryAfterMs, x.key != null ? { key: x.key, limit: x.limit, used: x.used } : undefined);
+    }
     throw new ApiError('internal', `HTTP ${res.status}`);
   }
   return schema.parse(json);

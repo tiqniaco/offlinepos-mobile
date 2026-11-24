@@ -5,6 +5,7 @@
 import { DAY_MS } from '@daftarak/shared';
 import type { Env } from '../env';
 import { UNCOMMITTED_TTL_MS, deleteBackups } from '../routes/phase6';
+import { cairoDay } from '../usage/meter';
 
 export const RETENTION = {
   otpCodesMs: 30 * DAY_MS,
@@ -12,6 +13,7 @@ export const RETENTION = {
   rateCountersMs: 30 * DAY_MS,
   clientErrorsMs: 90 * DAY_MS,
   ocrScansMs: 400 * DAY_MS,
+  usageDailyMs: 400 * DAY_MS,
 };
 
 export async function runCleanup(env: Env, now: number) {
@@ -25,6 +27,7 @@ export async function runCleanup(env: Env, now: number) {
   await del('rate_counters', `DELETE FROM rate_counters WHERE window_start < ?1`, now - RETENTION.rateCountersMs);
   await del('client_errors', `DELETE FROM client_errors WHERE at < ?1`, now - RETENTION.clientErrorsMs);
   await del('ocr_scans', `DELETE FROM ocr_scans WHERE created_at < ?1`, now - RETENTION.ocrScansMs);
+  await del('usage_daily', `DELETE FROM usage_daily WHERE day < ?1`, cairoDay(now - RETENTION.usageDailyMs));
   // Uncommitted backups: the row AND its R2 object, in pages.
   let backups = 0;
   for (let i = 0; i < 20; i++) {

@@ -243,7 +243,15 @@
     "managedOnly": "Only the owner or a manager can change these settings.",
     "minutesFew": "{{n}} minutes",
     "hideNumbers": "Hide sensitive numbers",
-    "hideNumbersHint": "Numbers show as •••• until you tap the eye"
+    "hideNumbersHint": "Numbers show as •••• until you tap the eye",
+    "immediate": "Right after leaving",
+    "sectionOpen": "Opening the app",
+    "sectionPrivacy": "Privacy",
+    "sectionAccount": "Account",
+    "cover": "Hide the app in the recent apps list",
+    "coverHint": "When you leave the app only the Kashiro logo shows, no numbers",
+    "coverHintAndroid": "On Android this is tied to «Block screenshots»: turn it on to hide the sensitive screens",
+    "sessionsHint": "See the devices signed in to your account and end any session that isn't yours"
   },
   "language": {
     "ar": "العربية",
@@ -384,7 +392,13 @@
       "backup_restore": "Backup restored",
       "stock_count_discard": "Stock count cancelled",
       "product_quick_add": "Quick add items",
-      "unit_create": "New unit"
+      "unit_create": "New unit",
+      "approval_void": "Manager approved a void",
+      "approval_return": "Manager approved a return",
+      "approval_product_delete": "Manager approved a product delete",
+      "approval_price_change": "Manager approved a price change",
+      "approval_export": "Manager approved a data export",
+      "approval_restore": "Manager approved a backup restore"
     },
     "system": "System",
     "unknownUser": "Removed user",
@@ -829,7 +843,20 @@
     "noApprovers": "No manager or owner account is set up to approve. Add one from Users.",
     "minutes": "{{n}} min",
     "seconds": "{{n}} s",
-    "creditBody": "This invoice goes over the customer's credit limit. Ask a manager to enter their PIN."
+    "creditBody": "This invoice goes over the customer's credit limit. Ask a manager to enter their PIN.",
+    "actions": {
+      "void": "Voiding needs a manager's approval. Ask the manager to type their PIN.",
+      "return": "This return is above the allowed amount. Ask the manager to type their PIN.",
+      "productDelete": "Deleting a product needs a manager's approval. Ask the manager to type their PIN.",
+      "priceChange": "Changing the price needs a manager's approval. Ask the manager to type their PIN.",
+      "export": "Exporting data needs a manager's approval. Ask the manager to type their PIN.",
+      "restore": "Restoring a backup needs a manager's approval. Ask the manager to type their PIN."
+    },
+    "errors": {
+      "approval_required": "This action needs a manager's approval",
+      "approval_invalid": "The approval expired. Ask the manager to type their PIN again.",
+      "no_right": "This user doesn't have that right"
+    }
   },
   "done": {
     "title": "Sale complete",
@@ -2069,5 +2096,29 @@
     "show": "Show numbers",
     "hide": "Hide numbers",
     "hiddenValue": "Hidden number"
+  },
+  "approval": {
+    "section": "Manager approval",
+    "intro": "These actions need a manager or the owner to type their PIN, for anyone but the owner.",
+    "void": "Void an invoice",
+    "voidHint": "Sales, purchases and vouchers",
+    "returnOver": "Return above an amount",
+    "returnOverHint": "When the return is above {{amount}}",
+    "threshold": "Amount",
+    "productDelete": "Delete a product",
+    "priceChange": "Change a product price",
+    "priceChangeHint": "From the product screen or bulk price change",
+    "exportData": "Export data and restore a backup",
+    "exportDataHint": "Excel file, backup file, and restoring from a file",
+    "discount": "Discount above the limit",
+    "discountHint": "Always on: a discount above the user's limit needs a manager",
+    "always": "Always"
+  },
+  "reauth": {
+    "title": "Confirm it's you",
+    "body": "This screen is protected. Open it with the fingerprint or {{name}}'s password.",
+    "prompt": "Confirm it's you",
+    "confirm": "Confirm",
+    "biometric": "Use fingerprint"
   }
 }

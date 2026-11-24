@@ -62,15 +62,26 @@ export async function exportPortableBackup(passphrase: string, onProgress?: (p: 
   await approveDataExport('export', 'portable', approvedBy);
   const db = getDb();
   const createdAt = Date.now();
-  const meta = await portableMeta(db);
-  const { header, dataKey } = await sealPortable(passphrase, { ...meta, createdAt, schemaVersion: SCHEMA_VERSION, appVersion: APP_VERSION }, { onProgress: (p) => onProgress?.(p, 'key') });
-  // The business backup key rides inside (encrypted) so cloud backups made later from a restored phone stay readable.
-  const extras: [string, Uint8Array][] = [[PORTABLE_BACKUP_KEY_ENTRY, base64urlDecode(await getOrCreateBackupKey())]];
-  const built = await writeBackupFile(portableWriter(dataKey, header), `kashiro-${ymd(createdAt)}.${PORTABLE_EXT}`, extras, (p) => onProgress?.(p, 'build'));
-  dataKey.fill(0);
+  const built = await buildPortableFile(passphrase, `kashiro-${ymd(createdAt)}.${PORTABLE_EXT}`, createdAt, onProgress);
   await withLockHold(() => Sharing.shareAsync(built.file.uri, { mimeType: 'application/octet-stream', dialogTitle: built.file.name, UTI: 'public.data' }));
   await recordPortableExport(db, createdAt);
   await recordDone({ at: createdAt, size: built.size, id: null, kind: 'local' }, { cloudHead: false });
+}
+
+/**
+ * The passphrase-protected .kashiro file in the app's cache (the caller shares / copies it and deletes it).
+ * Also used by the daily folder backup (features/backup/folderBackup.ts).
+ */
+export async function buildPortableFile(passphrase: string, fileName: string, createdAt: number, onProgress?: (p: number, stage: PortableStage) => void, opts: { photos?: boolean } = {}) {
+  const meta = await portableMeta(getDb());
+  const { header, dataKey } = await sealPortable(passphrase, { ...meta, createdAt, schemaVersion: SCHEMA_VERSION, appVersion: APP_VERSION }, { onProgress: (p) => onProgress?.(p, 'key') });
+  try {
+    // The business backup key rides inside (encrypted) so cloud backups made later from a restored phone stay readable.
+    const extras: [string, Uint8Array][] = [[PORTABLE_BACKUP_KEY_ENTRY, base64urlDecode(await getOrCreateBackupKey())]];
+    return await writeBackupFile(portableWriter(dataKey, header), fileName, extras, (p) => onProgress?.(p, 'build'), opts);
+  } finally {
+    dataKey.fill(0);
+  }
 }
 
 export const lastPortableBackup = () => lastPortableExport(getDb());

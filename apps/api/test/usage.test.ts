@@ -103,6 +103,7 @@ describe('per-shop limits (override ?? plan)', () => {
     const c = makeClient();
     const s = await shop(c, '01077770010');
     await override(c, s.businessId, 'sms_day', 1);
+    c.advance(61_000); // the sign-in code's resend cooldown
     expect((await c.call('POST', '/v1/auth/step-up/request', {}, s.h)).status).toBe(200);
     expect((await usage(c, s.businessId, 'otp_sms_sent')).count).toBe(1);
     c.advance(61_000);
@@ -167,7 +168,8 @@ describe('per-shop limits (override ?? plan)', () => {
     expect(ck.status).toBe(200);
     // Next Cairo day: allowed again.
     c.advance(86_400_000);
-    expect((await c.call('GET', `/v1/backups?businessId=${s.businessId}`, undefined, s.h)).status).toBe(200);
+    const ck2 = await c.call('POST', '/v1/checkin', { refreshToken: ck.json.refreshToken, deviceId: s.deviceId, appVersion: '0.1.0', deviceTime: c.clock.now });
+    expect((await c.call('GET', `/v1/backups?businessId=${s.businessId}`, undefined, { Authorization: `Bearer ${ck2.json.accessToken}` })).status).toBe(200);
   });
 });
 

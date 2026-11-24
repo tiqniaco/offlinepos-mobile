@@ -8,6 +8,11 @@ import { useUpgrade } from '../state/upgrade';
 
 /** Turns any error into a clear Arabic (or English) sentence for the user. */
 export function errorMessage(t: TFunction, e: unknown): string {
+  if (e instanceof ApiError && e.code === 'limit_reached') {
+    // Per-shop usage limit (plan or super-admin): a clear sentence per limit, with the numbers.
+    const d = e.details ?? {};
+    return t(`errors.limitReached.${d.key ?? 'other'}`, { limit: d.limit ?? 0, used: d.used ?? 0, defaultValue: t('errors.limitReached.other') });
+  }
   if (e instanceof ApiError) {
     const key = `errors.${e.code}`;
     const msg = t(key);

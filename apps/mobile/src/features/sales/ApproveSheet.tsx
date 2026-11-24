@@ -6,6 +6,7 @@ import { roleHas } from '@daftarak/shared';
 import { Sheet, Text, Avatar, PinDots, PinPad, Button, colors, fonts } from '../../ui';
 import { getDb } from '../../db/client';
 import { listActiveUsers, unlockWithPin, PinError, type SessionUser } from '../../domain/auth/users';
+import { useApp } from '../../state/app';
 import { approveWithPin, ApprovalError, type Approval, type SensitiveAction } from '../../domain/auth/approval';
 
 const SENSITIVE: readonly string[] = ['void', 'return', 'productDelete', 'priceChange', 'export', 'restore'] satisfies SensitiveAction[];
@@ -23,12 +24,14 @@ export function ApproveSheet({ visible, onClose, onApproved, needs }: { visible:
   const [pin, setPin] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  /** Sensitive actions: someone else approves (domain/auth/approval.ts). */
+  const me = useApp((s) => s.user?.id ?? null);
   useEffect(() => {
     let alive = true;
     if (visible)
       void listActiveUsers(getDb())
         .then(
-          (u) => alive && setUsers(u.filter((x) => x.roleKey !== 'cashier')),
+          (u) => alive && setUsers(u.filter((x) => x.roleKey !== 'cashier' && !(SENSITIVE.includes(needs) && x.id === me))),
           () => alive && setUsers([]),
         )
         .finally(() => alive && setLoaded(true));
@@ -37,7 +40,7 @@ export function ApproveSheet({ visible, onClose, onApproved, needs }: { visible:
     return () => {
       alive = false;
     };
-  }, [visible]);
+  }, [visible, needs, me]);
   const submit = async () => {
     if (!sel) return;
     try {
