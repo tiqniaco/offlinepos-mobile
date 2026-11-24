@@ -2232,7 +2232,7 @@
   },
   "devices": {
     "title": "Shop phones",
-    "subtitle": "The shop phone and your follow-up phones",
+    "subtitle": "The shop phone and cashier phones",
     "usage": "Phones in use",
     "used": "{{used}} of {{limit}}",
     "usedUnlimited": "{{used}} (no limit)",
