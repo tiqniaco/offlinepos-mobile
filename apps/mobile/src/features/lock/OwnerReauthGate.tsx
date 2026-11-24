@@ -89,7 +89,7 @@ export function OwnerReauthGate({ title, children }: { title: string; children: 
         </View>
       </Card>
       {bio ? <Button kind="secondary" icon="fingerprint" title={t('reauth.biometric')} onPress={() => void tryBio()} /> : null}
-      <PasswordField testID="reauth-secret" label={owner?.secretKind === 'pin' ? t('users.pin') : t('login.password')} value={secret} onChangeText={(v) => (setSecret(v), setMsg(null))} onSubmitEditing={() => void submit()} autoFocus={!bio} error={msg} />
+      <PasswordField testID="reauth-secret" label={owner?.secretKind === 'pin' ? t('users.pin') : t('login.password')} value={secret} onChangeText={(v) => (setSecret(v), setMsg(null))} onSubmitEditing={() => void submit()} error={msg} />
       {!owner ? <Banner tone="info" text={t('common.loading')} /> : null}
     </Screen>
   );

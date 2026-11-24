@@ -8,6 +8,7 @@ appId: app.daftarak
     commands:
       - tapOn: { id: lock-password }
       - inputText: "Test2026ok"
+      - pressKey: Enter
       - tapOn: { id: pin-ok, optional: true }
       - waitForAnimationToEnd: { timeout: 6000 }
 - runFlow:
@@ -16,5 +17,6 @@ appId: app.daftarak
     commands:
       - tapOn: { id: reauth-secret }
       - inputText: "Test2026ok"
+      - pressKey: Enter
       - tapOn: { id: reauth-ok, optional: true }
       - waitForAnimationToEnd: { timeout: 4000 }

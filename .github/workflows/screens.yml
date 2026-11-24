@@ -64,10 +64,11 @@ jobs:
           script: |
             adb install -r apps/mobile/android/app/build/outputs/apk/release/app-release.apk
             adb shell settings put system locale ar-EG || true
+            adb logcat -G 32M || true; adb logcat -c || true
             mkdir -p tour-out && cd tour-out && maestro test ../apps/mobile/.maestro/tour/tour.yaml --debug-output debug --format junit --output report.xml || true
             adb logcat -d -s ReactNativeJS:V AndroidRuntime:E > logcat.txt || true
             adb logcat -d -b crash > $GITHUB_WORKSPACE/tour-out/crash.txt 2>/dev/null || true
-            adb logcat -d -s ReactNativeJS:V AndroidRuntime:E ActivityManager:I > $GITHUB_WORKSPACE/tour-out/logcat-full.txt 2>/dev/null || true
+            adb logcat -d -b main,system,crash -v time '*:W' ActivityManager:I ReactNativeJS:V > $GITHUB_WORKSPACE/tour-out/logcat-full.txt 2>/dev/null || true
 
       - name: API log
         if: always()
