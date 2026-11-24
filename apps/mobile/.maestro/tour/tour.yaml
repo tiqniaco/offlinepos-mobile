@@ -189,6 +189,20 @@ appId: app.daftarak
 - runFlow: { file: visit.yaml, env: { ROUTE: "settings/language", NAME: "j07-language" } }
 - runFlow: { file: visit.yaml, env: { ROUTE: "settings/printers", NAME: "j08-printers" } }
 - runFlow: { file: visit.yaml, env: { ROUTE: "settings/receipt", NAME: "j09-receipt" } }
+# Print templates: thermal 80, thermal 58, A4 live preview
+- launchApp: { stopApp: false }
+- openLink: "daftarak://settings/templates"
+- waitForAnimationToEnd: { timeout: 4000 }
+- tapOn: { text: "حراري 80", optional: true }
+- waitForAnimationToEnd
+- takeScreenshot: shots/j09b-templates-80
+- tapOn: { text: "حراري 58", optional: true }
+- waitForAnimationToEnd
+- takeScreenshot: shots/j09c-templates-58
+- tapOn: { text: "A4", optional: true }
+- waitForAnimationToEnd: { timeout: 5000 }
+- takeScreenshot: shots/j09d-templates-a4
+- back
 - runFlow: { file: visit.yaml, env: { ROUTE: "settings/backup", NAME: "j10-backup" } }
 - runFlow: { file: visit.yaml, env: { ROUTE: "settings/sessions", NAME: "j11-sessions" } }
 - runFlow: { file: visit.yaml, env: { ROUTE: "settings/integrity", NAME: "j12-integrity" } }

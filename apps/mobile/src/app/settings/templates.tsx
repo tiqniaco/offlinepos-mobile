@@ -219,12 +219,11 @@ function ThermalPreview({ d, dots }: { d: ReceiptData; dots: number }) {
   const [h, setH] = useState(0);
   const target = Math.min(width - 56, dots === 384 ? 260 : 330);
   const k = target / dots;
+  // Direction-independent scaling: the full-width receipt is centred in a narrower frame and shrunk around its
+  // top-centre, so it fits exactly in RTL and LTR (absolute left/translate offsets flip in RTL and clipped it).
   return (
-    <View style={{ width: dots * k, height: h ? h * k : 300, overflow: 'hidden', borderRadius: 6, backgroundColor: '#FFFFFF' }}>
-      <View
-        onLayout={(e) => setH(e.nativeEvent.layout.height)}
-        style={{ position: 'absolute', left: 0, top: 0, width: dots, transform: [{ translateX: -(dots * (1 - k)) / 2 }, { translateY: -((h || 300 / k) * (1 - k)) / 2 }, { scale: k }] }}
-      >
+    <View style={{ width: dots * k, height: h ? h * k : 300, overflow: 'hidden', borderRadius: 6, backgroundColor: '#FFFFFF', alignItems: 'center' }}>
+      <View onLayout={(e) => setH(e.nativeEvent.layout.height)} style={{ width: dots, transformOrigin: 'top', transform: [{ scale: k }] }}>
         <ReceiptView d={d} dots={dots} />
       </View>
     </View>
