@@ -19,6 +19,7 @@ import { getMeta, setMeta } from '../domain/device';
 import { isUnlinked } from '../domain/backup/portable';
 import { finishAutoBackup, markCommitted, noteBackupError, pendingBackupId, prepareAutoBackup, abandonIncompleteRestore } from '../features/backup/service';
 import { runFolderBackup } from '../features/backup/folderBackup';
+import { runDriveBackup } from '../features/backup/drive';
 import { cleanBackupCache } from '../features/backup/files';
 import { flushPendingErrors, reportClientError } from '../features/errors/CrashScreen';
 
@@ -176,6 +177,7 @@ export function backgroundCheckin(force = false): Promise<CheckinResult> {
   void p
     .catch(() => null)
     .then(() => (isCashierPhone() ? undefined : runFolderBackup()))
+    .then(() => (isCashierPhone() ? undefined : runDriveBackup()))
     .catch(() => undefined);
   return p;
 }

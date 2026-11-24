@@ -13,6 +13,7 @@ import { accessToken } from '../../lib/session';
 import { errorMessage } from '../../lib/errors';
 import { backupNow, cloudBackupAllowed, lastBackup, type LastBackup } from '../../features/backup/service';
 import { FolderBackupCard } from '../../features/backup/FolderBackupCard';
+import { DriveBackupCard } from '../../features/backup/DriveBackupCard';
 import { exportPortableBackup, lastPortableBackup } from '../../features/backup/portable';
 import { isDriveInstalled } from '../../../modules/drive-share';
 import { hasDocuments, portableReminder } from '../../domain/backup/portable';
@@ -115,6 +116,7 @@ export default function BackupScreen() {
       </Card>
       {stale ? <Banner tone="warn" text={t('backup.staleHint')} /> : null}
       <SectionTitle>{t('folderBackup.title')}</SectionTitle>
+      <DriveBackupCard disabled={!!busy} gated={(fn) => gate.run('export', (a) => void fn(a).catch((e) => setMsg({ tone: 'danger', text: errorMessage(t, e) })))} />
       <FolderBackupCard disabled={!!busy} gated={(fn) => gate.run('export', (a) => void fn(a).catch((e) => setMsg({ tone: 'danger', text: errorMessage(t, e) })))} />
       <SectionTitle>{t('folderBackup.cloudTitle')}</SectionTitle>
       {cloudOk ? <Banner tone="info" text={t('backup.autoHint')} /> : <Banner tone="info" text={t('folderBackup.cloudPaidOnly')} />}

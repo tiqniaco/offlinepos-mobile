@@ -2372,5 +2372,25 @@
     "none": "No new types in the file",
     "run": "Add {{n}}",
     "done": "{{n}} types added"
+  },
+  "driveBackup": {
+    "title": "Automatic backup to Google Drive",
+    "hint": "Link your Google account once; Kashiro creates a «Kashiro Backups» folder in your Drive and uploads a password-protected copy every day. The app only sees its own files, not the rest of your Drive.",
+    "passHint": "Choose a backup password (the same as the folder backup). Without it nobody can open the file.",
+    "connect": "Link Google Drive",
+    "account": "Account: {{email}}",
+    "folder": "Folder: {{name}}",
+    "last": "Last copy: {{at}}",
+    "never": "No copy yet",
+    "uploadNow": "Upload a copy now",
+    "disconnect": "Unlink",
+    "done": "Uploaded to Drive ✓",
+    "err": {
+      "no_password": "Set the backup password first.",
+      "drive_signed_out": "The Google link ended. Link again.",
+      "drive_denied": "Google refused the upload. Unlink and link again.",
+      "connect_failed": "Could not link the Google account. Check the internet and try again.",
+      "drive_failed": "Uploading to Drive failed. It will retry automatically."
+    }
   }
 }
