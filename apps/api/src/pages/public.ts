@@ -36,14 +36,38 @@ function page(title: string, ar: string, en: string): string {
 <p class="muted">© TIQNIA · تقنية — ${SUPPORT_EMAIL}</p></main></body></html>`;
 }
 
-const HOME_AR = `<h1>كاشيرو — كاشير وفواتير ومخازن من موبايلك</h1>
-<p>تطبيق نقاط بيع للمحلات في مصر: بيع وطباعة فواتير، مخزون، عملاء وموردين، مصروفات وورديات وتقارير — وكله شغال على الموبايل حتى من غير إنترنت.</p>
-<p>بيانات المحل محفوظة ومشفّرة على موبايلك. تقدر تعمل نسخ احتياطية على Google Drive بتاعك أو في فولدر على موبايلك أو على سيرفرنا.</p>
-<p>للتواصل: <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>`;
-const HOME_EN = `<h1>Kashiro — POS, invoices and stock on your phone</h1>
-<p>A point-of-sale app for shops in Egypt: selling and receipts, stock, customers and suppliers, expenses, shifts and reports — all working on the phone, even offline.</p>
-<p>Shop data is stored encrypted on your phone. Backups can go to your own Google Drive, a folder on your phone, or our server.</p>
-<p>Contact: <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>`;
+const HOME_AR = `<h1>كاشيرو — تطبيق كاشير ومخازن وفواتير للمحلات</h1>
+<p><b>كاشيرو (Kashiro)</b> تطبيق موبايل لأصحاب المحلات الصغيرة والمتوسطة في مصر (سوبر ماركت، بقالة، أدوات منزلية، ملابس…). بيحوّل الموبايل لـ <b>نقطة بيع (POS)</b> كاملة، وبيشتغل حتى من غير إنترنت.</p>
+<h2>التطبيق بيعمل إيه؟</h2>
+<ul>
+<li>البيع بالباركود أو البحث، وطباعة فاتورة على طابعة حرارية أو PDF أو إرسالها واتساب.</li>
+<li>إدارة المنتجات والمخزون والجرد، وتنبيه بالأصناف اللي قربت تخلص.</li>
+<li>حسابات العملاء والموردين، فواتير الشراء، المصروفات، والورديات.</li>
+<li>تقارير المبيعات والأرباح، وتصدير PDF وإكسيل.</li>
+<li>أكتر من مستخدم بصلاحيات، وموبايلات كاشير على نفس المحل.</li>
+<li>نسخ احتياطي: في فولدر على الموبايل، أو على Google Drive بتاع صاحب المحل، أو على سيرفر كاشيرو.</li>
+</ul>
+<h2>استخدام كاشيرو لـ Google Drive</h2>
+<p>لو صاحب المحل اختار «النسخ التلقائي على Google Drive»، بيسجّل دخول بحساب جوجل بتاعه، وكاشيرو بيعمل فولدر اسمه <b>Kashiro Backups</b> في درايف بتاعه ويرفع فيه <b>نسخة احتياطية من بيانات محله</b> محمية بكلمة سر يختارها هو، مرة كل يوم، ويمسح النسخ القديمة جدًا (بيحتفظ بآخر 14). التطبيق بيطلب صلاحية <code>drive.file</code> بس: بيشوف الملفات اللي هو عملها وبس، ومش بيقرا ولا بيعدّل أي ملف تاني في درايف. الملفات ما بتعدّيش على سيرفرنا، ومش بنستخدم بيانات جوجل في إعلانات أو ذكاء اصطناعي أو أي غرض تاني. التفاصيل في <a href="/privacy">سياسة الخصوصية</a>.</p>
+<h2>روابط</h2>
+<p><a href="/privacy">سياسة الخصوصية</a> · <a href="/terms">شروط الاستخدام</a> · <a href="/delete-account">حذف الحساب</a> · للتواصل: <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
+<p class="muted">الصفحة دي عامة ومش محتاجة تسجيل دخول. كاشيرو من تطوير «تقنية» (TIQNIA).</p>`;
+const HOME_EN = `<h1>Kashiro — point-of-sale, inventory and invoicing app for shops</h1>
+<p><b>Kashiro</b> is a mobile app for small and medium shops in Egypt (supermarkets, groceries, household goods, clothing…). It turns a phone into a complete <b>point of sale (POS)</b> and works even without internet.</p>
+<h2>What the app does</h2>
+<ul>
+<li>Selling by barcode or search, with receipts printed on a thermal printer, as PDF, or sent by WhatsApp.</li>
+<li>Products, stock and stock counts, with low-stock alerts.</li>
+<li>Customer and supplier accounts, purchase invoices, expenses and cash shifts.</li>
+<li>Sales and profit reports, with PDF and Excel export.</li>
+<li>Several users with permissions, and cashier phones on the same shop.</li>
+<li>Backups: to a folder on the phone, to the shop owner's own Google Drive, or to the Kashiro server.</li>
+</ul>
+<h2>How Kashiro uses Google Drive</h2>
+<p>If the shop owner turns on “Automatic backup to Google Drive”, they sign in with their own Google account and Kashiro creates a folder named <b>Kashiro Backups</b> in their Drive and uploads <b>a backup of their shop data</b>, protected by a password they choose, once a day, deleting very old copies (the newest 14 are kept). The app requests only the <code>drive.file</code> scope: it can see only the files it created, and never reads or changes any other file in the user's Drive. The files do not pass through our servers, and Google user data is not used for advertising, AI training or any other purpose. Details in the <a href="/privacy">Privacy Policy</a>.</p>
+<h2>Links</h2>
+<p><a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms of Use</a> · <a href="/delete-account">Delete account</a> · Contact: <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
+<p class="muted">This page is public and needs no sign-in. Kashiro is developed by TIQNIA.</p>`;
 
 const PRIVACY_AR = `<h1>سياسة الخصوصية</h1><p class="muted">آخر تحديث: ${UPDATED}</p>
 <p>كاشيرو تطبيق من «تقنية» (TIQNIA). السياسة دي بتشرح إيه البيانات اللي بنتعامل معاها وليه. باختصار: بيانات محلك (المبيعات، المنتجات، العملاء…) بتتخزّن على موبايلك أنت، مشفّرة، ومش بنبيعها ولا بنشاركها مع حد لأغراض إعلانية.</p>
