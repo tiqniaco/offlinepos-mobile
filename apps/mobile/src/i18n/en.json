@@ -1877,7 +1877,10 @@
       "notOwner": "This account does not own the restored business.",
       "offline": "Internet is needed to link the phone. Try again when connected."
     },
-    "restoreShort": "Restore from a file"
+    "restoreShort": "Restore from a file",
+    "toDrive": "Save to Google Drive",
+    "otherPlace": "Somewhere else (Files / WhatsApp / e-mail)",
+    "driveHint": "Google Drive opens with the file. The first time, create a folder named “Kashiro Backups” and pick it; Drive remembers it next time."
   },
   "stepUp": {
     "title": "Confirm with an SMS code",

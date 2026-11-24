@@ -48,6 +48,9 @@ import { ApprovalError, type Approval } from '../../domain/auth/approval';
 import { appendAudit } from '../../domain/audit/audit';
 import { withTx } from '../../db/tx';
 import { withLockHold } from '../../state/lockHold';
+import { useApp } from '../../state/app';
+import { getContentUriAsync } from 'expo-file-system/legacy';
+import { isDriveInstalled, sendToDrive } from '../../../modules/drive-share';
 
 const platform = (): 'ios' | 'android' => (Platform.OS === 'ios' ? 'ios' : 'android');
 const ymd = (ms: number) => {
@@ -57,15 +60,25 @@ const ymd = (ms: number) => {
 
 export type PortableStage = 'key' | 'build' | 'decrypt';
 
-/** Build the passphrase-protected file and open the share sheet (the owner picks Drive / Files / WhatsApp …). */
-export async function exportPortableBackup(passphrase: string, onProgress?: (p: number, stage: PortableStage) => void, approvedBy?: Approval | null): Promise<void> {
+/**
+ * Build the passphrase-protected file and hand it over: straight to Google Drive's "upload" screen when Drive is on
+ * the phone (Android), else the share sheet (Files / WhatsApp / e-mail …). `target: 'share'` always uses the sheet.
+ */
+export async function exportPortableBackup(passphrase: string, onProgress?: (p: number, stage: PortableStage) => void, approvedBy?: Approval | null, target: 'drive' | 'share' = 'drive'): Promise<'drive' | 'share'> {
   await approveDataExport('export', 'portable', approvedBy);
   const db = getDb();
   const createdAt = Date.now();
-  const built = await buildPortableFile(passphrase, `kashiro-${ymd(createdAt)}.${PORTABLE_EXT}`, createdAt, onProgress);
-  await withLockHold(() => Sharing.shareAsync(built.file.uri, { mimeType: 'application/octet-stream', dialogTitle: built.file.name, UTI: 'public.data' }));
+  const shop = (useApp.getState().business?.name ?? '').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 40);
+  const built = await buildPortableFile(passphrase, `Kashiro ${shop ? `${shop} ` : ''}${ymd(createdAt)}.${PORTABLE_EXT}`, createdAt, onProgress);
+  let via: 'drive' | 'share' = 'share';
+  if (target === 'drive' && isDriveInstalled()) {
+    const contentUri = await getContentUriAsync(built.file.uri);
+    if (await withLockHold(async () => sendToDrive(contentUri, 'application/octet-stream', built.file.name))) via = 'drive';
+  }
+  if (via === 'share') await withLockHold(() => Sharing.shareAsync(built.file.uri, { mimeType: 'application/octet-stream', dialogTitle: built.file.name, UTI: 'public.data' }));
   await recordPortableExport(db, createdAt);
   await recordDone({ at: createdAt, size: built.size, id: null, kind: 'local' }, { cloudHead: false });
+  return via;
 }
 
 /**

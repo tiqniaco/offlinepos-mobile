@@ -7,6 +7,7 @@ module.exports = {
     '^@/(.*)$': '<rootDir>/src/$1',
     // Local native module (Android SMS User Consent) has no JS implementation to run under Jest.
     '(^|/)modules/sms-consent$': '<rootDir>/src/test/smsConsentMock.ts',
+    '(^|/)modules/drive-share$': '<rootDir>/src/test/driveShareMock.ts',
   },
   transformIgnorePatterns: [
     'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|@noble/.*|@daftarak/.*|nativewind|react-native-css-interop)',

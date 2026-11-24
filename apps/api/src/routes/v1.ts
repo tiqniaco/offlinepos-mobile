@@ -184,7 +184,7 @@ export function v1Routes(deps: Deps = defaultDeps) {
     const s = await requireSession(c.env, c.req.header('Authorization'), now);
     const acc = await c.env.DB.prepare(`SELECT phone FROM accounts WHERE id = ?1`).bind(s.aid).first<{ phone: string }>();
     const r = await requestOtp(c.env, deps.provider(c.env), { phone: acc!.phone, purpose: 'step_up', ip: clientIp(c), locale: 'ar', now });
-    return c.json(r);
+    return c.json({ phone: acc!.phone, ...r });
   });
 
   app.post('/auth/step-up/verify', async (c) => {

@@ -12,7 +12,7 @@ import { requireSession } from '../auth/tokens';
 import { effectiveLimits, getPlan, loadOverrides, planLimits, type BusinessRow } from '../licence/issue';
 import { limitReached, onBusinessAccess, setGauge, track } from '../usage/meter';
 import { bumpCounter } from '../otp/service';
-import { presign } from '../backups/r2';
+import { presign, verifyBlobUrl } from '../backups/r2';
 import { activatePlan, planRank, storeEndStatement } from '../billing/activate';
 import type { Deps } from './v1';
 import { isKnownInstall, newDeviceAlert } from '../announce/announce';
@@ -225,6 +225,33 @@ export function addPhase6Routes(app: Hono<AppEnv>, deps: Deps, registerDevice: R
       .bind(businessId)
       .all<{ id: string; size: number; counts_json: string; schema_version: number; kind: string; committed_at: number; device_code: string | null; model: string | null }>();
     return c.json({ backups: r.results.map((x) => ({ id: x.id, size: x.size, counts: JSON.parse(x.counts_json), schemaVersion: x.schema_version, kind: x.kind, at: x.committed_at, deviceCode: x.device_code, model: x.model })) });
+  });
+
+  /**
+   * Backup bytes through this Worker, when R2 API keys are not configured (backups/r2.ts): the URL itself is the
+   * permission (HMAC over key + method + expiry, 15 minutes), exactly like a presigned R2 URL.
+   */
+  app.put('/backups/blob', async (c) => {
+    const now = Date.now(); // same clock as presign()
+    const k = c.req.query('k') ?? '';
+    if (!(await verifyBlobUrl(c.env, k, 'PUT', Number(c.req.query('exp')), c.req.query('sig') ?? '', now))) throw new ApiError(403, 'forbidden');
+    const len = Number(c.req.header('Content-Length') ?? 0);
+    if (!c.req.raw.body || !len) throw new ApiError(400, 'invalid_request');
+    if (len > 100 * MB) throw new ApiError(413, 'backup_too_large');
+    // R2 needs a stream of known length.
+    const { readable, writable } = new FixedLengthStream(len);
+    const pumped = c.req.raw.body.pipeTo(writable);
+    await c.env.BACKUPS.put(k, readable, { httpMetadata: { contentType: 'application/octet-stream' } });
+    await pumped;
+    return c.body(null, 200);
+  });
+  app.get('/backups/blob', async (c) => {
+    const now = Date.now(); // same clock as presign()
+    const k = c.req.query('k') ?? '';
+    if (!(await verifyBlobUrl(c.env, k, 'GET', Number(c.req.query('exp')), c.req.query('sig') ?? '', now))) throw new ApiError(403, 'forbidden');
+    const obj = await c.env.BACKUPS.get(k);
+    if (!obj) throw new ApiError(404, 'not_found');
+    return new Response(obj.body, { headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': String(obj.size) } });
   });
 
   app.post('/backups/:id/download-url', async (c) => {

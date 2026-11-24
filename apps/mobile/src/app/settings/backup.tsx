@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { businessDay, portablePassphraseOk } from '@daftarak/shared';
@@ -14,6 +14,7 @@ import { errorMessage } from '../../lib/errors';
 import { backupNow, cloudBackupAllowed, lastBackup, type LastBackup } from '../../features/backup/service';
 import { FolderBackupCard } from '../../features/backup/FolderBackupCard';
 import { exportPortableBackup, lastPortableBackup } from '../../features/backup/portable';
+import { isDriveInstalled } from '../../../modules/drive-share';
 import { hasDocuments, portableReminder } from '../../domain/backup/portable';
 import { getDb } from '../../db/client';
 import { exportAllToExcel } from '../../features/backup/excelExport';
@@ -56,13 +57,21 @@ export default function BackupScreen() {
   const gate = useApprovalGate();
   /** Excel / file exports pass «تأكيد المدير» first when the shop asks for it (cloud backups never leave the account). */
   const run = (kind: 'cloud' | 'local' | 'excel') => (kind === 'cloud' ? doRun(kind, null) : gate.run('export', (a) => doRun(kind, a)));
+  const [target, setTargetState] = useState<'drive' | 'share'>('drive');
+  // Read inside the async export (state would still hold the previous choice right after a tap).
+  const targetRef = useRef<'drive' | 'share'>('drive');
+  const setTarget = (v: 'drive' | 'share') => {
+    targetRef.current = v;
+    setTargetState(v);
+  };
+  const hasDrive = useMemo(() => isDriveInstalled(), []);
   const doRun = async (kind: 'cloud' | 'local' | 'excel', approval: Approval | null) => {
     setMsg(null);
     setBusy(kind);
     try {
       if (kind === 'cloud') await backupNow((v, stage) => setP({ v, stage }));
       else if (kind === 'local') {
-        await exportPortableBackup(pass, (v, stage) => setP({ v, stage }), approval);
+        await exportPortableBackup(pass, (v, stage) => setP({ v, stage }), approval, targetRef.current);
         setForm(false);
         setPass('');
         setPass2('');
@@ -140,9 +149,12 @@ export default function BackupScreen() {
             <PasswordField testID="portable-pass1" label={t('portable.passLabel')} value={pass} onChangeText={setPass} />
             <PasswordField testID="portable-pass2" label={t('portable.passConfirm')} value={pass2} onChangeText={setPass2} error={passErr} onSubmitEditing={startFile} />
             <Banner tone="warn" text={t('portable.forgetWarn')} />
-            <Button testID="portable-create" icon="upload" title={t('portable.create')} loading={busy === 'local'} disabled={!!busy || !pass || !pass2} onPress={startFile} />
+            <Button testID="portable-create" icon="upload" title={hasDrive ? t('portable.toDrive') : t('portable.create')} loading={busy === 'local' && target === 'drive'} disabled={!!busy || !pass || !pass2} onPress={() => (setTarget('drive'), startFile())} />
+            {hasDrive ? (
+              <Button kind="secondary" compact icon="file" title={t('portable.otherPlace')} loading={busy === 'local' && target === 'share'} disabled={!!busy || !pass || !pass2} onPress={() => (setTarget('share'), startFile())} />
+            ) : null}
             <Button kind="ghost" compact title={t('common.cancel')} disabled={!!busy} onPress={() => (setForm(false), setPass(''), setPass2(''), setPassErr(null))} />
-            <Text variant="caption">{t('portable.shareHint')}</Text>
+            <Text variant="caption">{hasDrive ? t('portable.driveHint') : t('portable.shareHint')}</Text>
           </View>
         </Card>
       ) : (

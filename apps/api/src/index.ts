@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { AppEnv, Env } from './env';
 import { runCleanup } from './cron/cleanup';
+import { setPublicOrigin } from './backups/r2';
 import { ApiError, errorResponse } from './lib/http';
 import { defaultDeps, v1Routes, type Deps } from './routes/v1';
 import { adminRoutes } from './admin/routes';
@@ -19,6 +20,11 @@ export function createApp(deps: Deps = defaultDeps) {
 
   // Usage metering (usage_daily): one UPSERT per request after the answer; never blocks or fails a request.
   app.use('*', usageMiddleware(deps.now));
+  // Backup URLs on this Worker (no R2 API keys set) need the public origin.
+  app.use('*', async (c, next) => {
+    setPublicOrigin(new URL(c.req.url).origin);
+    await next();
+  });
 
   app.get('/health', (c) => c.json({ ok: true }));
 
