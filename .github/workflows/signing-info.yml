@@ -1,0 +1,22 @@
+# Prints the PUBLIC fingerprints (SHA-1 / SHA-256) of the app's signing key, for Google Cloud (Drive sign-in).
+# Nothing secret is printed.
+name: signing-info
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fingerprint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Signing key fingerprints
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          OUT=$(keytool -list -v -keystore "$RUNNER_TEMP/upload.jks" -storepass "$PASS" -alias "$ALIAS" | grep -E 'SHA1:|SHA256:')
+          rm -f "$RUNNER_TEMP/upload.jks"
+          echo "$OUT"
+          { echo "### Signing key fingerprints (public)"; echo '```'; echo "Package: app.daftarak"; echo "$OUT"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
