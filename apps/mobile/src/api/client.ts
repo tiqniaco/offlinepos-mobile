@@ -94,6 +94,8 @@ export const api = {
     request('/v1/auth/otp/request', z.object({ phone: z.string(), resendAfterMs: z.number(), expiresInMs: z.number() }), {
       body: { phone, purpose: 'login', locale },
     }),
+  /** Sign-up: does this number already have an account with a shop? */
+  checkPhone: (phone: string) => request('/v1/auth/phone/check', z.object({ phone: z.string(), exists: z.boolean(), hasPassword: z.boolean() }), { body: { phone } }),
   verifyOtp: (phone: string, code: string, device: DeviceInfo) => request('/v1/auth/otp/verify', authResponseSchema, { body: { phone, code, device } }),
   passwordLogin: (phone: string, password: string, device: DeviceInfo) => request('/v1/auth/password/login', authResponseSchema, { body: { phone, password, device } }),
   setPassword: (token: string, password: string, currentPassword?: string) =>

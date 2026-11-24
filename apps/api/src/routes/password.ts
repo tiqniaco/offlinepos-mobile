@@ -6,6 +6,7 @@
  *    current password. Every change signs out all OTHER sessions (lost / stolen phone after a reset).
  */
 import type { Hono } from 'hono';
+import { z } from 'zod';
 import { bytesToHex, normalizePhone, passwordLoginSchema, passwordProblem, passwordSetSchema } from '@daftarak/shared';
 import type { AppEnv } from '../env';
 import { ApiError, body, clientIp } from '../lib/http';
@@ -104,6 +105,25 @@ async function dummyAttempt(env: AppEnv['Bindings'], phone: string, password: st
 }
 
 export function addPasswordRoutes(app: Hono<AppEnv>, deps: Deps, businessesOf: (env: AppEnv['Bindings'], accountId: string) => Promise<unknown[]>) {
+  /**
+   * Sign-up screen: does this number already have an account? (So a returning owner — new phone or reinstall — is sent
+   * to sign in instead of starting over, and no SMS is spent.) Rate-limited per network and per number.
+   */
+  app.post('/auth/phone/check', async (c) => {
+    const b = await body(c, z.object({ phone: z.string().min(6).max(20) }));
+    const phone = normalizePhone(b.phone);
+    if (!phone) throw new ApiError(400, 'invalid_phone');
+    const now = deps.now();
+    if ((await bumpCounter(c.env.DB, `check-ip:${clientIp(c)}`, HOUR, now)) > 30) throw new ApiError(429, 'rate_limited', undefined, 600_000);
+    if ((await bumpCounter(c.env.DB, `check-phone:${phone}`, HOUR, now)) > 10) throw new ApiError(429, 'rate_limited', undefined, 600_000);
+    const acc = await c.env.DB.prepare(
+      `SELECT a.password_hash AS pw, (SELECT COUNT(*) FROM businesses b WHERE b.owner_account_id = a.id) AS shops FROM accounts a WHERE a.phone = ?1`,
+    )
+      .bind(phone)
+      .first<{ pw: string | null; shops: number }>();
+    return c.json({ phone, exists: !!acc && acc.shops > 0, hasPassword: !!acc?.pw });
+  });
+
   app.post('/auth/password/login', async (c) => {
     const b = await body(c, passwordLoginSchema);
     const phone = normalizePhone(b.phone);

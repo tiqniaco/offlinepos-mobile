@@ -40,7 +40,12 @@
     "label": "Mobile number",
     "placeholder": "01xxxxxxxxx or 05xxxxxxxx",
     "send": "Send code",
-    "invalid": "This number isn't valid. Use an Egyptian mobile (010/011/012/015)."
+    "invalid": "This number isn't valid. Use an Egyptian mobile (010/011/012/015).",
+    "existingTitle": "You already have an account with this number",
+    "existingBody": "This number already has a shop. Sign in and your data comes back as it was; no need to start over.",
+    "existingLogin": "Sign in with your password",
+    "existingCode": "Forgot your password? Text me a code",
+    "existingContinue": "Text me a sign-in code"
   },
   "otp": {
     "title": "Enter the code",
@@ -1868,7 +1873,8 @@
       "done": "Phone linked ✓ You can sell and edit now.",
       "notOwner": "This account does not own the restored business.",
       "offline": "Internet is needed to link the phone. Try again when connected."
-    }
+    },
+    "restoreShort": "Restore from a file"
   },
   "stepUp": {
     "title": "Confirm with an SMS code",
@@ -2259,7 +2265,8 @@
     "notOurs": "That is not a Kashiro code. Scan the code from “Add a cashier phone”.",
     "codeInvalid": "This code was already used or has expired. Make a new one on the shop phone.",
     "working": "Setting up the shop on this phone…",
-    "failed": "We could not finish. Check the internet and try again."
+    "failed": "We could not finish. Check the internet and try again.",
+    "entryShort": "Cashier phone for an existing shop"
   },
   "sync": {
     "pending": "{{n}} invoice(s) waiting for internet to reach the shop phone",

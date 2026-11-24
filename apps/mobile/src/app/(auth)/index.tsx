@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOnboarding } from '../../state/app';
+import { Pressable } from '../../ui/Press';
 import { Text, Button, Hero, Logo, IconBadge, Card, colors, type IconName, type Hue } from '../../ui';
 
 const POINTS: { icon: IconName; hue: Hue; key: string; hint: string }[] = [
@@ -46,11 +47,19 @@ export default function Welcome() {
         <View className="gap-3 pt-5">
           <Button testID="welcome-start" title={t('welcome.start')} icon="chevron" onPress={() => (useOnboarding.getState().set({ mode: 'signup' }), router.push('/phone'))} />
           <Button testID="welcome-login" kind="secondary" title={t('login.have')} onPress={() => router.push('/login')} />
-          <Button testID="welcome-join" kind="ghost" icon="scan" title={t('join.entry')} onPress={() => router.push('/join')} />
-          <Button testID="welcome-restore-file" kind="ghost" icon="file" title={t('portable.restoreTitle')} onPress={() => router.push('/restore-file')} />
           <Text variant="caption" className="text-center">
             {t('welcome.free')}
           </Text>
+          {/* Less common ways in: small, out of the way. */}
+          <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', gap: 6, paddingTop: 2 }}>
+            <Pressable testID="welcome-join" onPress={() => router.push('/join')} hitSlop={8}>
+              <Text style={{ fontSize: 12.5, lineHeight: 21, color: colors.ink.mute, textDecorationLine: 'underline' }}>{t('join.entryShort')}</Text>
+            </Pressable>
+            <Text style={{ fontSize: 12.5, lineHeight: 21, color: colors.ink.faint }}>·</Text>
+            <Pressable testID="welcome-restore-file" onPress={() => router.push('/restore-file')} hitSlop={8}>
+              <Text style={{ fontSize: 12.5, lineHeight: 21, color: colors.ink.mute, textDecorationLine: 'underline' }}>{t('portable.restoreShort')}</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
     </ScrollView>

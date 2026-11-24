@@ -103,3 +103,18 @@ describe('client error reports', () => {
     expect(n.n).toBe(20);
   });
 });
+
+describe('sign-up: number already has an account', () => {
+  it('tells a returning owner (and only for numbers with a shop)', async () => {
+    const { makeClient: mk, login: lg, device: dv, BACKUP_KEY: bk } = await import('./helpers');
+    const c = mk();
+    expect((await c.call('POST', '/v1/auth/phone/check', { phone: '01099990001' })).json).toMatchObject({ exists: false, hasPassword: false });
+    const auth = await lg(c, '01099990001');
+    // Signed in once but never made a shop: still a new user.
+    expect((await c.call('POST', '/v1/auth/phone/check', { phone: '01099990001' })).json.exists).toBe(false);
+    await c.call('POST', '/v1/businesses', { name: 'محل', country: 'EG', type: 'shop', vatRegistered: false, backupKey: bk, device: dv() }, { Authorization: `Bearer ${auth.accessToken}` });
+    expect((await c.call('POST', '/v1/auth/phone/check', { phone: '+201099990001' })).json).toMatchObject({ phone: '201099990001', exists: true });
+    for (let i = 0; i < 8; i++) await c.call('POST', '/v1/auth/phone/check', { phone: '01099990001' });
+    expect((await c.call('POST', '/v1/auth/phone/check', { phone: '01099990001' })).status).toBe(429);
+  });
+});
