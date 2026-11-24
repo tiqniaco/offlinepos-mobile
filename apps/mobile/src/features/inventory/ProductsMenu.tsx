@@ -10,6 +10,12 @@ import { toast } from '../../state/toast';
 import { errorMessage } from '../../lib/errors';
 import { useApprovalGate } from '../approval/useApprovalGate';
 import type { Approval } from '../../domain/auth/approval';
+import { getDb } from '../../db/client';
+import { productListForExport } from '../../domain/inventory/import';
+import { approveDataExport } from '../approval/exportGate';
+import { exportReport } from '../export/actions';
+import { productsListDoc } from '../export/lists';
+import { bizHeader } from '../export/builders';
 
 /** "⋯" menu of the products tab: everything that isn't "add" lives here (SPEC §10: no clutter). */
 export function ProductsMenu({ visible, onClose }: { visible: boolean; onClose: () => void }) {
@@ -52,6 +58,32 @@ export function ProductsMenu({ visible, onClose }: { visible: boolean; onClose: 
           onClose();
           gate.run('export', (a) => doExport(a));
         } else void doExport(null);
+      },
+    },
+    {
+      key: 'pdf',
+      icon: 'file' as const,
+      hue: 'rose' as const,
+      title: busy ? t('common.loading') : t('lists.productsPdf'),
+      onPress: () => {
+        if (busy) return;
+        const doPdf = async (approval: Approval | null) => {
+          setBusy(true);
+          try {
+            await approveDataExport('export', 'products_pdf', approval);
+            await exportReport(productsListDoc(await productListForExport(getDb()), await bizHeader(), { includeCost: costView }), 'pdf');
+          } catch (e) {
+            toast(errorMessage(t, e), 'error');
+          } finally {
+            setBusy(false);
+            onClose();
+          }
+        };
+        // «تأكيد المدير»: the menu closes first (one sheet at a time).
+        if (gate.needs('export')) {
+          onClose();
+          gate.run('export', (a) => doPdf(a));
+        } else void doPdf(null);
       },
     },
     adjust && { key: 'check', icon: 'refresh' as const, hue: 'ink' as const, title: t('products.checkStock'), onPress: () => go('/products/check') },

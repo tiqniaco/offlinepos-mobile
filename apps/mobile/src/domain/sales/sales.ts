@@ -636,12 +636,14 @@ export async function getSale(db: Db, id: string) {
   return { doc, lines, payments: pays, returns, original };
 }
 
-export async function listSales(db: Db, q: { types?: ('INVOICE' | 'RETURN')[]; search?: string; before?: { postedAt: number; id: string } | null; limit?: number } = {}) {
+export async function listSales(db: Db, q: { types?: ('INVOICE' | 'RETURN')[]; search?: string; before?: { postedAt: number; id: string } | null; from?: number; to?: number; limit?: number } = {}) {
   const conds = [inArray(salesDocs.type, q.types ?? ['INVOICE', 'RETURN']), inArray(salesDocs.status, ['POSTED', 'VOIDED'])];
   if (q.search?.trim()) {
     const s = `%${q.search.trim()}%`;
     conds.push(or(sql`${salesDocs.number} LIKE ${s}`, sql`${salesDocs.customerName} LIKE ${s}`)!);
   }
+  if (q.from) conds.push(gte(salesDocs.businessDay, q.from));
+  if (q.to) conds.push(lte(salesDocs.businessDay, q.to));
   if (q.before) conds.push(or(sql`${salesDocs.postedAt} < ${q.before.postedAt}`, and(eq(salesDocs.postedAt, q.before.postedAt), sql`${salesDocs.id} < ${q.before.id}`))!);
   return db
     .select({ id: salesDocs.id, type: salesDocs.type, status: salesDocs.status, number: salesDocs.number, customerName: salesDocs.customerName, totalMinor: salesDocs.totalMinor, creditMinor: salesDocs.creditMinor, postedAt: salesDocs.postedAt })

@@ -1,6 +1,5 @@
 /** Build ReportDocs from domain data. Labels come from i18n (report.*) so English users get English PDFs. */
-import i18n from 'i18next';
-import { formatMinor, formatQty } from '@daftarak/shared';
+import { formatQty } from '@daftarak/shared';
 import { getDb } from '../../db/client';
 import { business } from '../../db/schema';
 import type { Statement } from '../../domain/parties/statement';
@@ -8,33 +7,14 @@ import type { ShiftSummary } from '../../domain/shifts/shifts';
 import type { getPurchase } from '../../domain/purchases/purchases';
 import type { vouchers, shifts } from '../../db/schema';
 import type { ReportDoc } from './report';
+import { balanceWords, cur, dayText, m, stamp, t, type BizHeader } from './fmt';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const t = (k: string, o?: Record<string, unknown>) => (i18n.t as any)(k, o) as string;
-
-export interface BizHeader {
-  businessName: string;
-  address: string | null;
-  phones: string[];
-  vatNumber: string | null;
-  currency: 'EGP' | 'SAR';
-}
+export type { BizHeader } from './fmt';
+export { balanceWords, dayText } from './fmt';
 
 export async function bizHeader(): Promise<BizHeader> {
   const b = (await getDb().select().from(business).limit(1))[0]!;
   return { businessName: b.name, address: b.address, phones: JSON.parse(b.phonesJson) as string[], vatNumber: b.vatRegistered ? b.vatNumber : null, currency: b.currency };
-}
-
-const cur = (c: 'EGP' | 'SAR') => (i18n.language === 'en' ? (c === 'SAR' ? 'SAR' : 'EGP') : c === 'SAR' ? 'ر.س' : 'ج.م');
-const m = (v: number) => formatMinor(v);
-export const dayText = (d: number) => `${Math.floor(d / 10000)}-${String(Math.floor(d / 100) % 100).padStart(2, '0')}-${String(d % 100).padStart(2, '0')}`;
-const stamp = () => new Date().toISOString().slice(0, 10);
-
-/** Signed balance as words: "عليه 120.00" / "له 50.00". */
-export function balanceWords(type: 'C' | 'S', owedMinor: number, c: 'EGP' | 'SAR'): string {
-  if (owedMinor === 0) return `${m(0)} ${cur(c)}`;
-  const key = type === 'C' ? (owedMinor > 0 ? 'report.owesUs' : 'report.weOwe') : owedMinor > 0 ? 'report.weOwe' : 'report.owesUs';
-  return `${t(key)} ${m(Math.abs(owedMinor))} ${cur(c)}`;
 }
 
 export function statementDoc(s: Statement, b: BizHeader, detailed: boolean): ReportDoc {

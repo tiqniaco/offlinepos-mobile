@@ -47,6 +47,7 @@ export type AuditAction =
   | 'party.create'
   | 'party.update'
   | 'party.delete'
+  | 'party.import'
   | 'purchase.post'
   | 'purchase.return'
   | 'purchase.void'

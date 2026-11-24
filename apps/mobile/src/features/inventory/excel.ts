@@ -17,7 +17,8 @@ const xlsx = (): typeof import('xlsx') => require('xlsx');
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-async function shareWorkbook(rows: (string | number)[][], fileName: string, sheetName: string) {
+/** Share rows as an RTL .xlsx (templates, exports). */
+export async function shareWorkbook(rows: (string | number)[][], fileName: string, sheetName: string) {
   const ws = xlsx().utils.aoa_to_sheet(rows);
   ws['!cols'] = rows[0]!.map((h) => ({ wch: Math.max(12, String(h).length + 4) }));
   // Right-to-left sheet for Arabic users.

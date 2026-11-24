@@ -43,7 +43,8 @@ const SYNONYMS: Record<ImportField, string[]> = {
   larger_barcode: ['largerbarcode', 'packbarcode', 'باركودالعبوة', 'باركودالكرتونة'],
 };
 
-function normHeader(h: unknown): string {
+/** Header text for matching: digits normalised, lower-case, no spaces/punctuation/tashkeel. */
+export function normHeader(h: unknown): string {
   return normalizeDigits(String(h ?? ''))
     .toLowerCase()
     .replace(/[\s_\-.()/]/g, '')
@@ -99,14 +100,16 @@ export interface ImportError {
   code: ImportErrorCode;
 }
 
-function text(v: unknown): string | null {
+/** A cell as trimmed text (null when empty). */
+export function cellText(v: unknown): string | null {
   if (v == null) return null;
   const s = (typeof v === 'number' ? (Number.isSafeInteger(v) ? String(v) : String(v)) : String(v)).trim();
   return s === '' ? null : s;
 }
 
 /** Excel numbers are floats: 12.5 → "12.50" before integer parsing. Strings are digit-normalised. */
-function money(v: unknown): number | null | 'bad' {
+/** A cell as money in minor units: null when empty, "bad" when not a number (currency marks allowed). */
+export function cellMoney(v: unknown): number | null | 'bad' {
   if (v == null || v === '') return null;
   if (typeof v === 'number') return Number.isFinite(v) ? (parseMinor(v.toFixed(2)) ?? 'bad') : 'bad';
   // Allow currency marks people type in sheets; anything else non-numeric is an error, not "empty".
@@ -147,12 +150,12 @@ export function validateImportRows(
     const rowErrors: ImportError[] = [];
     const err = (field: ImportField, code: ImportErrorCode) => rowErrors.push({ rowNumber, field, code });
 
-    const name = text(get('name'));
+    const name = cellText(get('name'));
     if (!name) err('name', 'name_required');
     else if (name.length > 120) err('name', 'name_too_long');
 
     const moneyField = (f: ImportField) => {
-      const r = money(get(f));
+      const r = cellMoney(get(f));
       if (r === 'bad') return err(f, 'bad_money'), null;
       if (r != null && r < 0) return err(f, 'negative'), null;
       return r;
@@ -172,9 +175,9 @@ export function validateImportRows(
     const lowStockMilli = qtyField('low_stock');
     const largerFactorMilli = qtyField('larger_factor');
 
-    const barcodeRaw = text(get('barcode'));
+    const barcodeRaw = cellText(get('barcode'));
     const barcode = barcodeRaw ? normalizeBarcode(barcodeRaw) : null;
-    const largerBarcodeRaw = text(get('larger_barcode'));
+    const largerBarcodeRaw = cellText(get('larger_barcode'));
     const largerBarcode = largerBarcodeRaw ? normalizeBarcode(largerBarcodeRaw) : null;
     for (const [code, field] of [
       [barcode, 'barcode'],
@@ -183,10 +186,10 @@ export function validateImportRows(
       if (!code) continue;
       if (seenBarcodes.has(code)) err(field, 'duplicate_barcode_in_file');
     }
-    const sku = text(get('sku'));
+    const sku = cellText(get('sku'));
     if (sku && seenSkus.has(sku)) err('sku', 'duplicate_sku_in_file');
 
-    const largerUnit = text(get('larger_unit'));
+    const largerUnit = cellText(get('larger_unit'));
     if ((largerUnit && !largerFactorMilli) || (!largerUnit && largerFactorMilli)) err('larger_factor', 'larger_unit_incomplete');
     if (largerFactorMilli != null && largerFactorMilli <= 1000 && largerUnit) err('larger_factor', 'larger_unit_incomplete');
 
@@ -202,8 +205,8 @@ export function validateImportRows(
       name: name!,
       barcode,
       sku,
-      category: text(get('category')),
-      unit: text(get('unit')),
+      category: cellText(get('category')),
+      unit: cellText(get('unit')),
       costMinor,
       retailMinor,
       wholesaleMinor,

@@ -41,6 +41,7 @@ export function PartiesListView({
   loading = false,
   masked = false,
   eye,
+  actions,
 }: {
   topInset: number;
   type: 'C' | 'S';
@@ -65,6 +66,8 @@ export function PartiesListView({
   masked?: boolean;
   /** The privacy eye, next to the title. */
   eye?: React.ReactNode;
+  /** Export / import button, next to the title. */
+  actions?: React.ReactNode;
 }) {
   const { t } = useTranslation();
   const filters: { key: PartyFilter; label: string }[] =
@@ -83,8 +86,9 @@ export function PartiesListView({
     <View style={{ flex: 1, backgroundColor: colors.paper.DEFAULT, paddingTop: topInset }}>
       <View style={{ paddingHorizontal: 16, paddingTop: 8, gap: 10 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <Text variant="display" style={{ flex: 1 }}>{t('parties.title')}</Text>
+          <Text variant="display" style={{ flex: 1 }} numberOfLines={1}>{t('parties.title')}</Text>
           {eye}
+          {actions}
         </View>
         <Segmented value={type} onChange={onType} options={[{ value: 'C', label: t('parties.customers') }, { value: 'S', label: t('parties.suppliers') }]} />
         <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 16, backgroundColor: colors.paper.card }, shadow.soft]}>

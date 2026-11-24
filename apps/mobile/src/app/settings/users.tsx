@@ -9,8 +9,11 @@ import { getDb } from '../../db/client';
 import { users as usersTable, roles } from '../../db/schema';
 import { useApp } from '../../state/app';
 import { OwnerReauthGate } from '../../features/lock/OwnerReauthGate';
+import { ListExport } from '../../features/export/ListExport';
+import { usersListDoc } from '../../features/export/lists';
+import { bizHeader } from '../../features/export/builders';
 
-type Row = { id: string; name: string; color: string; roleName: string; isActive: boolean };
+type Row = { id: string; name: string; color: string; roleName: string; isActive: boolean; lastLoginAt: number | null };
 
 /** Opening needs the owner again (2 minutes, OwnerReauthGate). */
 export default function UsersRoute() {
@@ -29,14 +32,14 @@ function Users() {
   useFocusEffect(
     useCallback(() => {
       void getDb()
-        .select({ id: usersTable.id, name: usersTable.name, color: usersTable.color, roleName: roles.name, isActive: usersTable.isActive })
+        .select({ id: usersTable.id, name: usersTable.name, color: usersTable.color, roleName: roles.name, isActive: usersTable.isActive, lastLoginAt: usersTable.lastLoginAt })
         .from(usersTable)
         .innerJoin(roles, eq(roles.id, usersTable.roleId))
         .then(setRows);
     }, []),
   );
   return (
-    <Screen back title={t('users.title')} footer={<Button testID="user-add" icon="plus" title={t('users.add')} onPress={() => router.push('/settings/user-form')} />}>
+    <Screen back title={t('users.title')} right={rows.length ? <ListExport what="users_list" build={async () => usersListDoc(rows, await bizHeader())} /> : null} footer={<Button testID="user-add" icon="plus" title={t('users.add')} onPress={() => router.push('/settings/user-form')} />}>
       <ListGroup>
         {rows.map((u, i) => (
           <ListRow

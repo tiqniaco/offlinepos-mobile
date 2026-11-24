@@ -11,6 +11,7 @@ export * from './api';
 export * from './totp';
 export * from './stock';
 export * from './productImport';
+export * from './partyImport';
 export * from './pricing';
 export * from './zatca';
 export * from './escpos';
