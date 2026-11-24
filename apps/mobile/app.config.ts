@@ -18,7 +18,8 @@ const config: ExpoConfig = {
     bundleIdentifier: process.env.IOS_BUNDLE_ID || 'app.daftarak',
     // Store build number (GitHub Actions run number; EAS manages its own remotely).
     buildNumber: process.env.BUILD_NUMBER || '1',
-    supportsTablet: true,
+    // iPhone only: an iPad build would also need iPad screenshots and iPad review.
+    supportsTablet: false,
     infoPlist: {
       NSFaceIDUsageDescription: 'لفتح كاشيرو ببصمة الوش بدل الرقم السري',
       NSCameraUsageDescription: 'لقراءة الباركود وتصوير المنتجات',

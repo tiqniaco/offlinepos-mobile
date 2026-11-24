@@ -1,0 +1,61 @@
+# Uploads the App Store page (texts in apps/mobile/store/ios/metadata, mockup screenshots in
+# apps/mobile/store/ios/screenshots) to App Store Connect with fastlane deliver. Never submits for review and
+# never uploads a build. Needs the same secrets as the iOS build: ASC_KEY_P8_BASE64, ASC_KEY_ID, ASC_ISSUER_ID,
+# and the IOS_BUNDLE_ID variable.
+name: appstore-listing
+on:
+  workflow_dispatch:
+    inputs:
+      app_version:
+        description: App Store version to fill (the one in "Prepare for Submission")
+        required: false
+        default: '1.0.0'
+permissions:
+  contents: read
+jobs:
+  listing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with: { ruby-version: '3.3' }
+      - run: gem install fastlane --no-document
+      - name: App Store Connect API key
+        env:
+          ASC_KEY: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          python3 - <<'EOF'
+          import base64, json, os
+          k = os.environ['ASC_KEY']
+          if 'BEGIN PRIVATE KEY' not in k:
+              k = base64.b64decode(k).decode()
+          json.dump({'key_id': os.environ['ASC_KEY_ID'], 'issuer_id': os.environ['ASC_ISSUER_ID'], 'key': k, 'in_house': False},
+                    open(os.path.join(os.environ['RUNNER_TEMP'], 'asc.json'), 'w'))
+          EOF
+      - name: Upload texts + screenshots
+        working-directory: apps/mobile/store/ios
+        env:
+          BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'app.daftarak' }}
+          FASTLANE_SKIP_UPDATE_CHECK: '1'
+          FASTLANE_HIDE_CHANGELOG: '1'
+        run: |
+          fastlane deliver \
+            --api_key_path "$RUNNER_TEMP/asc.json" \
+            --app_identifier "$BUNDLE_ID" \
+            --app_version "${{ inputs.app_version }}" \
+            --platform ios \
+            --metadata_path ./metadata \
+            --screenshots_path ./screenshots \
+            --overwrite_screenshots true \
+            --skip_binary_upload true \
+            --skip_app_version_update false \
+            --submit_for_review false \
+            --automatic_release false \
+            --run_precheck_before_submit false \
+            --precheck_include_in_app_purchases false \
+            --force true
+      - if: always()
+        run: rm -f "$RUNNER_TEMP/asc.json"

@@ -1,0 +1,1 @@
+pos,cashier,inventory,invoice,barcode,shop,store,retail,stock,receipt,sales,grocery,accounting

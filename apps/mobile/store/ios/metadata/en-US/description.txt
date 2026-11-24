@@ -1,0 +1,30 @@
+Kashiro is your shop on your phone: sell by barcode in seconds, keep stock right, track customer and supplier balances, and see clear reports — all working offline.
+
+• Fast checkout
+Scan barcodes with the camera or a scanner; take cash, card, wallet or credit. Print on a Bluetooth printer or send the invoice as a PDF on WhatsApp.
+
+• Stock at a glance
+Products with units (piece / carton), low-stock alerts, stock counts, and Excel import.
+
+• Customers & suppliers
+Balances, statements for any period, collections and payments, and WhatsApp reminders for late payers.
+
+• Purchases, expenses & shifts
+Purchase invoices add stock and update cost; expense types; close shifts with shortage and overage.
+
+• Offers & coupons
+Percentage discounts, buy 2 get 1, quantity pricing, and coupon codes.
+
+• Reports
+Sales, profit, stock and debt aging — PDF, Excel and print.
+
+• Your team
+A PIN and permissions for every staff member, and extra cashier phones on the same shop.
+
+• Secure
+Data is encrypted on the phone, saved invoices can't be edited, and tampering is detected. Encrypted backups and easy moves to a new phone.
+
+Built for shops in Egypt: Egyptian pounds and 14% VAT.
+
+Privacy Policy: https://kashiro.tiqnia.com/privacy.html
+Terms of Use: https://kashiro.tiqnia.com/terms.html
