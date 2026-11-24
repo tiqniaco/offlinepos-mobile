@@ -27,6 +27,8 @@ export const hooks: {
   pushToken?: () => Promise<string | undefined>;
   /** New messages from Daftarak arrived with the check-in (already stored in the inbox). */
   onAnnouncements?: (fresh: Announcement[]) => Promise<void>;
+  /** Follower phones of the shop («موبايل متابعة»), reported by every check-in. */
+  onFollowers?: (n: number) => Promise<void>;
   afterCheckin?: (put: { backupId: string; url: string; headers: Record<string, string> } | null, committed: boolean | undefined, backupError?: string) => Promise<void>;
 } = {};
 
@@ -136,6 +138,7 @@ export async function runCheckin(db: AppDb): Promise<{ outcome: CheckinOutcome; 
       const fresh = await saveAnnouncements(db, r.announcements);
       if (fresh.length) await hooks.onAnnouncements?.(fresh).catch(() => undefined);
     }
+    if (r.followers != null) await hooks.onFollowers?.(r.followers).catch(() => undefined);
     await hooks.afterCheckin?.(r.backupPut ?? null, r.backupCommitted, r.backupError);
     return { outcome: 'ok', state: await refreshLicenceState(db), notices: r.notices };
   } catch (e) {

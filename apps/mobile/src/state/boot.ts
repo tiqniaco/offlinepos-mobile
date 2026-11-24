@@ -39,18 +39,23 @@ hooks.onAnnouncements = async (fresh) => {
   useApp.getState().set({ inboxBump: Date.now() });
   await showAnnouncements(fresh);
 };
+hooks.onFollowers = noteFollowers;
 hooks.afterCheckin = async (put, committed, backupError) => {
   await markCommitted(committed);
   await noteBackupError(backupError).catch(() => undefined);
   void finishAutoBackup(put);
 };
 import { subscribeLicence } from '../domain/licence/guard';
+import { noteFollowers, scheduleSnapshot, watchSnapshotTriggers } from '../features/follow/push';
+import { followedShop } from '../features/follow/store';
 import { ensureDirection, initI18n } from '../i18n';
 import { bumpData, useApp } from './app';
 import { onDataCommitted } from '../db/tx';
 
-// Any committed posting (sale, purchase, voucher, stock change, void…) bumps the store's data counter.
+// Any committed posting (sale, purchase, voucher, stock change, void…) bumps the store's data counter, and (when
+// a «موبايل متابعة» exists) queues a fresh summary for it.
 onDataCommitted(bumpData);
+onDataCommitted(() => scheduleSnapshot());
 
 let subscribed = false;
 
@@ -117,7 +122,8 @@ async function bootInner(): Promise<void> {
   if (await ensureDirection(lang)) return; // app is reloading
   const b = (await db.select().from(business).limit(1))[0];
   if (!b) {
-    set({ status: 'onboarding', settings });
+    // «موبايل متابعة»: this phone only follows a shop (no local shop data).
+    set({ status: (await followedShop()) ? 'follower' : 'onboarding', settings });
     return;
   }
   const device = await getCurrentDevice(db);
@@ -134,6 +140,8 @@ async function bootInner(): Promise<void> {
     business: { name: b.name, country: b.country, type: b.type, currency: b.currency, serverBusinessId: b.serverBusinessId },
   });
   void backgroundCheckin().catch(() => undefined);
+  watchSnapshotTriggers();
+  scheduleSnapshot(20_000);
 }
 
 type CheckinResult = Awaited<ReturnType<typeof runCheckin>> | null;

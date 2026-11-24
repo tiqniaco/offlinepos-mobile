@@ -7,7 +7,8 @@ import type { SessionUser } from '../domain/auth/users';
 import type { AppSettings } from '../domain/settings/settings';
 import type { BusinessForm } from '../domain/onboarding';
 
-export type AppStatus = 'booting' | 'fatal' | 'onboarding' | 'locked' | 'ready';
+/** 'follower': «موبايل متابعة» — this phone only shows the shop's summary (read-only, no local shop data). */
+export type AppStatus = 'booting' | 'fatal' | 'onboarding' | 'locked' | 'ready' | 'follower';
 
 export interface BusinessInfo {
   name: string;

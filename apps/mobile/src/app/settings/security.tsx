@@ -167,6 +167,18 @@ function Security() {
         </Card>
       ) : null}
       {roleHas(user.permissions, 'users.manage') ? (
+        <Card onPress={() => router.push('/settings/devices')}>
+          <View className="flex-row items-center gap-3">
+            <IconBadge name="eye" hue="primary" />
+            <View className="flex-1">
+              <Text variant="subtitle">{t('more.devices')}</Text>
+              <Text variant="caption">{t('devices.subtitle')}</Text>
+            </View>
+            <Icon name="chevron" size={16} color={colors.ink.faint} />
+          </View>
+        </Card>
+      ) : null}
+      {roleHas(user.permissions, 'users.manage') ? (
         <Card onPress={() => router.push('/settings/sessions')}>
           <View className="flex-row items-center gap-3">
             <IconBadge name="phone" hue="sky" />

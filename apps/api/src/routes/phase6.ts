@@ -70,9 +70,10 @@ export async function deleteBackups(env: Env, rows: { id: string; r2_key: string
 
 /** Create a pending backup row + presigned PUT. Used by /backups/upload-url and by check-in (backupMeta). */
 export async function startBackup(env: Env, businessId: string, deviceId: string, meta: { size: number; sha256: string; counts: Record<string, number>; schemaVersion: number }, kind: 'auto' | 'manual', now: number) {
-  const dev = await env.DB.prepare(`SELECT id, deactivated_at FROM devices WHERE id = ?1 AND business_id = ?2`).bind(deviceId, businessId).first<{ id: string; deactivated_at: number | null }>();
+  const dev = await env.DB.prepare(`SELECT id, deactivated_at, role FROM devices WHERE id = ?1 AND business_id = ?2`).bind(deviceId, businessId).first<{ id: string; deactivated_at: number | null; role: string }>();
   if (!dev) throw new ApiError(404, 'not_found', 'device');
   if (dev.deactivated_at) throw new ApiError(403, 'device_deactivated');
+  if (dev.role !== 'main') throw new ApiError(403, 'wrong_device_role');
   const business = await env.DB.prepare(`SELECT * FROM businesses WHERE id = ?1`).bind(businessId).first<BusinessRow>();
   if (!business) throw new ApiError(404, 'not_found');
   const { plan, limits } = await effectiveLimits(env, business, now);

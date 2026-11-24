@@ -186,11 +186,12 @@ function BusinessDetail({ id, back, notify, usage }: { id: string; back: () => v
         <div className="card">
           <strong>الأجهزة</strong>
           <table>
-            <thead><tr><th>الكود</th><th>النظام</th><th>آخر تحديث</th><th>الحالة</th></tr></thead>
+            <thead><tr><th>الكود</th><th>النوع</th><th>النظام</th><th>آخر تحديث</th><th>الحالة</th></tr></thead>
             <tbody>
               {data.devices.map((d: any) => (
                 <tr key={d.id}>
                   <td>{d.code}</td>
+                  <td>{d.role === 'follower' ? 'متابعة' : 'المحل'}</td>
                   <td>{d.platform} {d.model ?? ''}</td>
                   <td>{fmtDate(d.last_checkin_at)}</td>
                   <td>{d.deactivated_at ? <span className="pill suspended">موقوف</span> : <span className="pill active">نشط</span>}</td>

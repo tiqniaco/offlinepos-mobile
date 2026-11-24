@@ -151,6 +151,8 @@ export const checkinResponseSchema = z.object({
   notices: z.array(z.object({ kind: z.string(), textAr: z.string(), textEn: z.string() })),
   /** Super-admin announcements for the in-app inbox. */
   announcements: z.array(z.object({ id: z.string(), titleAr: z.string(), bodyAr: z.string(), titleEn: z.string().nullable(), bodyEn: z.string().nullable(), url: z.string().nullable(), at: z.number() })).optional(),
+  /** Active follower phones («موبايل متابعة»): the main phone pushes its summary only while > 0. */
+  followers: z.number().int().optional(),
 });
 export type CheckinResponse = z.infer<typeof checkinResponseSchema>;
 
@@ -324,5 +326,7 @@ export const API_ERROR_CODES = [
   'concurrent_update',
   /** A per-business usage limit (plan or super-admin override) is used up; the error carries {key, limit, used}. */
   'limit_reached',
+  /** «موبايل متابعة»: this phone is a follower (read-only), or the call needs one. */
+  'wrong_device_role',
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];

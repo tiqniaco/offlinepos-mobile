@@ -100,6 +100,9 @@ export default function RootLayout() {
           <Stack.Protected guard={status === 'onboarding'}>
             <Stack.Screen name="(auth)" options={{ animation: 'fade', gestureEnabled: false }} />
           </Stack.Protected>
+          <Stack.Protected guard={status === 'follower'}>
+            <Stack.Screen name="follow" options={{ animation: 'fade', gestureEnabled: false }} />
+          </Stack.Protected>
           <Stack.Protected guard={status === 'locked'}>
             <Stack.Screen name="lock" options={{ animation: 'fade', gestureEnabled: false }} />
             <Stack.Screen name="unlock-reset" />

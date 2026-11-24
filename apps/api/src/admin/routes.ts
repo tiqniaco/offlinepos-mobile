@@ -186,7 +186,7 @@ export function adminRoutes(deps: Deps = defaultDeps) {
       .bind(id, deps.now())
       .first();
     if (!b) throw new ApiError(404, 'not_found');
-    const devices = await c.env.DB.prepare(`SELECT id, code, platform, model, app_version, activated_at, deactivated_at, last_checkin_at FROM devices WHERE business_id = ?1 ORDER BY activated_at DESC`)
+    const devices = await c.env.DB.prepare(`SELECT id, code, role, platform, model, app_version, activated_at, deactivated_at, last_checkin_at FROM devices WHERE business_id = ?1 ORDER BY activated_at DESC`)
       .bind(id)
       .all();
     const requests = await c.env.DB.prepare(`SELECT day, count FROM usage_daily WHERE business_id = ?1 AND metric = 'api_requests' ORDER BY day DESC LIMIT 14`).bind(id).all();

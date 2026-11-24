@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { OnboardingScreen, Text, Button, Card, Banner, IconBadge, Icon, colors } from '../../ui';
 import { useOnboarding } from '../../state/app';
+import { Pressable } from '../../ui/Press';
 
 export default function ChooseBusiness() {
   const { t } = useTranslation();
@@ -28,6 +29,17 @@ export default function ChooseBusiness() {
             </View>
             <Icon name="chevron" color={colors.ink.faint} />
           </View>
+          <Pressable
+            testID={`follow-${b.id}`}
+            onPress={() => {
+              set({ existingBusinessId: b.id });
+              router.push('/follow-shop');
+            }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.paper.line }}
+          >
+            <Icon name="eye" size={18} color={colors.primary[600]} />
+            <Text style={{ flex: 1, fontFamily: fonts.semibold, fontSize: 13.5, lineHeight: 22, color: colors.primary[700] }}>{t('follow.chooseFollow')}</Text>
+          </Pressable>
         </Card>
       ))}
       <Banner tone="warn" text={t('chooseBusiness.existingWarning')} />

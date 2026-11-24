@@ -35,6 +35,7 @@ export default function More() {
     ...(can('products.manage') ? [{ key: 'offers', icon: 'tag' as const, hue: 'leaf' as const, title: t('more.offers'), onPress: () => router.push('/offers') }] : []),
   ];
   if (can('backup.manage')) account.push({ key: 'backup', testID: 'more-backup', icon: 'upload', hue: 'leaf', title: t('more.backup'), onPress: () => router.push('/settings/backup') });
+  if (can('users.manage')) account.push({ key: 'devices', testID: 'more-devices', icon: 'eye', hue: 'primary', title: t('more.devices'), onPress: () => router.push('/settings/devices') });
   if (can('users.manage')) account.push({ key: 'sessions', icon: 'phone', hue: 'sky', title: t('more.sessions'), onPress: () => router.push('/settings/sessions') });
   if (can('settings.manage')) account.push({ key: 'selling', icon: 'cart', hue: 'amber', title: t('more.selling'), onPress: () => router.push('/settings/selling') });
   if (can('settings.manage')) account.push({ key: 'integrity', icon: 'shield', hue: 'leaf', title: t('more.integrity'), onPress: () => router.push('/settings/integrity') });

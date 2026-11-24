@@ -30,6 +30,7 @@ import { addPhase6Routes, commitBackup, setIntegrityChecker, startBackup } from 
 import { addManualBillingRoutes } from '../billing/manual';
 import { storeEndStatement } from '../billing/activate';
 import { addOcrRoutes, type OcrClient } from '../ocr/scan';
+import { addFollowRoutes, countFollowers } from './follow';
 import { blocks, verifyIntegrity, type IntegrityInput } from '../integrity/verify';
 import { meterBusiness, track } from '../usage/meter';
 
@@ -65,7 +66,7 @@ export async function countRequest(_env: Env, businessId: string, _now: number) 
   meterBusiness(businessId);
 }
 
-function deviceCode(seq: number): string {
+export function deviceCode(seq: number): string {
   // 0 → A … 25 → Z, 26 → AA …
   let s = '';
   let n = seq;
@@ -91,7 +92,9 @@ async function registerDevice(env: Env, business: BusinessRow, sessionId: string
   const code = deviceCode(seqRow!.next_device_seq - 1);
   const id = uuidv7(now);
   await env.DB.batch([
-    env.DB.prepare(`UPDATE devices SET deactivated_at = ?2 WHERE business_id = ?1 AND deactivated_at IS NULL`).bind(business.id, now),
+    // One main phone per shop: the previous main stops; follower phones («موبايل متابعة») keep following, except this
+    // phone's own follower registration (it becomes the main phone now).
+    env.DB.prepare(`UPDATE devices SET deactivated_at = ?2 WHERE business_id = ?1 AND deactivated_at IS NULL AND (role = 'main' OR install_id = ?3)`).bind(business.id, now, device.installId),
     env.DB.prepare(
       `INSERT INTO devices (id, business_id, code, session_id, install_id, platform, model, app_version, activated_at, last_checkin_at)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)`,
@@ -291,7 +294,7 @@ export function v1Routes(deps: Deps = defaultDeps) {
     if (!business) throw new ApiError(404, 'not_found');
     // Taking a shop away from another phone that is in use needs a fresh SMS step-up (as /devices/activate):
     // a password alone (or a stolen session) must not silently deactivate the owner's phone.
-    const active = await c.env.DB.prepare(`SELECT session_id FROM devices WHERE business_id = ?1 AND deactivated_at IS NULL LIMIT 1`)
+    const active = await c.env.DB.prepare(`SELECT session_id FROM devices WHERE business_id = ?1 AND deactivated_at IS NULL AND role = 'main' LIMIT 1`)
       .bind(business.id)
       .first<{ session_id: string | null }>();
     if (active && active.session_id !== s.sid && (!s.stepUpUntil || s.stepUpUntil < now)) throw new ApiError(403, 'step_up_required');
@@ -313,13 +316,15 @@ export function v1Routes(deps: Deps = defaultDeps) {
     // of a lost response is accepted once within the grace window (auth/tokens.ts).
     const t = await checkRefresh(c.env, b.refreshToken, now, b.installId);
     const device = await c.env.DB.prepare(
-      `SELECT d.id, d.business_id, d.code, d.deactivated_at FROM devices d
+      `SELECT d.id, d.business_id, d.code, d.deactivated_at, d.role FROM devices d
        JOIN businesses bz ON bz.id = d.business_id
        WHERE d.id = ?1 AND bz.owner_account_id = ?2`,
     )
       .bind(b.deviceId, t.accountId)
-      .first<DeviceRow>();
+      .first<DeviceRow & { role: string }>();
     if (!device) throw new ApiError(404, 'not_found', 'device not registered');
+    // A follower phone never checks in as the shop (no licence, anchors or backups): it only reads the summary.
+    if (device.role !== 'main') throw new ApiError(403, 'wrong_device_role');
     let business = (await c.env.DB.prepare(`SELECT * FROM businesses WHERE id = ?1`).bind(device.business_id).first<BusinessRow & { plan_source?: string; manual_until?: number | null }>())!;
     // A store plan that ran out while paid manual time remains (the store's EXPIRATION webhook may be late or lost):
     // fall back to the manual plan now.
@@ -347,6 +352,7 @@ export function v1Routes(deps: Deps = defaultDeps) {
     const rows = await pendingAnnouncements(c.env, { ...business, status: effectiveStatus(business, now) }, since.u, since.a, now);
     const announcements = rows.filter((a) => !excludedFor(a.target_json, device.id)).map((a) => ({ id: a.id, titleAr: a.title_ar, bodyAr: a.body_ar, titleEn: a.title_en, bodyEn: a.body_en, url: a.url, at: a.created_at }));
     const licence = await buildLicence(c.env, business, device, now);
+    const followers = device.deactivated_at ? 0 : await countFollowers(c.env, business.id);
 
     // Rotate the token BEFORE any one-shot side effect: a check-in that loses the token race (parallel / replayed
     // request) must not move the announcement cursor, store an anchor or start a backup. A lost response after this
@@ -404,6 +410,7 @@ export function v1Routes(deps: Deps = defaultDeps) {
       backupCommitted,
       ...(backupError ? { backupError } : {}),
       notices,
+      followers,
     });
   });
 
@@ -411,5 +418,6 @@ export function v1Routes(deps: Deps = defaultDeps) {
   addPhase6Routes(app, deps, registerDevice, countRequest);
   addManualBillingRoutes(app, deps, countRequest);
   addOcrRoutes(app, deps);
+  addFollowRoutes(app, deps, checkIntegrity);
   return app;
 }

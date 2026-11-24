@@ -19,3 +19,4 @@ export * from './offers';
 export * from './backupCodec';
 export * from './portableBackup';
 export * from './password';
+export * from './follow';

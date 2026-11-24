@@ -20,6 +20,11 @@ import {
   type BackupMeta,
   backupPutSchema,
   type DeviceInfo,
+  followShopResponseSchema,
+  getSnapshotResponseSchema,
+  putSnapshotResponseSchema,
+  shopDevicesResponseSchema,
+  type ShopSnapshot,
 } from '@daftarak/shared';
 import { API_URL } from '../config/env';
 
@@ -131,5 +136,13 @@ export const api = {
   scanUsage: (token: string, businessId: string) => request(`/v1/purchases/scan/usage?businessId=${encodeURIComponent(businessId)}`, ocrUsageSchema, { token }),
   sessions: (token: string) =>
     request('/v1/sessions', z.object({ sessions: z.array(z.object({ id: z.string(), created_at: z.number(), last_used_at: z.number().nullable(), platform: z.string().nullable(), model: z.string().nullable(), app_version: z.string().nullable(), current: z.boolean() })) }), { token }),
+  /** «موبايل متابعة»: this phone follows the shop read-only (needs a fresh SMS step-up; counts as a phone of the plan). */
+  followShop: (token: string, businessId: string, device: DeviceInfo, integrity?: Integrity) => request('/v1/devices/follow', followShopResponseSchema, { body: { businessId, device, integrity }, token }),
+  /** Main phone → latest summary for the follower phones. followers = 0: nothing stored. */
+  putSnapshot: (token: string, b: { businessId: string; deviceId: string; snapshot: ShopSnapshot }) => request('/v1/snapshot', putSnapshotResponseSchema, { body: b, token }),
+  getSnapshot: (token: string, businessId: string, deviceId: string) =>
+    request(`/v1/snapshot?businessId=${encodeURIComponent(businessId)}&deviceId=${encodeURIComponent(deviceId)}`, getSnapshotResponseSchema, { token }),
+  shopDevices: (token: string, businessId: string) => request(`/v1/devices?businessId=${encodeURIComponent(businessId)}`, shopDevicesResponseSchema, { token }),
+  stopDevice: (token: string, businessId: string, id: string) => request(`/v1/devices/${encodeURIComponent(id)}/stop`, z.object({ ok: z.boolean() }), { body: { businessId }, token }),
   revokeSession: (token: string, id: string) => request(`/v1/sessions/${id}`, z.object({ ok: z.boolean() }), { method: 'DELETE', token }),
 };

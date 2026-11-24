@@ -205,6 +205,7 @@ appId: app.daftarak
 - back
 - runFlow: { file: visit.yaml, env: { ROUTE: "settings/backup", NAME: "j10-backup" } }
 - runFlow: { file: visit.yaml, env: { ROUTE: "settings/sessions", NAME: "j11-sessions" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "settings/devices", NAME: "j11b-devices" } }
 - runFlow: { file: visit.yaml, env: { ROUTE: "settings/integrity", NAME: "j12-integrity" } }
 - runFlow: { file: visit.yaml, env: { ROUTE: "settings/audit", NAME: "j13-audit" } }
 # Lock screen and unlock with the password
