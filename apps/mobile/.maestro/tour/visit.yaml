@@ -2,8 +2,10 @@
 appId: app.daftarak
 ---
 - launchApp: { stopApp: false }
+- runFlow: unlock.yaml
 - openLink: "daftarak://${ROUTE}"
 - waitForAnimationToEnd: { timeout: 4000 }
+- runFlow: unlock.yaml
 - takeScreenshot: shots/${NAME}
 - swipe: { start: "50%, 62%", end: "50%, 22%" }
 - waitForAnimationToEnd: { timeout: 2000 }

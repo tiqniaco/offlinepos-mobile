@@ -1,0 +1,19 @@
+# If the app is on the lock screen (auto-lock, restart) or a screen asks for the owner again, sign in and go on.
+appId: app.daftarak
+---
+- runFlow:
+    when:
+      visible: { id: lock-password }
+    commands:
+      - tapOn: { id: lock-password }
+      - inputText: "Test2026ok"
+      - tapOn: { id: pin-ok, optional: true }
+      - waitForAnimationToEnd: { timeout: 6000 }
+- runFlow:
+    when:
+      visible: { id: reauth-secret }
+    commands:
+      - tapOn: { id: reauth-secret }
+      - inputText: "Test2026ok"
+      - tapOn: { id: reauth-ok, optional: true }
+      - waitForAnimationToEnd: { timeout: 4000 }

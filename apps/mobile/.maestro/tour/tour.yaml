@@ -191,6 +191,7 @@ appId: app.daftarak
 - runFlow: { file: visit.yaml, env: { ROUTE: "settings/receipt", NAME: "j09-receipt" } }
 # Print templates: thermal 80, thermal 58, A4 live preview
 - launchApp: { stopApp: false }
+- runFlow: unlock.yaml
 - openLink: "daftarak://settings/templates"
 - waitForAnimationToEnd: { timeout: 4000 }
 - tapOn: { text: "حراري 80", optional: true }
