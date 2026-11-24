@@ -35,3 +35,4 @@ export { CountUpText } from './CountUp';
 export { SuccessBurst } from './SuccessBurst';
 export { Pulse } from './Pulse';
 export { useReduceMotion } from './reduceMotion';
+export { StatusShade } from './StatusShade';

@@ -8,7 +8,7 @@ import { getDb } from '../../db/client';
 import { getSale } from '../../domain/sales/sales';
 import { useCurrency } from '../../features/inventory/useInvCtx';
 import { money } from '../../lib/format';
-import { a4Menu, printReceipt, whatsappInvoice } from '../../features/printing/actions';
+import { a4Menu, printReceipt, sharePdf, whatsappInvoice } from '../../features/printing/actions';
 
 /** After payment: change to give, print / WhatsApp PDF, new sale — all one tap. */
 export default function Done() {
@@ -17,7 +17,7 @@ export default function Done() {
   const currency = useCurrency();
   const [sale, setSale] = useState<Awaited<ReturnType<typeof getSale>>>(null);
   const [printing, setPrinting] = useState(false);
-  const [sharing, setSharing] = useState<null | 'whatsapp' | 'pdf'>(null);
+  const [sharing, setSharing] = useState<null | 'whatsapp' | 'pdf' | 'share'>(null);
   useEffect(() => {
     let alive = true;
     void getSale(getDb(), id).then(
@@ -28,11 +28,11 @@ export default function Done() {
       alive = false;
     };
   }, [id]);
-  const share = async (kind: 'whatsapp' | 'pdf') => {
+  const share = async (kind: 'whatsapp' | 'pdf' | 'share') => {
     if (sharing) return;
     setSharing(kind);
     try {
-      await (kind === 'pdf' ? a4Menu(id) : whatsappInvoice(id));
+      await (kind === 'pdf' ? a4Menu(id) : kind === 'share' ? sharePdf(id) : whatsappInvoice(id));
     } finally {
       setSharing(null);
     }
@@ -74,9 +74,10 @@ export default function Done() {
           <Button kind="secondary" compact icon="whatsapp" title={t('share.whatsapp')} loading={sharing === 'whatsapp'} disabled={!!sharing} onPress={() => void share('whatsapp')} />
         </View>
         <View style={{ flex: 1 }}>
-          <Button kind="secondary" compact icon="file" title="PDF A4" loading={sharing === 'pdf'} disabled={!!sharing} onPress={() => void share('pdf')} />
+          <Button testID="done-share-pdf" kind="secondary" compact icon="upload" title={t('share.pdf')} loading={sharing === 'share'} disabled={!!sharing} onPress={() => void share('share')} />
         </View>
       </View>
+      <Button kind="ghost" compact icon="file" title={t('share.a4')} loading={sharing === 'pdf'} disabled={!!sharing} onPress={() => void share('pdf')} />
     </Screen>
   );
 }

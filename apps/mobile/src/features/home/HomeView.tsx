@@ -3,7 +3,7 @@ import { ScrollView, View } from 'react-native';
 import { Pressable } from '../../ui/Press';
 import { fonts } from '../../ui/fonts';
 import { useTranslation } from 'react-i18next';
-import { Text, Hero, Avatar, Card, IconBadge, Icon, Button, SectionTitle, colors, type IconName, type Hue } from '../../ui';
+import { Text, Hero, Avatar, Card, IconBadge, Icon, Button, SectionTitle, colors, type IconName, type Hue , StatusShade } from '../../ui';
 import { ActionTiles, type Tile } from '../common/ActionTiles';
 import { CountUpText } from '../../ui/CountUp';
 import { AdBanner } from '../ads/AdBanner';
@@ -74,6 +74,7 @@ export function HomeView({
   const done = tasks.filter((x) => x.done).length;
   const total = tasks.filter((x) => !x.soon).length;
   return (
+    <>
     <ScrollView className="flex-1 bg-paper" contentContainerStyle={{ paddingBottom: 28 }} showsVerticalScrollIndicator={false}>
       <Hero>
         <View className="gap-4 px-4 pb-7 pt-3">
@@ -208,5 +209,7 @@ export function HomeView({
         <AdBanner place="home" />
       </View>
     </ScrollView>
+    <StatusShade />
+    </>
   );
 }

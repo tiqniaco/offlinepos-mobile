@@ -1025,7 +1025,9 @@
     "excel": "Excel",
     "print": "Print",
     "noWhatsApp": "WhatsApp isn't installed",
-    "unavailable": "Sharing isn't available on this device"
+    "unavailable": "Sharing isn't available on this device",
+    "pdf": "Share PDF",
+    "a4": "Save or print A4"
   },
   "range": {
     "today": "Today",

@@ -111,7 +111,7 @@ export async function checkinDue(db: AppDb, now = Date.now()): Promise<boolean> 
 }
 
 /** The one daily call. Safe to call anytime; failure never blocks daily work. */
-export async function runCheckin(db: AppDb): Promise<{ outcome: CheckinOutcome; state: LicenceState; notices: { textAr: string; textEn: string }[] }> {
+export async function runCheckin(db: AppDb): Promise<{ outcome: CheckinOutcome; state: LicenceState; notices: { textAr: string; textEn: string }[]; detail?: string }> {
   const device = await getCurrentDevice(db);
   const refreshToken = await getSecret(SECURE_KEYS.refreshToken);
   if (device && !refreshToken) setSignedOut(true);
@@ -154,7 +154,7 @@ export async function runCheckin(db: AppDb): Promise<{ outcome: CheckinOutcome; 
       return { outcome: 'signed_out', state: await refreshLicenceState(db), notices: [] };
     }
     const outcome: CheckinOutcome = e instanceof ApiError && e.code === 'network' ? 'offline' : 'error';
-    return { outcome, state: await refreshLicenceState(db), notices: [] };
+    return { outcome, state: await refreshLicenceState(db), notices: [], detail: e instanceof ApiError ? e.code : e instanceof Error ? e.message : String(e) };
   }
 }
 

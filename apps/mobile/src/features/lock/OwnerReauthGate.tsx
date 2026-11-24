@@ -11,6 +11,7 @@ import { Screen, Text, Card, Button, PasswordField, IconBadge, Banner } from '..
 import { getDb } from '../../db/client';
 import { listActiveUsers, unlockWithPin, PinError } from '../../domain/auth/users';
 import { markReauth, reauthFresh } from './reauth';
+import { withLockHold } from '../../state/lockHold';
 
 type Owner = Awaited<ReturnType<typeof listActiveUsers>>[number];
 
@@ -30,7 +31,8 @@ export function OwnerReauthGate({ title, children }: { title: string; children: 
 
   const tryBio = useCallback(async () => {
     try {
-      const r = await LocalAuthentication.authenticateAsync({ promptMessage: t('reauth.prompt'), disableDeviceFallback: false, fallbackLabel: t('lock.usePhoneCode'), cancelLabel: t('common.cancel') });
+      // The phone's prompt (and its passcode screen) must not trigger the auto-lock or the app-switcher cover.
+      const r = await withLockHold(() => LocalAuthentication.authenticateAsync({ promptMessage: t('reauth.prompt'), disableDeviceFallback: false, fallbackLabel: t('lock.usePhoneCode'), cancelLabel: t('common.cancel') }));
       if (r.success) pass();
     } catch {
       // the password stays available
@@ -49,7 +51,9 @@ export function OwnerReauthGate({ title, children }: { title: string; children: 
       if (!alive) return;
       const canBio = !!o?.biometricEnabled && hw;
       setBio(canBio);
-      if (canBio) void tryBio();
+      // Never while the screen is still sliding in: opening the phone's prompt during the transition left a black
+      // screen on some Android phones. A short pause, then ask (the button stays for a second try).
+      if (canBio) setTimeout(() => alive && void tryBio(), 650);
     })();
     return () => {
       alive = false;

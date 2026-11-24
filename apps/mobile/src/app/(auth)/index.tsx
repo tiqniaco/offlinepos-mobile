@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOnboarding } from '../../state/app';
 import { Pressable } from '../../ui/Press';
-import { Text, Button, Hero, Logo, IconBadge, Card, colors, type IconName, type Hue } from '../../ui';
+import { Text, Button, Hero, Logo, IconBadge, Card, colors, type IconName, type Hue , StatusShade } from '../../ui';
 
 const POINTS: { icon: IconName; hue: Hue; key: string; hint: string }[] = [
   { icon: 'cloudOff', hue: 'primary', key: 'welcome.point1', hint: 'welcome.point1Hint' },
@@ -17,6 +17,7 @@ export default function Welcome() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   return (
+    <>
     <ScrollView className="flex-1 bg-paper" contentContainerStyle={{ flexGrow: 1 }} bounces={false} showsVerticalScrollIndicator={false}>
       <Hero>
         <View className="items-center gap-3 px-6 pb-8 pt-8">
@@ -63,5 +64,7 @@ export default function Welcome() {
         </View>
       </View>
     </ScrollView>
+    <StatusShade />
+    </>
   );
 }

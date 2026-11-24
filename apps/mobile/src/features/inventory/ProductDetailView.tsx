@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { splitByUnit } from '@daftarak/shared';
-import { Text, Hero, Icon, Card, Button, IconBadge, SectionTitle, Chip, colors } from '../../ui';
+import { Text, Hero, Icon, Card, Button, IconBadge, SectionTitle, Chip, StatusShade, colors } from '../../ui';
 import { money, qty, dateTimeLabel } from '../../lib/format';
 import { stockTone } from './ProductRow';
 
@@ -210,6 +210,7 @@ export function ProductDetailView({
           <View style={{ height: insets.bottom }} />
         </View>
       </ScrollView>
+      <StatusShade />
     </View>
   );
 }

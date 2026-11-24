@@ -5,7 +5,7 @@ import { Segmented } from '../../features/common/Segmented';
 import { buy, configureStore, restoreStore, storeAvailable, storePlans, type StorePlan } from '../../features/billing/store';
 import { api } from '../../api/client';
 import { accessToken } from '../../lib/session';
-import { errorMessage } from '../../lib/errors';
+import { errorMessage, withCode } from '../../lib/errors';
 import { openWhatsApp } from '../../features/export/whatsapp';
 import { TextField, Banner, Icon } from '../../ui';
 import { fx } from '../../ui/fx';
@@ -66,7 +66,7 @@ export default function Subscription() {
   const refresh = async () => {
     setBusy(true);
     const r = await backgroundCheckin(true).catch(() => null);
-    setMsg(r?.outcome === 'ok' ? t('subscription.updated') : r?.outcome === 'offline' ? t('subscription.offline') : t('errors.unknown'));
+    setMsg(r?.outcome === 'ok' ? t('subscription.updated') : r?.outcome === 'offline' ? t('subscription.offline') : r?.outcome === 'signed_out' || r?.outcome === 'not_registered' ? t('licence.signedOut') : withCode(t, r?.detail ?? r?.outcome));
     setBusy(false);
   };
   const days = l?.trialDaysLeft ?? l?.graceDaysLeft;

@@ -16,8 +16,10 @@ export function errorMessage(t: TFunction, e: unknown): string {
   if (e instanceof ApiError) {
     const key = `errors.${e.code}`;
     const msg = t(key);
-    return msg === key ? t('errors.unknown') : msg;
+    return msg === key ? withCode(t, e.code) : msg;
   }
+  // No sign-in on this phone any more (session ended): say so instead of "a problem happened".
+  if (e instanceof Error && e.message === 'signed_out') return t('licence.signedOut');
   if (e instanceof ProductLimitError) {
     setTimeout(() => useUpgrade.getState().show('products'), 0);
     return e.fits > 0 ? t('quickAdd.limitSome', { fits: e.fits, n: e.wanted }) : t('quickAdd.limitNone', { n: e.wanted });
@@ -27,5 +29,11 @@ export function errorMessage(t: TFunction, e: unknown): string {
   if (e instanceof PermissionError) return t('users.noPermission');
   if (e instanceof ApprovalError) return t(`approve.errors.${e.code}`);
   if (e instanceof PartyError) return t(`parties.errors.${e.code}`);
-  return t('errors.unknown');
+  return withCode(t, e instanceof Error ? e.name === 'Error' ? e.message : e.name : String(e));
+}
+
+/** "حصلت مشكلة" + a short technical code, so a screenshot tells us what went wrong. */
+export function withCode(t: TFunction, code: string | null | undefined): string {
+  const c = (code ?? '').replace(/\s+/g, ' ').trim().slice(0, 40);
+  return c ? `${t('errors.unknown')} (${c})` : t('errors.unknown');
 }
