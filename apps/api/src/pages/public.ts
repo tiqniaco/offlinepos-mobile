@@ -27,13 +27,15 @@ const logo = `data:image/svg+xml,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0866FF"/><stop offset="1" stop-color="#0B2E80"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="url(#g)"/><path d="M19 13h22a3 3 0 0 1 3 3v30l-4-3-4 3-4-3-4 3-4-3-4 3-4-3V16a3 3 0 0 1 3-3z" fill="#fff"/><rect x="23" y="20" width="18" height="3" rx="1.5" fill="#0F4CC7"/><rect x="23" y="27" width="14" height="2.5" rx="1.25" fill="#B9C8F5"/><circle cx="45" cy="44" r="10" fill="#fff" stroke="#0F4CC7" stroke-width="3"/><path d="m40.5 44 3 3 6-6" fill="none" stroke="#0866FF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 )}`;
 
+/** English first (what Google's reviewers read), Arabic below for shop owners. */
 function page(title: string, ar: string, en: string): string {
-  return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${title}</title><meta name="description" content="كاشيرو — كاشير وفواتير ومخازن من موبايلك، حتى من غير نت."><style>${css}</style></head><body><main>
-<header><img src="${logo}" alt="Kashiro"><b>كاشيرو · Kashiro</b></header>
-<nav><a href="/">الرئيسية</a><a href="/privacy">سياسة الخصوصية</a><a href="/terms">شروط الاستخدام</a><a href="/delete-account">حذف الحساب</a></nav>
-<section>${ar}</section><section class="en" dir="ltr" lang="en">${en}</section>
-<p class="muted">© TIQNIA · تقنية — ${SUPPORT_EMAIL}</p></main></body></html>`;
+  return `<!doctype html><html lang="en" dir="ltr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${title}</title><meta name="description" content="Kashiro is a point-of-sale, inventory and invoicing app for shops. كاشيرو — كاشير وفواتير ومخازن من موبايلك."><meta name="robots" content="index,follow"><style>${css}</style></head><body><main>
+<header><img src="${logo}" alt="Kashiro logo"><b>Kashiro</b></header>
+<nav><a href="/">Home</a><a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Use</a><a href="/delete-account">Delete account</a></nav>
+<section class="en" lang="en">${en}</section>
+<section dir="rtl" lang="ar">${ar}</section>
+<p class="muted">© 2026 TIQNIA — Kashiro · ${SUPPORT_EMAIL}</p></main></body></html>`;
 }
 
 const HOME_AR = `<h1>كاشيرو — تطبيق كاشير ومخازن وفواتير للمحلات</h1>
@@ -121,11 +123,18 @@ const PRIVACY_EN = `<h1>Privacy Policy</h1><p class="muted">Last updated: ${UPDA
 <li><b>Google AdMob</b>: ads on the free plan only; AdMob may use the device advertising ID under Google's policies. Paid plans have no ads.</li>
 <li><b>Google Drive</b> (if linked): the app uses the <code>drive.file</code> scope — it sees only the files it created (the “Kashiro Backups” folder), never the rest of your Drive. Files are protected by a password you choose and never pass through our server. Kashiro's use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</li>
 <li><b>Google Play / App Store</b> if you subscribe through the store.</li></ul>
-<h2>4. Phone permissions</h2><p>Camera (barcode scanning, invoice photos), Bluetooth (thermal printer), notifications and biometrics (unlocking the app). All optional and requested when used.</p>
-<h2>5. Retention and deletion</h2><p>Account data is kept while the account is active. Old server backups are deleted automatically according to the plan. You can ask us to delete your account and all your data from our server at any time — see <a href="/delete-account">Delete account</a>. Data on your phone is removed when you uninstall the app.</p>
-<h2>6. Security</h2><p>Connections use HTTPS, the on-phone database is encrypted, backups are encrypted, and sensitive settings are protected by the owner's password.</p>
-<h2>7. Children</h2><p>The app is meant for shop owners and staff, not for children.</p>
-<h2>8. Contact</h2><p>Questions or requests: <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>. If this policy changes we will update the date above and tell you in the app.</p>`;
+<h2>4. Google user data (Google Drive)</h2>
+<p><b>Data accessed:</b> only when the shop owner turns on “Automatic backup to Google Drive”. Kashiro requests the single scope <code>https://www.googleapis.com/auth/drive.file</code> and the account's basic profile (email address, to show which account is linked). With drive.file Kashiro can access only files it created itself; it cannot list, read, change or delete any other file in the user's Drive.</p>
+<p><b>How it is used:</b> to create one folder named “Kashiro Backups”, upload one encrypted backup file of the user's own shop data per day, list the backup files it created in that folder, and delete its own backups older than the newest 14. The email address is shown only on the phone so the user knows which account is linked.</p>
+<p><b>Storage and sharing:</b> the backup files go directly from the user's phone to the user's own Google Drive. They are not sent to, copied to or stored on Kashiro's servers, and Kashiro does not share Google user data with anyone. The linked account email is stored only on the user's phone.</p>
+<p><b>No other use:</b> Google user data is not used for advertising, is not sold, is not used to train or improve AI/ML models, and is not read by humans, except with the user's explicit permission for support or where required by law.</p>
+<p><b>Revoking access and deletion:</b> the user can tap “Unlink” in the app at any time, or remove Kashiro's access at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>. The backup files in the “Kashiro Backups” folder stay in the user's Drive under the user's control and can be deleted there.</p>
+<p>Kashiro's use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+<h2>5. Phone permissions</h2><p>Camera (barcode scanning, invoice photos), Bluetooth (thermal printer), notifications and biometrics (unlocking the app). All optional and requested when used.</p>
+<h2>6. Retention and deletion</h2><p>Account data is kept while the account is active. Old server backups are deleted automatically according to the plan. You can ask us to delete your account and all your data from our server at any time — see <a href="/delete-account">Delete account</a>. Data on your phone is removed when you uninstall the app.</p>
+<h2>7. Security</h2><p>Connections use HTTPS, the on-phone database is encrypted, backups are encrypted, and sensitive settings are protected by the owner's password.</p>
+<h2>8. Children</h2><p>The app is meant for shop owners and staff, not for children.</p>
+<h2>9. Your choices and rights</h2><p>You can view and export your shop data from the app (PDF/Excel), correct it at any time, unlink Google Drive, and ask us to delete your account and data (see <a href="/delete-account">Delete account</a>).</p><h2>10. Contact</h2><p>Kashiro is developed by TIQNIA. Questions or requests: <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>. If this policy changes we will update the date above and tell you in the app.</p>`;
 
 const TERMS_AR = `<h1>شروط الاستخدام</h1><p class="muted">آخر تحديث: ${UPDATED}</p>
 <ul><li>كاشيرو أداة لإدارة المحل؛ أنت مسؤول عن صحة البيانات اللي بتدخلها وعن الالتزام بالقوانين والضرائب الخاصة بنشاطك.</li>
@@ -160,10 +169,10 @@ const DELETE_EN = `<h1>Delete your account and data</h1>
 export function publicPages() {
   const app = new Hono<AppEnv>();
   const pages: [string, string][] = [
-    ['/', page('Kashiro · كاشيرو', HOME_AR, HOME_EN)],
-    ['/privacy', page('سياسة الخصوصية · Kashiro Privacy Policy', PRIVACY_AR, PRIVACY_EN)],
-    ['/terms', page('شروط الاستخدام · Kashiro Terms', TERMS_AR, TERMS_EN)],
-    ['/delete-account', page('حذف الحساب · Delete Kashiro account', DELETE_AR, DELETE_EN)],
+    ['/', page('Kashiro — Point of Sale & Inventory App', HOME_AR, HOME_EN)],
+    ['/privacy', page('Kashiro — Privacy Policy', PRIVACY_AR, PRIVACY_EN)],
+    ['/terms', page('Kashiro — Terms of Use', TERMS_AR, TERMS_EN)],
+    ['/delete-account', page('Kashiro — Delete your account', DELETE_AR, DELETE_EN)],
   ];
   for (const [path, body] of pages) app.get(path, (c) => c.html(body, 200, { 'Cache-Control': 'public, max-age=3600' }));
   return app;
