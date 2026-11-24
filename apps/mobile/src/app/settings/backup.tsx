@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { businessDay, portablePassphraseOk } from '@daftarak/shared';
@@ -8,14 +8,10 @@ import { NoScreenshots } from '../../features/NoScreenshots';
 import { Screen, Text, Card, Button, Banner, IconBadge, SectionTitle, PasswordField, colors, fonts } from '../../ui';
 import { fx } from '../../ui/fx';
 import { useApp } from '../../state/app';
-import { api } from '../../api/client';
-import { accessToken } from '../../lib/session';
 import { errorMessage } from '../../lib/errors';
-import { backupNow, cloudBackupAllowed, lastBackup, type LastBackup } from '../../features/backup/service';
+import { lastBackup, type LastBackup } from '../../features/backup/service';
 import { FolderBackupCard } from '../../features/backup/FolderBackupCard';
-import { DriveBackupCard } from '../../features/backup/DriveBackupCard';
 import { exportPortableBackup, lastPortableBackup } from '../../features/backup/portable';
-import { isDriveInstalled } from '../../../modules/drive-share';
 import { hasDocuments, portableReminder } from '../../domain/backup/portable';
 import { getDb } from '../../db/client';
 import { exportAllToExcel } from '../../features/backup/excelExport';
@@ -25,13 +21,12 @@ import { dateTimeLabel } from '../../lib/format';
 
 const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)} MB`;
 
-/** Backups: automatic every day (with the check-in), "backup now", encrypted local copy, Excel of all data. */
+/** Backups stay with the shop: the daily file in its own folder, a backup file to share/keep, Excel of all data. */
 export default function BackupScreen() {
   const { t, i18n } = useTranslation();
   const business = useApp((s) => s.business);
   const [last, setLast] = useState<LastBackup | null>(null);
-  const [cloud, setCloud] = useState<number | null>(null);
-  const [busy, setBusy] = useState<null | 'cloud' | 'local' | 'excel'>(null);
+  const [busy, setBusy] = useState<null | 'local' | 'excel'>(null);
   const [p, setP] = useState<{ v: number; stage: string }>({ v: 0, stage: '' });
   const [msg, setMsg] = useState<{ tone: 'success' | 'danger'; text: string } | null>(null);
   const [lastFile, setLastFile] = useState<number | null>(null);
@@ -48,37 +43,23 @@ export default function BackupScreen() {
     void lastBackup().then(setLast);
     void lastPortableBackup().then(setLastFile, () => undefined);
     void hasDocuments(getDb()).then(setDocs, () => setDocs(true));
-    if (business?.serverBusinessId)
-      void accessToken()
-        .then((tk) => api.listBackups(tk, business.serverBusinessId))
-        .then((r) => setCloud(r.backups.length), () => setCloud(null));
-  }, [business?.serverBusinessId]);
+  }, []);
   useFocusEffect(load);
 
   const gate = useApprovalGate();
-  /** Excel / file exports pass «تأكيد المدير» first when the shop asks for it (cloud backups never leave the account). */
-  const run = (kind: 'cloud' | 'local' | 'excel') => (kind === 'cloud' ? doRun(kind, null) : gate.run('export', (a) => doRun(kind, a)));
-  const [target, setTargetState] = useState<'drive' | 'share'>('drive');
-  // Read inside the async export (state would still hold the previous choice right after a tap).
-  const targetRef = useRef<'drive' | 'share'>('drive');
-  const setTarget = (v: 'drive' | 'share') => {
-    targetRef.current = v;
-    setTargetState(v);
-  };
-  const hasDrive = useMemo(() => isDriveInstalled(), []);
-  const doRun = async (kind: 'cloud' | 'local' | 'excel', approval: Approval | null) => {
+  /** Excel / file exports pass «تأكيد المدير» first when the shop asks for it. */
+  const run = (kind: 'local' | 'excel') => gate.run('export', (a) => doRun(kind, a));
+  const doRun = async (kind: 'local' | 'excel', approval: Approval | null) => {
     setMsg(null);
     setBusy(kind);
     try {
-      if (kind === 'cloud') await backupNow((v, stage) => setP({ v, stage }));
-      else if (kind === 'local') {
-        await exportPortableBackup(pass, (v, stage) => setP({ v, stage }), approval, targetRef.current);
+      if (kind === 'local') {
+        await exportPortableBackup(pass, (v, stage) => setP({ v, stage }), approval);
         setForm(false);
         setPass('');
         setPass2('');
       } else await exportAllToExcel({ range: xRange.key === 'all' ? null : { from: xRange.from, to: xRange.to }, onProgress: (v) => setP({ v, stage: 'excel' }), approvedBy: approval });
       fx.success();
-      if (kind === 'cloud') setMsg({ tone: 'success', text: t('backup.done') });
       if (kind === 'local') setMsg({ tone: 'success', text: t('portable.done') });
       load();
     } catch (e) {
@@ -98,8 +79,6 @@ export default function BackupScreen() {
 
   const age = last ? Date.now() - last.at : null;
   const stale = age == null || age > 3 * 86_400_000;
-  // Cloud backup is plan-limited (licence backup_storage_mb; 0 = paid plans only): the folder backup comes first.
-  const cloudOk = cloudBackupAllowed();
   return (
     <Screen back title={t('backup.title')} subtitle={t('backup.subtitle')}>
       <NoScreenshots id="backup" />
@@ -112,25 +91,20 @@ export default function BackupScreen() {
             {last ? <Text variant="caption">{t(`backup.kind.${last.kind}`)} · {mb(last.size)}</Text> : null}
           </View>
         </View>
-        {cloud != null ? <Text variant="caption" style={{ marginTop: 8 }}>{t('backup.cloudCount', { n: cloud })}</Text> : null}
       </Card>
       {stale ? <Banner tone="warn" text={t('backup.staleHint')} /> : null}
       <SectionTitle>{t('folderBackup.title')}</SectionTitle>
-      <DriveBackupCard disabled={!!busy} gated={(fn) => gate.run('export', (a) => void fn(a).catch((e) => setMsg({ tone: 'danger', text: errorMessage(t, e) })))} />
       <FolderBackupCard disabled={!!busy} gated={(fn) => gate.run('export', (a) => void fn(a).catch((e) => setMsg({ tone: 'danger', text: errorMessage(t, e) })))} />
-      <SectionTitle>{t('folderBackup.cloudTitle')}</SectionTitle>
-      {cloudOk ? <Banner tone="info" text={t('backup.autoHint')} /> : <Banner tone="info" text={t('folderBackup.cloudPaidOnly')} />}
       {busy ? (
         <Card>
-          <Text variant="subtitle">{p.stage === 'upload' ? t('backup.uploading') : p.stage === 'key' ? t('portable.securing') : p.stage === 'excel' ? t('backup.excelBuilding') : t('backup.building')}</Text>
+          <Text variant="subtitle">{p.stage === 'key' ? t('portable.securing') : p.stage === 'excel' ? t('backup.excelBuilding') : t('backup.building')}</Text>
           <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.paper.sunk, marginTop: 8, overflow: 'hidden' }}>
-            <View style={{ width: `${Math.round((p.stage === 'upload' ? 0.97 : p.v) * 100)}%`, height: 8, backgroundColor: colors.primary[500] }} />
+            <View style={{ width: `${Math.round(p.v * 100)}%`, height: 8, backgroundColor: colors.primary[500] }} />
           </View>
           <Text variant="caption" style={{ marginTop: 6 }}>{t('backup.keepWorking')}</Text>
         </Card>
       ) : null}
       {msg ? <Banner tone={msg.tone} text={msg.text} /> : null}
-      {cloudOk ? <Button testID="backup-now" icon="upload" title={t('backup.now')} loading={busy === 'cloud'} disabled={!!busy} onPress={() => void run('cloud')} /> : null}
       <SectionTitle>{t('portable.exportTitle')}</SectionTitle>
       <Card>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -151,12 +125,9 @@ export default function BackupScreen() {
             <PasswordField testID="portable-pass1" label={t('portable.passLabel')} value={pass} onChangeText={setPass} />
             <PasswordField testID="portable-pass2" label={t('portable.passConfirm')} value={pass2} onChangeText={setPass2} error={passErr} onSubmitEditing={startFile} />
             <Banner tone="warn" text={t('portable.forgetWarn')} />
-            <Button testID="portable-create" icon="upload" title={hasDrive ? t('portable.toDrive') : t('portable.create')} loading={busy === 'local' && target === 'drive'} disabled={!!busy || !pass || !pass2} onPress={() => (setTarget('drive'), startFile())} />
-            {hasDrive ? (
-              <Button kind="secondary" compact icon="file" title={t('portable.otherPlace')} loading={busy === 'local' && target === 'share'} disabled={!!busy || !pass || !pass2} onPress={() => (setTarget('share'), startFile())} />
-            ) : null}
+            <Button testID="portable-create" icon="upload" title={t('portable.create')} loading={busy === 'local'} disabled={!!busy || !pass || !pass2} onPress={startFile} />
             <Button kind="ghost" compact title={t('common.cancel')} disabled={!!busy} onPress={() => (setForm(false), setPass(''), setPass2(''), setPassErr(null))} />
-            <Text variant="caption">{hasDrive ? t('portable.driveHint') : t('portable.shareHint')}</Text>
+            <Text variant="caption">{t('portable.shareHint')}</Text>
           </View>
         </Card>
       ) : (

@@ -21,8 +21,6 @@ env:
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
   EXPO_PUBLIC_API_URL: ${{ vars.API_URL || 'https://daftarak-api.mallimerp.com' }}
-  # Google Drive auto-backup (Google Cloud → Credentials → OAuth client ID, type Web). Not secret.
-  EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
   NODE_ENV: production
 jobs:
   publish:

@@ -1482,13 +1482,11 @@
     }
   },
   "restore": {
-    "title": "Restore your data",
-    "subtitle": "Choose the backup to restore on this phone",
+    "title": "Have a backup file?",
+    "subtitle": "Bring the shop back from the backup file you saved, or start without data",
     "start": "Restore this backup",
     "startEmpty": "Start without data",
     "verify": "Confirm and restore",
-    "loading": "Loading backups…",
-    "none": "No cloud backups yet. You can start without data.",
     "counts": "{{inv}} invoices · {{prod}} products",
     "device": "phone {{code}}",
     "chosen": "Chosen",
@@ -1512,7 +1510,10 @@
     "err": {
       "app_outdated": "This backup was made by a newer version of the app. Update the app first, then restore it.",
       "install_failed": "We couldn't install the backup on this phone. Your old phone still works as before. Try again."
-    }
+    },
+    "fromFile": "Restore from a backup file",
+    "fromFileHint": "A file whose name starts with Kashiro — from your backup folder, Files or WhatsApp.",
+    "emptyHint": "You start with an empty shop on the same account."
   },
   "backup": {
     "title": "Backup",
@@ -1524,26 +1525,16 @@
       "manual": "manual",
       "local": "saved on phone"
     },
-    "cloudCount": "{{n}} backups in the cloud",
     "staleHint": "No recent backup. Back up now so you don't lose data if the phone is lost.",
-    "autoHint": "The app backs up automatically every day on Wi-Fi, without interrupting your work.",
-    "now": "Back up now",
     "building": "Preparing and encrypting…",
-    "uploading": "Uploading…",
     "keepWorking": "You can keep working",
-    "done": "Backup uploaded ✓",
     "failed": "Backup failed. Check the internet and try again.",
     "offline": "Offline",
     "local": "Save an encrypted copy on the phone",
     "excel": "Export all data to Excel",
     "privacy": "Only the business owner can open a backup, after confirming with a code.",
-    "cloudNever": "There's no cloud backup of the shop's data yet.",
-    "cloudStale": "The last cloud backup was {{n}} days ago. Connect to the internet and back up now.",
-    "cloudStaleAction": "Back up",
     "excelRange": "Invoices, payments and vouchers in the Excel file from:",
     "excelBuilding": "Preparing the Excel file…",
-    "keyMissingBanner": "Cloud backup is paused — link this phone",
-    "keyMissingAction": "Link this phone",
     "keyTitle": "Turn backups back on",
     "keyBody": "This phone needs your shop's backup key. We'll text you a code, then daily backups work again.",
     "keyRestored": "Backups are on again",
@@ -1822,8 +1813,8 @@
     "unitWordHint": "The invoice says “{{unit}}” — pick the right unit"
   },
   "portable": {
-    "exportTitle": "Save a copy to Drive / file",
-    "exportHint": "Keep the file on your own Google Drive — nobody else can open it without the password",
+    "exportTitle": "Save a backup file",
+    "exportHint": "A password-protected file — keep it in Files or send it to yourself on WhatsApp or e-mail",
     "passLabel": "File password",
     "passConfirm": "Repeat the password",
     "passSuggest": "Choose a password for the file (at least 8 characters). Using your account password makes it easy to remember.",
@@ -1832,17 +1823,17 @@
     "forgetWarn": "If you forget this password the file can never be opened — not even by us.",
     "create": "Create the file and share",
     "securing": "Locking the file with your password…",
-    "shareHint": "Then choose Google Drive, Files, WhatsApp or e-mail.",
-    "done": "File created ✓ Make sure it was saved to Drive.",
-    "lastAgo": "Last copy on Drive {{n}} days ago",
-    "lastToday": "Last copy on Drive today",
-    "never": "No copy on Drive yet",
-    "remind": "Save a copy to Drive every week, so if the phone is lost or broken you can restore on any phone, even without internet.",
+    "shareHint": "Then choose Files, WhatsApp, e-mail or any other app.",
+    "done": "File created ✓ Make sure it is saved somewhere safe off the phone.",
+    "lastAgo": "Last backup file {{n}} days ago",
+    "lastToday": "Last backup file today",
+    "never": "No backup file saved yet",
+    "remind": "Save a backup file off the phone every week, so if it is lost or broken you can restore on any phone, even without internet.",
     "remindAction": "Save a copy",
     "restoreTitle": "Restore from a backup file",
-    "restoreSubtitle": "No internet needed — use the file you saved on Drive or the phone",
+    "restoreSubtitle": "No internet needed — use the backup file you saved",
     "pick": "Choose the file",
-    "pickHint": "Open Google Drive or Files and choose the backup file (its name starts with kashiro).",
+    "pickHint": "Open Files and choose the backup file (its name starts with Kashiro).",
     "otherFile": "Choose another file",
     "fileFrom": "Backup of {{day}}",
     "enterPass": "The password you chose when creating the file",
@@ -1856,7 +1847,7 @@
     "restoreHasDocs": "Restoring from a file is only possible on a new phone or a shop with no invoices yet, so your work is never overwritten.",
     "errors": {
       "not_backup": "This file is not a Kashiro backup.",
-      "cloud_file": "This is an older file locked with the cloud key; it can only be restored after signing in online. Use a kashiro file.",
+      "cloud_file": "This is an older, unsupported backup. Use a kashiro file.",
       "header": "This file is damaged or was modified — it cannot be read.",
       "passphrase": "Wrong password. Check it and try again.",
       "weak_passphrase": "The password must be at least 8 characters",
@@ -1877,10 +1868,7 @@
       "notOwner": "This account does not own the restored business.",
       "offline": "Internet is needed to link the phone. Try again when connected."
     },
-    "restoreShort": "Restore from a file",
-    "toDrive": "Save to Google Drive",
-    "otherPlace": "Somewhere else (Files / WhatsApp / e-mail)",
-    "driveHint": "Google Drive opens with the file. The first time, create a folder named “Kashiro Backups” and pick it; Drive remembers it next time."
+    "restoreShort": "Restore from a file"
   },
   "stepUp": {
     "title": "Confirm with an SMS code",
@@ -1898,7 +1886,7 @@
     "sendFailed": "Couldn't send now. Check the internet and try again.",
     "restore": "Restore from a backup",
     "restoreTitle": "Restore from a backup?",
-    "restoreBody": "We'll set the unreadable file aside (it is not deleted) and start fresh, then you can restore from the cloud backup or a Kashiro file.",
+    "restoreBody": "We'll set the unreadable file aside (it is not deleted) and start fresh, then you can restore from a Kashiro backup file.",
     "restoreGo": "Continue",
     "restoreFailed": "Couldn't move the file. Contact support.",
     "whatsapp": "Contact support on WhatsApp",
@@ -2140,7 +2128,7 @@
   "folderBackup": {
     "title": "Automatic backup to your folder",
     "pitch": "A password-protected copy every day in a folder on your phone — no internet, no server.",
-    "pickHint": "Pick a folder on the phone or SD card, or a Drive folder if it shows. We suggest Download/Kashiro.",
+    "pickHint": "Pick a folder on the phone or SD card. We suggest Download/Kashiro.",
     "passHint": "Choose a backup password once. You need it to restore on a new phone, so keep it somewhere safe.",
     "pick": "Pick the folder and start",
     "folder": "Folder: {{name}}",
@@ -2154,11 +2142,9 @@
     "changePass": "Change password",
     "passSaved": "Password changed. Next copies use it.",
     "off": "Stop the folder backup",
-    "cloudTitle": "Cloud backup",
-    "cloudPaidOnly": "Cloud backup is in the paid plans — use your folder.",
-    "iosHint": "On iPhone: every week we remind you to save the backup file to Files or Drive with «Save a copy to Drive / file» below.",
+    "iosHint": "On iPhone: every week we remind you to save the backup file to Files with «Save a backup file» below.",
     "iosRemindTitle": "Save a copy of your data",
-    "iosRemindBody": "A week without saving a backup file. Open Backup and save it to Files or Drive.",
+    "iosRemindBody": "A week without saving a backup file. Open Backup and save it to Files.",
     "err": {
       "no_password": "The backup password is not saved. Enter it again so backups continue.",
       "folder_lost": "We cannot reach the folder. Pick it again.",
@@ -2372,25 +2358,5 @@
     "none": "No new types in the file",
     "run": "Add {{n}}",
     "done": "{{n}} types added"
-  },
-  "driveBackup": {
-    "title": "Automatic backup to Google Drive",
-    "hint": "Link your Google account once; Kashiro creates a «Kashiro Backups» folder in your Drive and uploads a password-protected copy every day. The app only sees its own files, not the rest of your Drive.",
-    "passHint": "Choose a backup password (the same as the folder backup). Without it nobody can open the file.",
-    "connect": "Link Google Drive",
-    "account": "Account: {{email}}",
-    "folder": "Folder: {{name}}",
-    "last": "Last copy: {{at}}",
-    "never": "No copy yet",
-    "uploadNow": "Upload a copy now",
-    "disconnect": "Unlink",
-    "done": "Uploaded to Drive ✓",
-    "err": {
-      "no_password": "Set the backup password first.",
-      "drive_signed_out": "The Google link ended. Link again.",
-      "drive_denied": "Google refused the upload. Unlink and link again.",
-      "connect_failed": "Could not link the Google account. Check the internet and try again.",
-      "drive_failed": "Uploading to Drive failed. It will retry automatically."
-    }
   }
 }

@@ -7,7 +7,7 @@ describe('public pages', () => {
   it('home, privacy, terms and delete-account are public HTML pages', async () => {
     const c = makeClient();
     const app = createApp({ now: () => c.clock.now, provider: () => new ConsoleProvider() });
-    for (const [path, words] of [['/', 'كاشيرو'], ['/privacy', 'drive.file'], ['/terms', 'شروط'], ['/delete-account', 'حذف']] as const) {
+    for (const [path, words] of [['/', 'كاشيرو'], ['/privacy', 'Backups'], ['/terms', 'شروط'], ['/delete-account', 'حذف']] as const) {
       const r = await app.request(path, {}, c.env);
       expect(r.status).toBe(200);
       expect(r.headers.get('content-type')).toContain('text/html');
@@ -16,6 +16,7 @@ describe('public pages', () => {
       expect(html).not.toMatch(/<script/i);
     }
     const p = await (await app.request('/privacy', {}, c.env)).text();
-    expect(p).toContain('Limited Use');
+    expect(p).toContain('not sent to our server');
+    expect(p).not.toContain('Drive');
   });
 });
