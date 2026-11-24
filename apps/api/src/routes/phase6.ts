@@ -14,6 +14,7 @@ import { bumpCounter } from '../otp/service';
 import { presign } from '../backups/r2';
 import { activatePlan, planRank, storeEndStatement } from '../billing/activate';
 import type { Deps } from './v1';
+import { isKnownInstall, newDeviceAlert } from '../announce/announce';
 
 type CheckIntegrity = (env: Env, input: z.infer<typeof attachDeviceSchema>['integrity'], action: 'signup' | 'activate' | 'checkin', now: number) => Promise<unknown>;
 let checkIntegrityFn: CheckIntegrity = async () => undefined;
@@ -21,7 +22,7 @@ export function setIntegrityChecker(f: CheckIntegrity) {
   checkIntegrityFn = f;
 }
 
-type RegisterDevice = (env: Env, business: BusinessRow, sessionId: string, device: z.infer<typeof attachDeviceSchema>['device'], now: number) => Promise<unknown>;
+type RegisterDevice = (env: Env, business: BusinessRow, sessionId: string, device: z.infer<typeof attachDeviceSchema>['device'], now: number) => Promise<{ deviceId: string }>;
 
 export async function ownedBusiness(env: Env, businessId: string, accountId: string): Promise<BusinessRow> {
   const b = await env.DB.prepare(`SELECT * FROM businesses WHERE id = ?1 AND owner_account_id = ?2`).bind(businessId, accountId).first<BusinessRow>();
@@ -229,7 +230,9 @@ export function addPhase6Routes(app: Hono<AppEnv>, deps: Deps, registerDevice: R
     const b = await body(c, attachDeviceSchema.extend({ backupId: z.string().optional() }));
     const business = await ownedBusiness(c.env, b.businessId, s.aid);
     await checkIntegrityFn(c.env, b.integrity, 'activate', now);
+    const known = await isKnownInstall(c.env, business.id, b.device.installId);
     const registration = await registerDevice(c.env, business, s.sid, b.device, now);
+    if (!known) await newDeviceAlert(c.env, business, { id: registration.deviceId, model: b.device.model, platform: b.device.platform }, now, deps.push);
     await countRequest(c.env, business.id, now);
     return c.json({ business: { id: business.id, name: business.name, country: business.country, type: business.type, role: 'owner' }, registration });
   });

@@ -25,7 +25,7 @@ import { checkRefresh, commitRefresh, createSession, requireSession, revokeSessi
 import { buildLicence, getPlan, signAnchorReceipt, type BusinessRow, type DeviceRow } from '../licence/issue';
 import { addPasswordRoutes } from './password';
 import { addReleaseRoutes } from './releases';
-import { effectiveStatus, pendingAnnouncements, sendExpoPush, type PushMessage } from '../announce/announce';
+import { effectiveStatus, excludedFor, isKnownInstall, newDeviceAlert, pendingAnnouncements, sendExpoPush, type PushMessage } from '../announce/announce';
 import { addPhase6Routes, commitBackup, setIntegrityChecker, startBackup } from './phase6';
 import { addManualBillingRoutes } from '../billing/manual';
 import { storeEndStatement } from '../billing/activate';
@@ -303,8 +303,10 @@ export function v1Routes(deps: Deps = defaultDeps) {
     if (active && active.session_id !== s.sid && (!s.stepUpUntil || s.stepUpUntil < now)) throw new ApiError(403, 'step_up_required');
     // Same device-integrity policy as /devices/activate (a new phone joins the shop either way).
     const verdict = await checkIntegrity(c.env, b.integrity, 'activate', now);
+    const known = await isKnownInstall(c.env, business.id, b.device.installId);
     const registration = await registerDevice(c.env, business, s.sid, b.device, now);
     await c.env.DB.prepare(`UPDATE devices SET integrity_status = ?2, integrity_reason = ?3, integrity_at = ?4 WHERE id = ?1`).bind(registration.deviceId, verdict.status, verdict.reason ?? null, now).run();
+    if (!known) await newDeviceAlert(c.env, business, { id: registration.deviceId, model: b.device.model, platform: b.device.platform }, now, deps.push);
     await countRequest(c.env, business.id, now);
     return c.json({ business: { id: business.id, name: business.name, country: business.country, type: business.type, role: 'owner' }, registration });
   });
@@ -349,7 +351,7 @@ export function v1Routes(deps: Deps = defaultDeps) {
     // the rest arrive with the next one: the device cursor only moves past what was delivered).
     const since = (await c.env.DB.prepare(`SELECT announcements_until AS u, activated_at AS a FROM devices WHERE id = ?1`).bind(device.id).first<{ u: number; a: number }>())!;
     const rows = await pendingAnnouncements(c.env, { ...business, status: effectiveStatus(business, now) }, since.u, since.a, now);
-    const announcements = rows.map((a) => ({ id: a.id, titleAr: a.title_ar, bodyAr: a.body_ar, titleEn: a.title_en, bodyEn: a.body_en, url: a.url, at: a.created_at }));
+    const announcements = rows.filter((a) => !excludedFor(a.target_json, device.id)).map((a) => ({ id: a.id, titleAr: a.title_ar, bodyAr: a.body_ar, titleEn: a.title_en, bodyEn: a.body_en, url: a.url, at: a.created_at }));
     const licence = await buildLicence(c.env, business, device, now);
 
     // Rotate the token BEFORE any one-shot side effect: a check-in that loses the token race (parallel / replayed

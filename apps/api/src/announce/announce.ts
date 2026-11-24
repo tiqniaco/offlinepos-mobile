@@ -5,10 +5,11 @@
  * Targets: everyone, by country, by plan, by status (trial / active / past_due), or specific businesses.
  */
 import { z } from 'zod';
+import { uuidv7 } from '@daftarak/shared';
 import type { Env } from '../env';
 
 /** Screens an announcement may open (never an arbitrary URL). */
-export const ANNOUNCE_URLS = ['/settings/subscription', '/settings/backup', '/settings/printers', '/reports', '/offers', '/(main)/parties', '/(main)/products', '/(main)/sell', 'store'] as const;
+export const ANNOUNCE_URLS = ['/settings/subscription', '/settings/backup', '/settings/printers', '/settings/sessions', '/reports', '/offers', '/(main)/parties', '/(main)/products', '/(main)/sell', 'store'] as const;
 
 export const targetSchema = z.object({
   all: z.boolean().optional(),
@@ -150,4 +151,67 @@ export async function pendingAnnouncements(
     .all<AnnouncementRow>();
   // Belt and braces: the JS matcher is the reference definition.
   return r.results.filter((a) => matches(JSON.parse(a.target_json) as Target, business));
+}
+
+/** Cairo wall-clock time, Latin digits: 24/11/2026 14:05. */
+export function cairoTime(ms: number): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Cairo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(ms));
+    const g = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+    return `${g('day')}/${g('month')}/${g('year')} ${g('hour')}:${g('minute')}`;
+  } catch {
+    return new Date(ms).toISOString().slice(0, 16).replace('T', ' ');
+  }
+}
+
+/** The new phone itself does not get its own "new device" alert in the inbox (see /checkin). */
+export function excludedFor(targetJson: string, deviceId: string): boolean {
+  try {
+    const t = JSON.parse(targetJson) as { exceptDeviceIds?: unknown };
+    return Array.isArray(t.exceptDeviceIds) && t.exceptDeviceIds.includes(deviceId);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Security alert: a new phone was registered on this shop (/devices/attach, /devices/activate). Targeted announcement
+ * to the business (inbox copy on the next check-in of the other phones) + a push to the shop's other phones that
+ * allowed notifications (also the phone that was just signed out, so the owner hears about it right away).
+ */
+export async function newDeviceAlert(
+  env: Env,
+  business: { id: string },
+  device: { id: string; model?: string | null; platform: string },
+  now: number,
+  push?: (env: Env, messages: PushMessage[]) => Promise<[number, number]>,
+): Promise<string> {
+  const id = uuidv7(now);
+  const model = (device.model || '').trim().slice(0, 60) || (device.platform === 'ios' ? 'iPhone' : device.platform === 'android' ? 'Android' : device.platform);
+  const titleAr = 'تسجيل دخول من جهاز جديد';
+  const bodyAr = `اتسجل دخول على حسابك من جهاز جديد: ${model} — ${cairoTime(now)}. لو مش إنت، افتح «الأجهزة المسجل عليها» واقفل الجلسة وغيّر كلمة السر.`;
+  const url = '/settings/sessions';
+  const target = { businessIds: [business.id], exceptDeviceIds: [device.id] };
+  await env.DB.prepare(
+    `INSERT INTO announcements (id, title_ar, body_ar, title_en, body_en, url, target_json, push, created_by, created_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1, 'system:new_device', ?8, ?9)`,
+  )
+    .bind(id, titleAr, bodyAr, 'New device sign-in', `Your account was signed in on a new device: ${model} — ${cairoTime(now)} (Cairo). If it wasn't you, open "Signed-in devices", end the session and change your password.`, url, JSON.stringify(target), now, now + 14 * 86_400_000)
+    .run();
+  if (push) {
+    try {
+      const tokens = (await env.DB.prepare(`SELECT DISTINCT push_token AS t FROM devices WHERE business_id = ?1 AND id != ?2 AND push_token IS NOT NULL`).bind(business.id, device.id).all<{ t: string }>()).results.map((r) => r.t);
+      if (tokens.length) {
+        const [sent, failed] = await push(env, tokens.map((to) => ({ to, title: titleAr, body: bodyAr, sound: 'default' as const, channelId: 'default', data: { kind: 'announcement', id, url } })));
+        await env.DB.prepare(`UPDATE announcements SET push_sent = ?2, push_failed = ?3 WHERE id = ?1`).bind(id, sent, failed).run();
+      }
+    } catch {
+      // best effort: the inbox copy still arrives with the next check-in
+    }
+  }
+  return id;
+}
+
+/** This phone (install id) was registered on the shop before: re-attaching it is not a "new device". */
+export async function isKnownInstall(env: Env, businessId: string, installId: string): Promise<boolean> {
+  return !!(await env.DB.prepare(`SELECT 1 AS x FROM devices WHERE business_id = ?1 AND install_id = ?2 LIMIT 1`).bind(businessId, installId).first());
 }
