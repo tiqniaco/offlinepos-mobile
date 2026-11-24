@@ -82,7 +82,7 @@ function salesReport(id: ReportId, group: SalesGroup): ReportDef['build'] {
       ],
       columns: [
         { key: 'name', label: t(`reports.dim.${group}`) },
-        ...(group === 'product' ? [{ key: 'qty', label: t('reports.col.qty'), num: true }] : [{ key: 'inv', label: t(group === 'category' ? 'reports.col.lines' : 'reports.col.invoices'), num: true }]),
+        ...(group === 'product' ? [{ key: 'qty', label: t('reports.col.qty'), num: true, plain: true }] : [{ key: 'inv', label: t(group === 'category' ? 'reports.col.lines' : 'reports.col.invoices'), num: true, plain: true }]),
         { key: 'sales', label: t('reports.col.sales'), num: true },
         ...(profit ? [{ key: 'profit', label: t('reports.col.profit'), num: true }] : []),
         { key: 'disc', label: t('reports.col.discounts'), num: true, wideOnly: true },
@@ -158,7 +158,7 @@ export const REPORTS: ReportDef[] = [
           { key: 'manual', label: t('reports.col.manual'), num: true },
           { key: 'offers', label: t('reports.col.offers'), num: true },
           { key: 'coupons', label: t('reports.col.coupons'), num: true },
-          { key: 'pct', label: '%', num: true },
+          { key: 'pct', label: '%', num: true, plain: true },
         ],
         rows: rows.map((r) => {
           const manual = r.lineMinor + r.invoiceMinor;
@@ -183,7 +183,7 @@ export const REPORTS: ReportDef[] = [
         summary: [{ label: t('reports.col.total'), value: m(rows.reduce((s, r) => s + r.totalMinor, 0)), strong: true }],
         columns: [
           { key: 'name', label: t('parties.supplier') },
-          { key: 'n', label: t('reports.col.invoices'), num: true },
+          { key: 'n', label: t('reports.col.invoices'), num: true, plain: true },
           { key: 'total', label: t('reports.col.total'), num: true },
           { key: 'credit', label: t('purchase.onCredit'), num: true },
         ],
@@ -255,7 +255,7 @@ export const REPORTS: ReportDef[] = [
         ],
         columns: [
           { key: 'name', label: t('report.item') },
-          { key: 'qty', label: t('reports.col.qty'), num: true },
+          { key: 'qty', label: t('reports.col.qty'), num: true, plain: true },
           { key: 'avg', label: t('reports.col.avgCost'), num: true, wideOnly: true },
           { key: 'value', label: t('reports.col.costValue'), num: true },
         ],
@@ -282,11 +282,11 @@ export const REPORTS: ReportDef[] = [
       const rows = await slowStock(db, today, opt);
       return base('slow_stock', biz, {
         period: t('reports.noSalesFor', { n: opt }),
-        summary: [{ label: t('reports.col.items'), value: String(rows.length) }, { label: t('reports.col.costValue'), value: m(rows.reduce((s, r) => s + r.valueMinor, 0)), strong: true }],
+        summary: [{ label: t('reports.col.items'), value: String(rows.length), plain: true }, { label: t('reports.col.costValue'), value: m(rows.reduce((s, r) => s + r.valueMinor, 0)), strong: true }],
         columns: [
           { key: 'name', label: t('report.item') },
-          { key: 'qty', label: t('reports.col.qty'), num: true },
-          { key: 'last', label: t('reports.col.lastSale'), num: true },
+          { key: 'qty', label: t('reports.col.qty'), num: true, plain: true },
+          { key: 'last', label: t('reports.col.lastSale'), num: true, plain: true },
           { key: 'value', label: t('reports.col.costValue'), num: true },
         ],
         rows: rows.map((r) => ({ cells: { name: r.name, qty: formatQty(r.qtyMilli), last: r.lastSaleDay ? dayText(r.lastSaleDay) : t('reports.never'), value: m(r.valueMinor) }, values: { name: r.name, qty: r.qtyMilli / 1000, last: r.lastSaleDay ? dayText(r.lastSaleDay) : '', value: r.valueMinor / 100 } })),
@@ -310,8 +310,8 @@ export const REPORTS: ReportDef[] = [
         columns: [
           { key: 'name', label: t('report.item') },
           { key: 'batch', label: t('reports.col.batch'), wideOnly: true },
-          { key: 'exp', label: t('reports.col.expiry'), num: true },
-          { key: 'qty', label: t('reports.col.qty'), num: true },
+          { key: 'exp', label: t('reports.col.expiry'), num: true, plain: true },
+          { key: 'qty', label: t('reports.col.qty'), num: true, plain: true },
         ],
         rows: rows.map((r) => ({ muted: r.expired, cells: { name: r.expired ? `⚠ ${r.name}` : r.name, batch: r.batchNo ?? '', exp: dayText(r.expiryDay), qty: formatQty(r.qtyMilli) }, values: { name: r.name, batch: r.batchNo ?? '', exp: dayText(r.expiryDay), qty: r.qtyMilli / 1000 } })),
       });

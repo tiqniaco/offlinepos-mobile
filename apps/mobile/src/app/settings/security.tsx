@@ -56,6 +56,16 @@ export default function Security() {
   };
 
   const shots = useApp((s) => !!s.settings.blockScreenshots);
+  const hideNumbers = useApp((s) => !!s.settings.hideSensitive);
+  // Personal (this phone only): anyone can switch it, no shop permission needed.
+  const setHideNumbers = async (v: boolean) => {
+    try {
+      await changeSetting(getDb(), 'hideSensitive', v, { userId: user.id, deviceId: device.id });
+      await reloadAppData();
+    } catch (e) {
+      toast(errorMessage(t, e), 'error');
+    }
+  };
   return (
     <Screen back title={t('more.security')}>
       {user.secretKind === 'password' ? (
@@ -90,6 +100,16 @@ export default function Security() {
             <Text variant="caption">{t('security.screenshotsHint')}</Text>
           </View>
           <Switch value={shots} disabled={!canManage} onValueChange={(v) => void change('blockScreenshots', v)} trackColor={{ true: colors.primary[500], false: colors.paper.line }} />
+        </View>
+      </Card>
+      <Card>
+        <View className="flex-row items-center gap-3">
+          <IconBadge name="eye" hue="leaf" />
+          <View style={{ flex: 1 }}>
+            <Text variant="subtitle">{t('security.hideNumbers')}</Text>
+            <Text variant="caption">{t('security.hideNumbersHint')}</Text>
+          </View>
+          <Switch testID="security-hide-numbers" accessibilityLabel={t('security.hideNumbers')} value={hideNumbers} onValueChange={(v) => void setHideNumbers(v)} trackColor={{ true: colors.primary[500], false: colors.paper.line }} />
         </View>
       </Card>
       <SectionTitle>{t('security.autoLock')}</SectionTitle>

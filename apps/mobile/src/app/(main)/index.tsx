@@ -29,6 +29,8 @@ import { Tip } from '../../features/Tip';
 import { lastPortableExport, portableReminder } from '../../domain/backup/portable';
 import { LicenceBanner } from '../../features/LicenceBanner';
 import { HomeView, type SetupTask } from '../../features/home/HomeView';
+import { EyeToggle } from '../../features/privacy/EyeToggle';
+import { useSensitive } from '../../state/privacy';
 import type { Tile } from '../../features/common/ActionTiles';
 import { Banner, Icon, Text, colors, fonts } from '../../ui';
 import { money, dateLabel } from '../../lib/format';
@@ -39,6 +41,7 @@ let notifyPlannedDay = 0;
 
 export default function Home() {
   const { t, i18n } = useTranslation();
+  const { show, masked } = useSensitive();
   const user = useApp((s) => s.user)!;
   const device = useApp((s) => s.device);
   const business = useApp((s) => s.business);
@@ -241,20 +244,21 @@ export default function Home() {
       onSell={can('sales.create') ? () => router.push('/sales/pos') : undefined}
       quick={quick}
       alerts={alerts}
+      summaryAction={<EyeToggle testID="home-eye" />}
       stats={
         today
           ? [
-              { key: 's', label: t('home.todayInvoices', { n: today.invoices }), value: money(today.salesMinor - today.returnsMinor, cur, i18n.language), icon: 'card' as const, hue: 'primary' as const, onPress: () => router.push('/sales') },
+              { key: 's', label: t('home.todayInvoices', { n: today.invoices }), value: show(money(today.salesMinor - today.returnsMinor, cur, i18n.language)), icon: 'card' as const, hue: 'primary' as const, onPress: () => router.push('/sales') },
               ...(dash
                 ? [
                     ...(can('profit.view')
-                      ? [{ key: 'p', label: t('home.todayProfit'), value: money(dash.todayProfitMinor, cur, i18n.language), icon: 'chart' as const, hue: dash.todayProfitMinor >= 0 ? ('leaf' as const) : ('rose' as const), onPress: () => router.push('/reports/pnl') }]
+                      ? [{ key: 'p', label: t('home.todayProfit'), value: show(money(dash.todayProfitMinor, cur, i18n.language)), icon: 'chart' as const, hue: masked || dash.todayProfitMinor >= 0 ? ('leaf' as const) : ('rose' as const), onPress: () => router.push('/reports/pnl') }]
                       : []),
-                    { key: 'm', label: t('home.monthSales'), value: money(dash.monthSalesMinor, cur, i18n.language), icon: 'calendar' as const, hue: 'sky' as const, onPress: () => router.push('/reports/sales_day') },
+                    { key: 'm', label: t('home.monthSales'), value: show(money(dash.monthSalesMinor, cur, i18n.language)), icon: 'calendar' as const, hue: 'sky' as const, onPress: () => router.push('/reports/sales_day') },
                   ]
                 : []),
-              { key: 'c', label: t('home.owedToUs'), value: money(owedToUs, cur, i18n.language), icon: 'users' as const, hue: owedToUs ? ('rose' as const) : ('leaf' as const), onPress: () => router.push({ pathname: '/(main)/parties', params: { type: 'C', filter: 'owing', t: String(Date.now()) } }) },
-              ...(dash ? [{ key: 'ap', label: t('home.weOwe'), value: money(dash.payablesMinor, cur, i18n.language), icon: 'truck' as const, hue: 'amber' as const, onPress: () => router.push({ pathname: '/(main)/parties', params: { type: 'S', t: String(Date.now()) } }) }] : []),
+              { key: 'c', label: t('home.owedToUs'), value: show(money(owedToUs, cur, i18n.language)), icon: 'users' as const, hue: owedToUs && !masked ? ('rose' as const) : ('leaf' as const), onPress: () => router.push({ pathname: '/(main)/parties', params: { type: 'C', filter: 'owing', t: String(Date.now()) } }) },
+              ...(dash ? [{ key: 'ap', label: t('home.weOwe'), value: show(money(dash.payablesMinor, cur, i18n.language)), icon: 'truck' as const, hue: 'amber' as const, onPress: () => router.push({ pathname: '/(main)/parties', params: { type: 'S', t: String(Date.now()) } }) }] : []),
               { key: 'l', label: t('home.statLow'), value: String(inv?.lowStock ?? 0), icon: 'warning' as const, hue: inv?.lowStock ? ('amber' as const) : ('leaf' as const), onPress: () => router.push('/(main)/products') },
             ]
           : undefined

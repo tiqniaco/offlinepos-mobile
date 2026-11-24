@@ -10,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useApp } from '../state/app';
 import { boot } from '../state/boot';
 import { useAutoLock } from '../hooks/useAutoLock';
+import { watchPrivacy } from '../state/privacy';
 import { ToastHost } from '../ui/Toast';
 import { AdsProvider } from '../features/ads/AdsProvider';
 import { UpgradeSheet } from '../features/UpgradeSheet';
@@ -62,6 +63,9 @@ export default function RootLayout() {
   useEffect(() => {
     if (theme.appearance === 'system') applyTheme(theme.palette, 'system', scheme === 'dark');
   }, [scheme, theme.appearance, theme.palette]);
+
+  // «إخفاء الأرقام الحساسة»: revealed numbers hide again after > 1 min in the background.
+  useEffect(() => watchPrivacy(), []);
 
   useEffect(() => {
     void boot();

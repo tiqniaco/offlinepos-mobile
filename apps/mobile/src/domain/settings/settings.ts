@@ -8,7 +8,7 @@ import { appendAudit } from '../audit/audit';
 import { assertCanWrite } from '../licence/guard';
 import { PermissionError } from '../auth/users';
 
-export type SettingKey = keyof BusinessSettings | 'language' | 'palette' | 'appearance' | 'font' | 'textSize' | 'sounds' | 'soundVolume' | 'haptics' | 'notifications' | 'tipsSeen' | 'blockScreenshots' | 'printer' | 'receipt' | 'cashRoundingMinor' | 'requireShift' | 'reminderDays' | 'reminderTemplate' | 'defaultMarkupBp' | 'priceRoundingMinor';
+export type SettingKey = keyof BusinessSettings | 'language' | 'palette' | 'appearance' | 'font' | 'textSize' | 'sounds' | 'soundVolume' | 'haptics' | 'notifications' | 'tipsSeen' | 'blockScreenshots' | 'hideSensitive' | 'printer' | 'receipt' | 'cashRoundingMinor' | 'requireShift' | 'reminderDays' | 'reminderTemplate' | 'defaultMarkupBp' | 'priceRoundingMinor';
 /** palette/appearance are personal display settings (src/ui/theme.ts). */
 export type AppSettings = BusinessSettings & { language: 'ar' | 'en'; palette: 'tiqnia' | 'teal' | 'emerald' | 'sunset' | 'graphite'; appearance: 'light' | 'dark' | 'comfort' | 'system';
   font: 'readex' | 'alexandria' | 'almarai' | 'plex';
@@ -25,6 +25,8 @@ export type AppSettings = BusinessSettings & { language: 'ar' | 'en'; palette: '
   tipsSeen: string[];
   /** Block screenshots on profit/cost/backup screens. Default off. */
   blockScreenshots: boolean;
+  /** Personal (this phone): money on reports/home/balances shows •••• until the eye is tapped. Default off. */
+  hideSensitive: boolean;
   /** This phone's default printer (PLAN.md §10). */
   printer: import('../../features/printing/types').PrinterConfig | null;
   receipt: ReceiptTemplate;
@@ -111,7 +113,7 @@ export async function changeSetting<K extends SettingKey>(
   ctx: { userId: string; deviceId: string; permissions?: readonly Permission[] },
 ): Promise<void> {
   if (MANAGED_KEYS.has(key) && !(ctx.permissions && roleHas(ctx.permissions, 'settings.manage'))) throw new PermissionError('settings.manage');
-  const personal = key === 'language' || key === 'autoLockMinutes' || key === 'palette' || key === 'appearance' || key === 'font' || key === 'textSize' || key === 'sounds' || key === 'soundVolume' || key === 'haptics' || key === 'notifications' || key === 'tipsSeen' || key === 'printer';
+  const personal = key === 'language' || key === 'autoLockMinutes' || key === 'palette' || key === 'appearance' || key === 'font' || key === 'textSize' || key === 'sounds' || key === 'soundVolume' || key === 'haptics' || key === 'notifications' || key === 'tipsSeen' || key === 'printer' || key === 'hideSensitive';
   if (!personal) assertCanWrite();
   const now = Date.now();
   await withTx(db, async (tx) => {

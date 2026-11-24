@@ -46,6 +46,7 @@ export function HomeView({
   onSell,
   quick,
   alerts,
+  summaryAction,
 }: {
   greeting: string;
   userName: string;
@@ -66,6 +67,8 @@ export function HomeView({
   onSell?: () => void;
   quick?: Tile[];
   alerts?: React.ReactNode;
+  /** Next to the «summary» title (the privacy eye). */
+  summaryAction?: React.ReactNode;
 }) {
   const { t } = useTranslation();
   const done = tasks.filter((x) => x.done).length;
@@ -118,7 +121,7 @@ export function HomeView({
         {onSell ? <Button testID="home-sell" icon="scan" title={t('home.startSale')} onPress={onSell} /> : null}
         {stats && stats.length ? (
           <>
-            <SectionTitle>{t('home.summary')}</SectionTitle>
+            <SectionTitle action={summaryAction}>{t('home.summary')}</SectionTitle>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {stats.map((st) => (
                 <Card key={st.key} onPress={st.onPress} padded={false} style={{ flexBasis: '31%', flexGrow: 1, paddingVertical: 10, paddingHorizontal: 10 }}>

@@ -8,10 +8,11 @@ import { dayText } from '../export/builders';
 import { Bars } from './Bars';
 import type { ReportDef } from './defs';
 import { AdBanner } from '../ads/AdBanner';
+import { maskMoney } from '../../state/privacy';
 
-export function DashboardView({ d, currency, lang, showProfit, reports, locked, onOpen, tip }: { tip?: React.ReactNode; d: Dashboard | null; currency: 'EGP' | 'SAR'; lang: string; showProfit: boolean; reports: ReportDef[]; locked: (r: ReportDef) => boolean; onOpen: (r: ReportDef) => void }) {
+export function DashboardView({ d, currency, lang, showProfit, reports, locked, onOpen, tip, masked = false, right }: { tip?: React.ReactNode; masked?: boolean; right?: React.ReactNode; d: Dashboard | null; currency: 'EGP' | 'SAR'; lang: string; showProfit: boolean; reports: ReportDef[]; locked: (r: ReportDef) => boolean; onOpen: (r: ReportDef) => void }) {
   const { t } = useTranslation();
-  const fmt = (v: number) => money(v, currency, lang);
+  const fmt = (v: number) => maskMoney(money(v, currency, lang), masked);
   const group = (g: ReportDef['group']) => reports.filter((r) => r.group === g);
   const tile = (label: string, value: string, color: string = colors.ink.DEFAULT) => (
     <Card style={{ flexGrow: 1, minWidth: '45%' }}>
@@ -20,7 +21,7 @@ export function DashboardView({ d, currency, lang, showProfit, reports, locked, 
     </Card>
   );
   return (
-    <Screen back title={t('reports.title')}>
+    <Screen back title={t('reports.title')} right={right}>
       {tip}
       {d ? (
         <>

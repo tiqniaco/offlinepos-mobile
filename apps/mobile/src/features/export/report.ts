@@ -10,6 +10,8 @@ export interface ReportColumn {
   num?: boolean;
   /** Hidden on 58 mm thermal paper (too narrow). */
   wideOnly?: boolean;
+  /** Not money (quantity, count, date, %): stays visible on screen when «إخفاء الأرقام الحساسة» masks amounts. */
+  plain?: boolean;
 }
 
 export interface ReportRow {
@@ -34,10 +36,11 @@ export interface ReportDoc {
   /** "العميل: محمود — 01012345678" */
   partyLine?: string | null;
   /** Big figures at the top (balance, amount…). */
-  summary: { label: string; value: string; strong?: boolean }[];
+  /** `plain`: not money (a count…), stays visible when amounts are masked on screen. */
+  summary: { label: string; value: string; strong?: boolean; plain?: boolean }[];
   columns: ReportColumn[];
   rows: ReportRow[];
-  totals: { label: string; value: string; strong?: boolean }[];
+  totals: { label: string; value: string; strong?: boolean; plain?: boolean }[];
   note?: string | null;
   footer?: string | null;
   /** Watermark for voided documents. */

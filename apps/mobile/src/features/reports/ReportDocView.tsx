@@ -4,11 +4,16 @@ import { useTranslation } from 'react-i18next';
 import { Text, Card, EmptyState, colors, fonts } from '../../ui';
 import type { ReportDoc } from '../export/report';
 import { signedText } from '../../lib/format';
+import { maskAmounts, maskMoney } from '../../state/privacy';
 
 /** Rows drawn on screen (plain views, not virtualised); the rest is in the exported PDF / Excel file. */
 const MAX_ROWS = 100;
 
-export function ReportDocView({ d }: { d: ReportDoc }) {
+/**
+ * `masked` («إخفاء الأرقام الحساسة»): every money figure — summary tiles, numeric cells, totals — shows ••••; columns
+ * and items marked `plain` (quantities, counts, dates, %) stay visible. Exports always use the real `ReportDoc`.
+ */
+export function ReportDocView({ d, masked = false }: { d: ReportDoc; masked?: boolean }) {
   const { t } = useTranslation();
   const { width } = useWindowDimensions();
   const cols = d.columns.filter((c) => width >= 520 || !c.wideOnly);
@@ -20,7 +25,7 @@ export function ReportDocView({ d }: { d: ReportDoc }) {
           {d.summary.map((s) => (
             <Card key={s.label} style={{ flexGrow: 1, minWidth: '45%', backgroundColor: s.strong ? colors.primary[50] : colors.paper.card }}>
               <Text variant="caption">{s.label}</Text>
-              <Text style={{ fontFamily: fonts.bold, fontSize: 17, lineHeight: 24, color: s.strong ? colors.primary[800] : colors.ink.DEFAULT }}>{signedText(s.value)}</Text>
+              <Text style={{ fontFamily: fonts.bold, fontSize: 17, lineHeight: 24, color: s.strong ? colors.primary[800] : colors.ink.DEFAULT }}>{maskMoney(signedText(s.value), masked && !s.plain)}</Text>
             </Card>
           ))}
         </View>
@@ -40,12 +45,12 @@ export function ReportDocView({ d }: { d: ReportDoc }) {
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 {cols.map((c) => (
                   <Text key={c.key} numberOfLines={c.num ? 1 : 2} style={{ ...(c.num ? { width: numW, textAlign: 'center' as const } : { flex: 1 }), fontFamily: c.num ? fonts.medium : fonts.semibold, fontSize: 13, lineHeight: 19, color: colors.ink.DEFAULT }}>
-                    {c.num ? signedText(r.cells[c.key] ?? '') : (r.cells[c.key] ?? '')}
+                    {c.num ? maskMoney(signedText(r.cells[c.key] ?? ''), masked && !c.plain && /\d/.test(r.cells[c.key] ?? '')) : (r.cells[c.key] ?? '')}
                   </Text>
                 ))}
               </View>
               {r.sub?.map((s, j) => (
-                <Text key={j} variant="caption">• {s}</Text>
+                <Text key={j} variant="caption">• {masked ? maskAmounts(s) : s}</Text>
               ))}
             </View>
           ))}
@@ -58,7 +63,7 @@ export function ReportDocView({ d }: { d: ReportDoc }) {
           {d.totals.map((x) => (
             <View key={x.label} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3, borderTopWidth: x.strong ? 1 : 0, borderTopColor: colors.paper.line }}>
               <Text style={{ fontFamily: x.strong ? fonts.bold : fonts.medium, fontSize: 14, lineHeight: 21, color: colors.ink.DEFAULT }}>{x.label}</Text>
-              <Text style={{ fontFamily: x.strong ? fonts.bold : fonts.medium, fontSize: 14, lineHeight: 21, color: x.strong ? colors.primary[700] : colors.ink.DEFAULT }}>{signedText(x.value)}</Text>
+              <Text style={{ fontFamily: x.strong ? fonts.bold : fonts.medium, fontSize: 14, lineHeight: 21, color: x.strong ? colors.primary[700] : colors.ink.DEFAULT }}>{maskMoney(signedText(x.value), masked && !x.plain)}</Text>
             </View>
           ))}
         </Card>

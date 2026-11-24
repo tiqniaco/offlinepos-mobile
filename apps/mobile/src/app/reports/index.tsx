@@ -12,10 +12,13 @@ import { DashboardView } from '../../features/reports/DashboardView';
 import { REPORTS, type ReportDef } from '../../features/reports/defs';
 import { useCurrency } from '../../features/inventory/useInvCtx';
 import { Tip } from '../../features/Tip';
+import { EyeToggle } from '../../features/privacy/EyeToggle';
+import { useSensitive } from '../../state/privacy';
 
 export default function Reports() {
   const { t, i18n } = useTranslation();
   const currency = useCurrency();
+  const { masked } = useSensitive();
   const user = useApp((s) => s.user)!;
   const tz = useApp((s) => s.settings.timezone ?? 'Africa/Cairo');
   const [d, setD] = useState<Dashboard | null>(null);
@@ -30,6 +33,8 @@ export default function Reports() {
       lang={i18n.language}
       showProfit={roleHas(user.permissions, 'profit.view')}
       tip={<Tip id="reports" />}
+      masked={masked}
+      right={<EyeToggle />}
       reports={visible}
       locked={locked}
       onOpen={(r) =>

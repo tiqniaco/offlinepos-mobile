@@ -241,7 +241,9 @@
     "screenshotsHint": "On profit, cost, reports and backup screens",
     "biometricHint": "If it fails, the phone passcode is offered. Your password always works.",
     "managedOnly": "Only the owner or a manager can change these settings.",
-    "minutesFew": "{{n}} minutes"
+    "minutesFew": "{{n}} minutes",
+    "hideNumbers": "Hide sensitive numbers",
+    "hideNumbersHint": "Numbers show as •••• until you tap the eye"
   },
   "language": {
     "ar": "العربية",
@@ -2062,5 +2064,10 @@
     "openProduct": "Open item",
     "cost": "Cost: {{cost}}",
     "badgeA11y": "Products, {{n}} need a price review"
+  },
+  "privacy": {
+    "show": "Show numbers",
+    "hide": "Hide numbers",
+    "hiddenValue": "Hidden number"
   }
 }

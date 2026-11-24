@@ -8,7 +8,7 @@ import { I18nManager, Platform } from 'react-native';
 import i18n from 'i18next';
 import colors from './colors';
 
-export type IconName = 'home' | 'more' | 'phone' | 'shield' | 'users' | 'lock' | 'globe' | 'card' | 'info' | 'chevron' | 'back' | 'fingerprint' | 'check' | 'store' | 'truck' | 'book' | 'cloudOff' | 'plus' | 'warning' | 'list' | 'backspace' | 'scan' | 'camera' | 'image' | 'box' | 'tag' | 'search' | 'dots' | 'trash' | 'edit' | 'minus' | 'upload' | 'download' | 'refresh' | 'layers' | 'clipboard' | 'whatsapp' | 'cash' | 'receipt' | 'clock' | 'cart' | 'printer' | 'file' | 'sheet' | 'arrowIn' | 'arrowOut' | 'calendar' | 'bell' | 'wallet' | 'chart';
+export type IconName = 'home' | 'more' | 'phone' | 'shield' | 'users' | 'lock' | 'globe' | 'card' | 'info' | 'chevron' | 'back' | 'fingerprint' | 'check' | 'store' | 'truck' | 'book' | 'cloudOff' | 'plus' | 'warning' | 'list' | 'backspace' | 'scan' | 'camera' | 'image' | 'box' | 'tag' | 'search' | 'dots' | 'trash' | 'edit' | 'minus' | 'upload' | 'download' | 'refresh' | 'layers' | 'clipboard' | 'whatsapp' | 'cash' | 'receipt' | 'clock' | 'cart' | 'printer' | 'file' | 'sheet' | 'arrowIn' | 'arrowOut' | 'calendar' | 'bell' | 'wallet' | 'chart' | 'eye' | 'eyeOff';
 
 const MIRRORED: IconName[] = ['chevron', 'back', 'arrowIn', 'arrowOut'];
 
@@ -116,6 +116,10 @@ export function Icon({ name, size = 22, color = colors.primary[600], tint }: { n
         return (<><Path d="M6 10a6 6 0 0 1 12 0c0 5 2 6.5 2 6.5H4S6 15 6 10z" fill={fill} /><Path d="M6 10a6 6 0 0 1 12 0c0 5 2 6.5 2 6.5H4S6 15 6 10zM10 19.5a2.2 2.2 0 0 0 4 0" {...p} /></>);
       case 'chart':
         return (<><Rect x="3.5" y="3.5" width="17" height="17" rx="3" fill={fill} /><Path d="M7.5 16v-4M12 16V8M16.5 16v-6" {...p} strokeWidth={2.2} /></>);
+      case 'eye':
+        return (<><Path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill={fill} /><Path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" {...p} /><Circle cx="12" cy="12" r="3" {...p} /></>);
+      case 'eyeOff':
+        return (<><Path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill={fill} /><Path d="M6.6 7.4C4 9.1 2.5 12 2.5 12S6 18.5 12 18.5c1.9 0 3.6-.6 5-1.5M10 5.7c.6-.1 1.3-.2 2-.2 6 0 9.5 6.5 9.5 6.5s-.8 1.5-2.3 3.1M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18" {...p} /></>);
       case 'plus':
         return <Path d="M12 5v14M5 12h14" {...p} strokeWidth={2.2} />;
       case 'list':
