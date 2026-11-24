@@ -340,17 +340,7 @@
     "business_suspended": "This account is suspended. Contact us.",
     "backup_too_large": "The backup is larger than your plan allows.",
     "concurrent_update": "Something changed at the same time, please try again.",
-    "limit_reached": "You reached a limit of your plan.",
-    "limitReached": {
-      "sms_day": "This shop reached today's SMS code limit ({{limit}}). Sign in with the password or try tomorrow.",
-      "backup_storage_mb": "Cloud backup is not available or its space is full ({{limit}} MB). Use the folder backup on your phone.",
-      "receipt_uploads_month": "You reached this month's receipt uploads ({{limit}}). Contact us on WhatsApp if you need to send another.",
-      "api_requests_day": "This shop reached today's server limit. Work on the phone continues normally; try again tomorrow.",
-      "ocr_month": "You used all invoice scans for this month ({{limit}}).",
-      "devices": "You reached the number of phones in your plan ({{limit}}).",
-      "backups_kept": "You reached the number of cloud backups kept.",
-      "other": "You reached a limit of your plan ({{used}} of {{limit}})."
-    }
+    "limit_reached": "You reached a limit of your plan."
   },
   "audit": {
     "intact": "The log is intact — nothing was edited",
@@ -2160,5 +2150,15 @@
       "write_failed": "The copy was not saved to the folder. Try again.",
       "not_set": "Pick a folder first."
     }
+  },
+  "limitReached": {
+    "sms_day": "This shop reached today's SMS code limit ({{limit}}). Sign in with the password or try tomorrow.",
+    "backup_storage_mb": "Cloud backup is not available or its space is full ({{limit}} MB). Use the folder backup on your phone.",
+    "receipt_uploads_month": "You reached this month's receipt uploads ({{limit}}). Contact us on WhatsApp if you need to send another.",
+    "api_requests_day": "This shop reached today's server limit. Work on the phone continues normally; try again tomorrow.",
+    "ocr_month": "You used all invoice scans for this month ({{limit}}).",
+    "devices": "You reached the number of phones in your plan ({{limit}}).",
+    "backups_kept": "You reached the number of cloud backups kept.",
+    "other": "You reached a limit of your plan ({{used}} of {{limit}})."
   }
 }

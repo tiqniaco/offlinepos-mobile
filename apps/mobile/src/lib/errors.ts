@@ -11,7 +11,7 @@ export function errorMessage(t: TFunction, e: unknown): string {
   if (e instanceof ApiError && e.code === 'limit_reached') {
     // Per-shop usage limit (plan or super-admin): a clear sentence per limit, with the numbers.
     const d = e.details ?? {};
-    return t(`errors.limitReached.${d.key ?? 'other'}`, { limit: d.limit ?? 0, used: d.used ?? 0, defaultValue: t('errors.limitReached.other') });
+    return t(`limitReached.${d.key ?? 'other'}`, { limit: d.limit ?? 0, used: d.used ?? 0, defaultValue: t('limitReached.other', { limit: d.limit ?? 0, used: d.used ?? 0 }) });
   }
   if (e instanceof ApiError) {
     const key = `errors.${e.code}`;
