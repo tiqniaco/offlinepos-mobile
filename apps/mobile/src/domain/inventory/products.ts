@@ -8,7 +8,9 @@ import { barcodes, categories, inventoryDocs, inventoryLines, productGroups, pro
 import type { Db } from '../../db/types';
 import { withTx } from '../../db/tx';
 import { appendAudit } from '../audit/audit';
-import { requirePermission } from '../auth/users';
+import { PermissionError, requirePermission } from '../auth/users';
+import { roleHas } from '@daftarak/shared';
+import { assertApproval, type Approval } from '../auth/approval';
 import { assertCanWrite, assertWithinLimit, getLicenceState, ProductLimitError } from '../licence/guard';
 import { InventoryError, nowOf, type InvCtx } from './context';
 import { defaultWarehouseId, postMovements } from './ledger';
@@ -242,7 +244,7 @@ export async function createProduct(ctx: InvCtx, input: ProductInput & { opening
   });
 }
 
-export async function updateProduct(ctx: InvCtx, productId: string, input: ProductInput): Promise<void> {
+export async function updateProduct(ctx: InvCtx, productId: string, input: ProductInput, opts: { approvedBy?: Approval | null } = {}): Promise<void> {
   requirePermission(ctx.user, 'products.manage');
   assertCanWrite();
   // Plan lost a feature (e.g. downgrade): keep the product's existing larger unit / expiry flag as they are
@@ -255,7 +257,7 @@ export async function updateProduct(ctx: InvCtx, productId: string, input: Produ
     const before = (await tx.select().from(products).where(eq(products.id, productId)).limit(1))[0];
     if (!before || before.deletedAt) throw new InventoryError('not_found');
     const priceChanged = before.retailPriceMinor !== input.retailPriceMinor || before.wholesalePriceMinor !== input.wholesalePriceMinor;
-    if (priceChanged) requirePermission(ctx.user, 'price.change');
+    if (priceChanged) await assertApproval(tx, { user: ctx.user, deviceId: ctx.device.id, at: now }, 'priceChange', { approvedBy: opts.approvedBy, permission: 'price.change', entity: 'products', entityId: productId, details: { retail: input.retailPriceMinor, wholesale: input.wholesalePriceMinor } });
     if (before.costMinor !== input.costMinor) requirePermission(ctx.user, 'cost.view');
     const codes = cleanCodes(input.barcodes);
     await assertCodesFree(tx, cleanCodes([...codes, keepLarger ? null : input.largerUnit?.barcode]), productId);
@@ -336,13 +338,14 @@ export async function updateProduct(ctx: InvCtx, productId: string, input: Produ
 }
 
 /** Soft delete (SPEC §4) — keeps history; barcodes are released so they can be reused. Undo with restoreProduct. */
-export async function deleteProduct(ctx: InvCtx, productId: string): Promise<void> {
+export async function deleteProduct(ctx: InvCtx, productId: string, opts: { approvedBy?: Approval | null } = {}): Promise<void> {
   requirePermission(ctx.user, 'products.manage');
   assertCanWrite();
   const now = nowOf(ctx);
   await withTx(ctx.db, async (tx) => {
     const p = (await tx.select().from(products).where(eq(products.id, productId)).limit(1))[0];
     if (!p || p.deletedAt) throw new InventoryError('not_found');
+    await assertApproval(tx, { user: ctx.user, deviceId: ctx.device.id, at: now }, 'productDelete', { approvedBy: opts.approvedBy, entity: 'products', entityId: productId, details: { name: p.name } });
     await tx.update(products).set({ deletedAt: now, updatedAt: now, hlc: tick(ctx) }).where(eq(products.id, productId));
     await tx.update(barcodes).set({ deletedAt: now, updatedAt: now }).where(and(eq(barcodes.productId, productId), isNull(barcodes.deletedAt)));
     await refreshProductSearch(tx, productId);
@@ -414,9 +417,9 @@ export async function addVariant(ctx: InvCtx, productId: string, label: string, 
 }
 
 /** Bulk price change by a percentage (basis points, may be negative) — with audit per product. */
-export async function bulkChangePrices(ctx: InvCtx, ids: string[], opts: { bp: number; field: 'retail' | 'wholesale' | 'both'; roundTo?: number }): Promise<number> {
+export async function bulkChangePrices(ctx: InvCtx, ids: string[], opts: { bp: number; field: 'retail' | 'wholesale' | 'both'; roundTo?: number; approvedBy?: Approval | null }): Promise<number> {
   requirePermission(ctx.user, 'products.manage');
-  requirePermission(ctx.user, 'price.change');
+  if (!roleHas(ctx.user.permissions, 'price.change') && !opts.approvedBy) throw new PermissionError('price.change');
   assertCanWrite();
   if (!Number.isSafeInteger(opts.bp) || opts.bp <= -10_000) throw new InventoryError('invalid_price');
   const now = nowOf(ctx);
@@ -424,6 +427,7 @@ export async function bulkChangePrices(ctx: InvCtx, ids: string[], opts: { bp: n
   const adj = (v: number) => divRound(v + applyBp(v, opts.bp), step) * step;
   return withTx(ctx.db, async (tx) => {
     const rows = await tx.select().from(products).where(and(inArray(products.id, ids), isNull(products.deletedAt)));
+    await assertApproval(tx, { user: ctx.user, deviceId: ctx.device.id, at: now }, 'priceChange', { approvedBy: opts.approvedBy, permission: 'price.change', entity: 'products', entityId: null, details: { bulk: opts.bp, count: rows.length } });
     for (const p of rows) {
       const retail = opts.field === 'wholesale' ? p.retailPriceMinor : adj(p.retailPriceMinor);
       const wholesale = opts.field === 'retail' ? p.wholesalePriceMinor : adj(p.wholesalePriceMinor);

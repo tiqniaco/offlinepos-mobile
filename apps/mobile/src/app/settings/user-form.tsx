@@ -10,8 +10,19 @@ import { addUser, listRoles, updateUser, type RoleRow } from '../../domain/auth/
 import { isValidPin, isWeakPin, normalizePinInput } from '../../domain/auth/pin';
 import { useApp } from '../../state/app';
 import { errorMessage } from '../../lib/errors';
+import { OwnerReauthGate } from '../../features/lock/OwnerReauthGate';
 
-export default function UserForm() {
+/** Opening needs the owner again (2 minutes, OwnerReauthGate). */
+export default function UserFormRoute() {
+  const { t } = useTranslation();
+  return (
+    <OwnerReauthGate title={t('users.title')}>
+      <UserForm />
+    </OwnerReauthGate>
+  );
+}
+
+function UserForm() {
   const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const actor = useApp((s) => s.user)!;

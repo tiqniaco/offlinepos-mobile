@@ -16,6 +16,7 @@ import { useApp } from '../../state/app';
 import { toast } from '../../state/toast';
 import { saveProductImage } from '../../features/inventory/images';
 import { errorMessage } from '../../lib/errors';
+import { withLockHold } from '../../state/lockHold';
 
 /** Shop details printed on every receipt / invoice (logo, address, phones). The look lives in ./templates. */
 export default function ReceiptSettings() {
@@ -63,7 +64,7 @@ export default function ReceiptSettings() {
           <Pressable
             onPress={async () => {
               try {
-                const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.9 });
+                const r = await withLockHold(() => ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.9 }));
                 if (!r.canceled && r.assets[0]) setLogo(await saveProductImage(r.assets[0].uri, `logo-${uuidv7()}`));
               } catch (e) {
                 toast(errorMessage(t, e), 'error');

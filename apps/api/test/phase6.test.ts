@@ -1,3 +1,4 @@
+import { cairoDay } from '../src/usage/meter';
 import { describe, expect, it } from 'vitest';
 import { base32Encode, totpCode, DAY_MS, verifyLicence, ed25519PublicKey, uuidv7, base64urlEncode } from '@daftarak/shared';
 import { pbkdf2Hex } from '../src/lib/crypto';
@@ -114,11 +115,10 @@ describe('request budget (≤ 5 per business per day)', () => {
       refresh = r.json.refreshToken;
       pending = r.json.backupPut.backupId;
       await c.env.BACKUPS.put(new URL(r.json.backupPut.url).pathname.split('/').slice(2).join('/'), 'abc'); // direct to R2
-      const dt = new Date(c.clock.now);
-      days.push(dt.getUTCFullYear() * 10000 + (dt.getUTCMonth() + 1) * 100 + dt.getUTCDate());
+      days.push(cairoDay(c.clock.now));
     }
     for (const day of days) {
-      const row = await c.env.DB.prepare(`SELECT count FROM request_counters WHERE business_id = ?1 AND day = ?2`).bind(business.id, day).first<any>();
+      const row = await c.env.DB.prepare(`SELECT count FROM usage_daily WHERE business_id = ?1 AND day = ?2 AND metric = 'api_requests'`).bind(business.id, day).first<any>();
       expect(row.count).toBe(1);
     }
   });

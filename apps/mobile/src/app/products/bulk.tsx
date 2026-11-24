@@ -9,6 +9,7 @@ import { useCurrency, useInvCtx } from '../../features/inventory/useInvCtx';
 import { invErrorMessage } from '../../features/inventory/errors';
 import { money } from '../../lib/format';
 import { toast } from '../../state/toast';
+import { useApprovalGate } from '../../features/approval/useApprovalGate';
 
 const ROUNDS = [0, 25, 50, 100, 500];
 
@@ -23,6 +24,7 @@ export default function BulkEdit() {
   const [field, setField] = useState<'retail' | 'wholesale' | 'both'>('retail');
   const [round, setRound] = useState(0);
   const [err, setErr] = useState<string | null>(null);
+  const gate = useApprovalGate();
   const n = Number(pct.replace(',', '.'));
   const bp = Number.isFinite(n) ? Math.round(n * 100) : NaN;
   const sample = 2250;
@@ -33,16 +35,16 @@ export default function BulkEdit() {
       { text: t('common.cancel'), style: 'cancel' },
       {
         text: t('common.yes'),
-        onPress: async () => {
+        onPress: () => gate.run('priceChange', async (approval) => {
           if (!ctx) return;
           try {
-            const c = await bulkChangePrices(ctx, list, { bp, field, roundTo: round || undefined });
+            const c = await bulkChangePrices(ctx, list, { bp, field, roundTo: round || undefined, approvedBy: approval });
             toast(t('bulk.done', { n: c }));
             router.back();
           } catch (e) {
             setErr(invErrorMessage(t, e));
           }
-        },
+        }, { permission: 'price.change' }),
       },
     ]);
 
@@ -67,6 +69,7 @@ export default function BulkEdit() {
         </Text>
       </Card>
       {err ? <Banner tone="danger" text={err} /> : null}
+      {gate.sheet}
     </Screen>
   );
 }

@@ -6,10 +6,12 @@ import { roleHas, businessDay } from '@daftarak/shared';
 import { Screen, Text, Card, Button, Banner, Sheet, TextField, SectionTitle, EmptyState, colors, fonts } from '../../ui';
 import { getDb } from '../../db/client';
 import { getSale, voidSale } from '../../domain/sales/sales';
+import type { Approval } from '../../domain/auth/approval';
 import { useCurrency } from '../../features/inventory/useInvCtx';
 import { useSalesCtx } from '../../features/sales/useSalesCtx';
 import { salesErrorMessage } from '../../features/sales/errors';
 import { useApp } from '../../state/app';
+import { useApprovalGate } from '../../features/approval/useApprovalGate';
 import { toast } from '../../state/toast';
 import { money, qty, dateTimeLabel } from '../../lib/format';
 import { a4Menu, printReceipt, whatsappInvoice } from '../../features/printing/actions';
@@ -36,6 +38,7 @@ export default function SaleDetail() {
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState<null | 'print' | 'whatsapp' | 'pdf'>(null);
   const [voiding, setVoiding] = useState(false);
+  const gate = useApprovalGate();
   const voidInFlight = useRef(false);
   const load = useCallback(() => {
     let alive = true;
@@ -72,7 +75,7 @@ export default function SaleDetail() {
   const fmt = (m: number) => money(m, currency, i18n.language);
   const isInvoice = d.type === 'INVOICE';
   const canReturn = isInvoice && d.status === 'POSTED' && roleHas(user?.permissions ?? [], 'sales.return');
-  const canVoid = isInvoice && d.status === 'POSTED' && roleHas(user?.permissions ?? [], 'doc.void') && d.businessDay === businessDay(Date.now(), tz) && s.returns.length === 0;
+  const canVoid = isInvoice && d.status === 'POSTED' && (roleHas(user?.permissions ?? [], 'doc.void') || roleHas(user?.permissions ?? [], 'sales.return')) && d.businessDay === businessDay(Date.now(), tz) && s.returns.length === 0;
   return (
     <Screen back title={isInvoice ? t('invoice.title', { number: d.number }) : t('invoice.returnTitle', { number: d.number })} subtitle={d.postedAt ? dateTimeLabel(i18n.language, d.postedAt) : undefined}>
       {d.status === 'VOIDED' ? <Banner tone="danger" text={`${t('invoice.voided')}: ${d.voidReason ?? ''}`} /> : null}
@@ -142,20 +145,25 @@ export default function SaleDetail() {
             title={t('invoice.void')}
             disabled={!reason.trim()}
             loading={voiding}
-            onPress={async () => {
+            onPress={() => {
               if (!ctx || voidInFlight.current) return;
-              voidInFlight.current = true;
-              setVoiding(true);
-              try {
-                await voidSale(ctx, id, reason);
-                setVoidOpen(false);
-                load();
-              } catch (e) {
-                toast(salesErrorMessage(t, e), 'error');
-              } finally {
-                voidInFlight.current = false;
-                setVoiding(false);
-              }
+              const doVoid = async (approval: Approval | null) => {
+                voidInFlight.current = true;
+                setVoiding(true);
+                try {
+                  await voidSale(ctx, id, reason, { approvedBy: approval });
+                  setVoidOpen(false);
+                  load();
+                } catch (e) {
+                  toast(salesErrorMessage(t, e), 'error');
+                } finally {
+                  voidInFlight.current = false;
+                  setVoiding(false);
+                }
+              };
+              // «تأكيد المدير»: the void sheet closes while the manager types the PIN (one modal at a time).
+              setVoidOpen(false);
+              gate.run('void', (a) => doVoid(a), { permission: 'doc.void' });
             }}
           />
         }
@@ -163,6 +171,7 @@ export default function SaleDetail() {
         <Text variant="body">{t('invoice.voidConfirm')}</Text>
         <TextField label={t('invoice.voidReason')} value={reason} onChangeText={setReason} latinDigits={false} autoFocus />
       </Sheet>
+      {gate.sheet}
     </Screen>
   );
 }

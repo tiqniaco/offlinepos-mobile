@@ -9,7 +9,9 @@ import { inventoryDocs, inventoryLines, payments, products, productUnits, purcha
 import type { Db } from '../../db/types';
 import { withTx } from '../../db/tx';
 import { appendAudit } from '../audit/audit';
-import { requirePermission } from '../auth/users';
+import { PermissionError, requirePermission } from '../auth/users';
+import { roleHas } from '@daftarak/shared';
+import { assertApproval, type Approval } from '../auth/approval';
 import { assertCanWrite } from '../licence/guard';
 import type { InvCtx } from '../inventory/context';
 import { defaultWarehouseId, postMovements } from '../inventory/ledger';
@@ -329,8 +331,8 @@ export async function postPurchaseReturn(ctx: PurchaseCtx, docId: string, items:
 }
 
 /** Void a purchase invoice (Manager/Owner): same day / open shift, no returns. Stock leaves at the average cost. */
-export async function voidPurchase(ctx: PurchaseCtx, docId: string, reason: string): Promise<void> {
-  requirePermission(ctx.user, 'doc.void');
+export async function voidPurchase(ctx: PurchaseCtx, docId: string, reason: string, opts: { approvedBy?: Approval | null } = {}): Promise<void> {
+  if (!roleHas(ctx.user.permissions, 'doc.void') && !opts.approvedBy) throw new PermissionError('doc.void');
   assertCanWrite();
   if (!reason.trim()) throw new PurchaseError('not_voidable', { why: 'reason_required' });
   await withTx(ctx.db, async (tx) => {
@@ -345,6 +347,7 @@ export async function voidPurchase(ctx: PurchaseCtx, docId: string, reason: stri
     }
     const rets = await tx.select({ id: purchaseDocs.id }).from(purchaseDocs).where(and(eq(purchaseDocs.originalDocId, docId), eq(purchaseDocs.status, 'POSTED')));
     if (rets.length) throw new PurchaseError('has_returns');
+    await assertApproval(tx, { user: ctx.user, deviceId: ctx.device.id, at: t }, 'void', { approvedBy: opts.approvedBy, permission: 'doc.void', entity: 'purchase_docs', entityId: docId, amountMinor: doc.totalMinor, details: { number: doc.number } });
     const day = businessDay(t, ctx.timezone);
     const lines = await tx.select().from(purchaseLines).where(eq(purchaseLines.docId, docId));
     const warehouseId = await defaultWarehouseId(tx);

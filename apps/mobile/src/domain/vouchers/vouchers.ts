@@ -9,7 +9,9 @@ import { expenseCategories, journalEntries, journalLines, accounts, payments, vo
 import type { Db } from '../../db/types';
 import { withTx } from '../../db/tx';
 import { appendAudit } from '../audit/audit';
-import { requirePermission, type SessionUser } from '../auth/users';
+import { PermissionError, requirePermission, type SessionUser } from '../auth/users';
+import { roleHas } from '@daftarak/shared';
+import { assertApproval, type Approval } from '../auth/approval';
 import { assertCanWrite, assertFeature } from '../licence/guard';
 import { nextDocNumber } from '../inventory/numbering';
 import { appendChain, chainHead, voidPayload, voucherPayload } from '../integrity/chain';
@@ -177,8 +179,8 @@ export async function createPartyWithOpening(ctx: VoucherCtx, type: PartyType, i
 }
 
 /** Void a voucher: mirror ledger + journal, flag the payment, chain a VOID entry. */
-export async function voidVoucher(ctx: VoucherCtx, id: string, reason: string): Promise<void> {
-  requirePermission(ctx.user, 'doc.void');
+export async function voidVoucher(ctx: VoucherCtx, id: string, reason: string, opts: { approvedBy?: Approval | null } = {}): Promise<void> {
+  if (!roleHas(ctx.user.permissions, 'doc.void') && !opts.approvedBy) throw new PermissionError('doc.void');
   assertCanWrite();
   if (!reason.trim()) throw new VoucherError('reason_required');
   await withTx(ctx.db, async (tx) => {
@@ -187,6 +189,7 @@ export async function voidVoucher(ctx: VoucherCtx, id: string, reason: string): 
     if (!v || v.status !== 'POSTED') throw new VoucherError('not_voidable');
     if (t < (await chainHead(tx, ctx.device.id)).postedAt) throw new VoucherError('clock_behind');
     await assertVoidWindow(tx, v.shiftId, v.businessDay, t, ctx.timezone);
+    await assertApproval(tx, { user: ctx.user, deviceId: ctx.device.id, at: t }, 'void', { approvedBy: opts.approvedBy, permission: 'doc.void', entity: 'vouchers', entityId: id, amountMinor: v.amountMinor, details: { number: v.number } });
     const day = businessDay(t, ctx.timezone);
     const eff = effects({ type: v.type, amountMinor: v.amountMinor, method: v.method, partyType: v.partyType, partyId: v.partyId, sign: v.sign });
     if (eff.ledger && v.partyType && v.partyId) await postPartyLedger(tx, ctx, { partyType: v.partyType, partyId: v.partyId, sourceType: 'voucher_void', sourceId: id, debitMinor: eff.ledger.credit, creditMinor: eff.ledger.debit, businessDay: day, at: t });

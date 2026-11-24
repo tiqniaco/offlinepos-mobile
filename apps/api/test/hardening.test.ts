@@ -292,6 +292,8 @@ describe('backups via check-in', () => {
     c.setIp('10.9.4.2');
     const s = await shop(c, '01088880052');
     await c.env.DB.prepare(`UPDATE businesses SET plan_code = 'free', status = 'active', plan_expires_at = ?2 WHERE id = ?1`).bind(s.businessId, c.clock.now).run();
+    // The free plan has no cloud storage (backup_storage_mb 0): an override (super admin) lifts it to test the hard cap.
+    await c.env.DB.prepare(`INSERT INTO business_limit_overrides (business_id, limit_key, value, set_at) VALUES (?1, 'backup_storage_mb', -1, 0)`).bind(s.businessId).run();
     const cap = BACKUP_HARD_CAP.free!;
     // Older backups from other (former) devices: per-device retention never sees them.
     const seed = async (n: number, size: number) => {

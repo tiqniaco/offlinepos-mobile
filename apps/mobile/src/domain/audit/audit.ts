@@ -56,7 +56,13 @@ export type AuditAction =
   | 'shift.close'
   | 'offer.change'
   | 'backup.create'
-  | 'backup.restore';
+  | 'backup.restore'
+  | 'approval.void'
+  | 'approval.return'
+  | 'approval.product_delete'
+  | 'approval.price_change'
+  | 'approval.export'
+  | 'approval.restore';
 
 export interface AuditInput {
   action: AuditAction;

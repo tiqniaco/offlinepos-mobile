@@ -3,6 +3,7 @@ import { ApiError } from '../api/client';
 import { LicenceError, ProductLimitError } from '../domain/licence/guard';
 import { PermissionError } from '../domain/auth/users';
 import { PartyError } from '../domain/parties/parties';
+import { ApprovalError } from '../domain/auth/approval';
 import { useUpgrade } from '../state/upgrade';
 
 /** Turns any error into a clear Arabic (or English) sentence for the user. */
@@ -19,6 +20,7 @@ export function errorMessage(t: TFunction, e: unknown): string {
   if (e instanceof LicenceError && (e.reason === 'limit' || e.reason === 'feature')) setTimeout(() => useUpgrade.getState().show(e.reason === 'feature' ? 'feature' : String(e.limit ?? 'limit')), 0);
   if (e instanceof LicenceError) return e.reason === 'limit' ? t('licence.limit') : e.reason === 'feature' ? t('licence.feature') : t(`licence.reason.${e.reason}`, { defaultValue: t('licence.readOnly') });
   if (e instanceof PermissionError) return t('users.noPermission');
+  if (e instanceof ApprovalError) return t(`approve.errors.${e.code}`);
   if (e instanceof PartyError) return t(`parties.errors.${e.code}`);
   return t('errors.unknown');
 }

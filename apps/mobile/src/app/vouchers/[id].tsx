@@ -7,6 +7,8 @@ import { Screen, Text, Card, Button, Sheet, TextField, Banner, IconBadge, EmptyS
 import { getDb } from '../../db/client';
 import { useApp } from '../../state/app';
 import { getVoucher, voidVoucher, VoucherError } from '../../domain/vouchers/vouchers';
+import type { Approval } from '../../domain/auth/approval';
+import { useApprovalGate } from '../../features/approval/useApprovalGate';
 import { getParty, owed } from '../../domain/parties/parties';
 import { getShift } from '../../domain/shifts/shifts';
 import { ExportBar } from '../../features/common/ExportBar';
@@ -35,6 +37,7 @@ export default function VoucherDetail() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const gate = useApprovalGate();
 
   const load = useCallback(async () => {
     const db = getDb();
@@ -69,18 +72,26 @@ export default function VoucherDetail() {
     setReason('');
     setVoidOpen(true);
   };
-  const doVoid = async () => {
+  const askVoid = () => {
+    if (!ctx || busy) return;
+    setErr(null);
+    // «تأكيد المدير»: one sheet at a time — the void sheet comes back with the error if the void fails.
+    setVoidOpen(false);
+    gate.run('void', (a) => doVoid(a), { permission: 'doc.void' });
+  };
+  const doVoid = async (approval: Approval | null) => {
     if (!ctx || busy) return;
     setErr(null);
     setBusy(true);
     try {
-      await voidVoucher(ctx, id, reason);
+      await voidVoucher(ctx, id, reason, { approvedBy: approval });
       setVoidOpen(false);
       setReason('');
       toast(t('voucher.voided'));
       void load().catch(() => undefined);
     } catch (e) {
       setErr(e instanceof VoucherError ? t(`voucher.errors.${e.code}`) : errorMessage(t, e));
+      setVoidOpen(true);
     } finally {
       setBusy(false);
     }
@@ -108,10 +119,11 @@ export default function VoucherDetail() {
       </Card>
       <ExportBar build={async () => voucherDoc(v, await bizHeader(), balance)} mobile={mobile} kinds={['whatsapp', 'print', 'pdf']} />
       {canVoid ? <Button kind="danger" icon="trash" title={t('voucher.void')} onPress={openVoid} /> : null}
-      <Sheet visible={voidOpen} onClose={() => setVoidOpen(false)} title={t('voucher.void')} footer={<Button kind="danger" title={t('voucher.voidConfirm')} loading={busy} disabled={!reason.trim() || busy} onPress={() => void doVoid()} />}>
+      <Sheet visible={voidOpen} onClose={() => setVoidOpen(false)} title={t('voucher.void')} footer={<Button kind="danger" title={t('voucher.voidConfirm')} loading={busy} disabled={!reason.trim() || busy} onPress={askVoid} />}>
         <TextField label={t('invoice.voidReason')} value={reason} onChangeText={setReason} latinDigits={false} autoFocus />
         {err ? <Banner tone="danger" text={err} /> : null}
       </Sheet>
+      {gate.sheet}
     </Screen>
   );
 }

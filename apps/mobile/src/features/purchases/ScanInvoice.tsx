@@ -26,6 +26,7 @@ import { useOcrScan } from '../../state/ocrScan';
 import { useListScan } from '../../state/listScan';
 import { toast } from '../../state/toast';
 import { fx } from '../../ui/fx';
+import { withLockHold } from '../../state/lockHold';
 
 type Source = 'camera' | 'gallery' | 'pdf';
 const LONG_EDGE = 1280;
@@ -44,7 +45,7 @@ async function online(): Promise<boolean> {
 /** Picks the file and returns base64 + media type, or null when the user cancelled. */
 async function pickFile(source: Source, onCameraDenied: () => void): Promise<{ data: string; mediaType: OcrMediaType } | null> {
   if (source === 'pdf') {
-    const r = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true });
+    const r = await withLockHold(() => DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true }));
     if (r.canceled || !r.assets?.[0]) return null;
     const a = r.assets[0];
     if (a.size != null && a.size > OCR_IMAGE_MAX_BYTES) throw new ScanInputError('pdf_too_large');
@@ -68,7 +69,7 @@ async function pickFile(source: Source, onCameraDenied: () => void): Promise<{ d
     }
   }
   const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 1 };
-  const r = useCamera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
+  const r = useCamera ? await withLockHold(() => ImagePicker.launchCameraAsync(opts)) : await withLockHold(() => ImagePicker.launchImageLibraryAsync(opts));
   if (r.canceled || !r.assets[0]) return null;
   const a = r.assets[0];
   const landscape = (a.width || 0) >= (a.height || 0);

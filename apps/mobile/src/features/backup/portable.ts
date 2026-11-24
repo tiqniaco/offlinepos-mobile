@@ -43,6 +43,11 @@ import {
 } from '../../domain/backup/portable';
 import { SCHEMA_VERSION, recordDone } from './service';
 import { decryptBackupFile, installSnapshot, openSnapshot, writeBackupFile } from './files';
+import { approveDataExport, type Actor } from '../approval/exportGate';
+import { ApprovalError, type Approval } from '../../domain/auth/approval';
+import { appendAudit } from '../../domain/audit/audit';
+import { withTx } from '../../db/tx';
+import { withLockHold } from '../../state/lockHold';
 
 const platform = (): 'ios' | 'android' => (Platform.OS === 'ios' ? 'ios' : 'android');
 const ymd = (ms: number) => {
@@ -53,7 +58,8 @@ const ymd = (ms: number) => {
 export type PortableStage = 'key' | 'build' | 'decrypt';
 
 /** Build the passphrase-protected file and open the share sheet (the owner picks Drive / Files / WhatsApp …). */
-export async function exportPortableBackup(passphrase: string, onProgress?: (p: number, stage: PortableStage) => void): Promise<void> {
+export async function exportPortableBackup(passphrase: string, onProgress?: (p: number, stage: PortableStage) => void, approvedBy?: Approval | null): Promise<void> {
+  await approveDataExport('export', 'portable', approvedBy);
   const db = getDb();
   const createdAt = Date.now();
   const meta = await portableMeta(db);
@@ -62,7 +68,7 @@ export async function exportPortableBackup(passphrase: string, onProgress?: (p: 
   const extras: [string, Uint8Array][] = [[PORTABLE_BACKUP_KEY_ENTRY, base64urlDecode(await getOrCreateBackupKey())]];
   const built = await writeBackupFile(portableWriter(dataKey, header), `kashiro-${ymd(createdAt)}.${PORTABLE_EXT}`, extras, (p) => onProgress?.(p, 'build'));
   dataKey.fill(0);
-  await Sharing.shareAsync(built.file.uri, { mimeType: 'application/octet-stream', dialogTitle: built.file.name, UTI: 'public.data' });
+  await withLockHold(() => Sharing.shareAsync(built.file.uri, { mimeType: 'application/octet-stream', dialogTitle: built.file.name, UTI: 'public.data' }));
   await recordPortableExport(db, createdAt);
   await recordDone({ at: createdAt, size: built.size, id: null, kind: 'local' }, { cloudHead: false });
 }
@@ -79,7 +85,7 @@ export interface PortablePick {
 
 /** Any file type is accepted; the header decides. Throws PortableError (not_backup / cloud_file / header / newer_schema). */
 export async function pickPortableFile(): Promise<PortablePick | null> {
-  const r = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true, multiple: false });
+  const r = await withLockHold(() => DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true, multiple: false }));
   if (r.canceled || !r.assets?.[0]) return null;
   const asset = r.assets[0];
   const file = new File(asset.uri);
@@ -141,9 +147,15 @@ export async function portableTarget(): Promise<{ ok: true; mode: PortableRestor
   return { ok: true, mode: { kind: 'keep', device, licence: await currentLicenceRow(db) } };
 }
 
-/** Replace the live database with the staged file. The caller re-runs boot() afterwards (→ lock screen). */
-export async function applyPortable(mode: PortableRestoreMode): Promise<void> {
+/**
+ * Replace the live database with the staged file. The caller re-runs boot() afterwards (→ lock screen).
+ * On an existing shop (`keep`) the signed-in user (`actor`, captured before the screens unmount) must pass
+ * «تأكيد المدير»; the approval is logged again in the restored audit chain (the old one is replaced).
+ */
+export async function applyPortable(mode: PortableRestoreMode, opts: { actor?: Actor | null; approvedBy?: Approval | null } = {}): Promise<void> {
   if (!staged) throw new Error('nothing staged');
+  if (mode.kind === 'keep' && !opts.actor) throw new ApprovalError('approval_required', 'restore');
+  const approverId = opts.actor ? await approveDataExport('restore', 'portable', opts.approvedBy, opts.actor) : null;
   const s = staged;
   // Taken out of `staged` first: the screen unmounts during the swap and its cleanup must not delete these files.
   staged = null;
@@ -158,6 +170,11 @@ export async function applyPortable(mode: PortableRestoreMode): Promise<void> {
   }
   const db = await openDatabase();
   await finishPortableRestore(db, mode, { platform: platform() });
+  if (approverId && opts.actor) {
+    const actor = opts.actor;
+    const deviceId = (await getCurrentDevice(db))?.id ?? actor.deviceId;
+    await withTx(db, (tx) => appendAudit(tx, { action: 'approval.restore', entity: 'backup', entityId: 'portable', after: { for: actor.user.id }, userId: approverId, deviceId })).catch(() => undefined);
+  }
   if (mode.kind === 'offline') {
     // No sign-in on this phone yet: the old phone's session is not carried over.
     await deleteSecret(SECURE_KEYS.refreshToken).catch(() => undefined);

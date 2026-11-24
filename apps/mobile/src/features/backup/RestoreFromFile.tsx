@@ -9,6 +9,10 @@ import { boot } from '../../state/boot';
 import { toast } from '../../state/toast';
 import { dateTimeLabel } from '../../lib/format';
 import { applyPortable, discardPortable, pickPortableFile, portableTarget, stagePortable, type PortablePick, type PortablePreview, type PortableStage } from './portable';
+import type { PortableRestoreMode } from '../../domain/backup/portable';
+import type { Approval } from '../../domain/auth/approval';
+import { useApprovalGate } from '../approval/useApprovalGate';
+import { currentActor } from '../approval/exportGate';
 
 type Step = 'pick' | 'pass' | 'working' | 'preview' | 'installing';
 export type ShellProps = { footer: ReactNode; children: ReactNode };
@@ -82,6 +86,7 @@ export function RestoreFromFile({ inApp, Shell }: { inApp: boolean; Shell: (p: S
     }
   };
 
+  const gate = useApprovalGate();
   const install = async () => {
     setErr(null);
     const target = await portableTarget();
@@ -89,12 +94,18 @@ export function RestoreFromFile({ inApp, Shell }: { inApp: boolean; Shell: (p: S
       setBlocked(t(`portable.errors.${target.reason}`));
       return;
     }
+    // Existing shop: «تأكيد المدير» first (the restore checks it again before touching the database).
+    if (inApp) gate.run('restore', (a) => apply(target.mode, a));
+    else await apply(target.mode, null);
+  };
+  const apply = async (mode: PortableRestoreMode, approval: Approval | null) => {
+    const actor = inApp ? currentActor() : null;
     setStep('installing');
     // In the app, unmount every screen before the database file is swapped.
     if (inApp) useApp.getState().set({ status: 'booting', user: null });
     let ok = false;
     try {
-      await applyPortable(target.mode);
+      await applyPortable(mode, { actor, approvedBy: approval });
       ok = true;
       fx.success();
       if (!inApp) useOnboarding.getState().reset();
@@ -180,6 +191,7 @@ export function RestoreFromFile({ inApp, Shell }: { inApp: boolean; Shell: (p: S
           {blocked ? <Banner tone="danger" text={blocked} /> : <Banner tone={mode === 'keep' ? 'success' : 'warn'} text={mode === 'keep' ? t('portable.keepNote') : t('portable.offlineNote')} />}
         </>
       ) : null}
+      {inApp ? gate.sheet : null}
     </>
     ),
   });

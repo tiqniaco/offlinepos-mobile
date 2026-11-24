@@ -31,6 +31,7 @@ import { addManualBillingRoutes } from '../billing/manual';
 import { storeEndStatement } from '../billing/activate';
 import { addOcrRoutes, type OcrClient } from '../ocr/scan';
 import { blocks, verifyIntegrity, type IntegrityInput } from '../integrity/verify';
+import { meterBusiness, track } from '../usage/meter';
 
 /** Verify (or just record) device integrity; throws only when policy says so. */
 export async function checkIntegrity(env: Env, input: IntegrityInput | undefined, action: 'signup' | 'activate' | 'checkin', now: number, deviceId?: string) {
@@ -56,19 +57,12 @@ export const MAX_BUSINESSES_PER_ACCOUNT = 2;
 /** Automatic backups (backupMeta on the check-in) started per business per UTC day. */
 export const CHECKIN_BACKUPS_PER_DAY = 1;
 
-function utcDay(now: number): number {
-  const d = new Date(now);
-  return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
-}
-
-/** Counts requests per business per day to verify the ≤ 5/day budget (SPEC rule 2). */
-export async function countRequest(env: Env, businessId: string, now: number) {
-  await env.DB.prepare(
-    `INSERT INTO request_counters (business_id, day, count) VALUES (?1, ?2, 1)
-     ON CONFLICT (business_id, day) DO UPDATE SET count = count + 1`,
-  )
-    .bind(businessId, utcDay(now))
-    .run();
+/**
+ * Marks the request as this business's (usage_daily api_requests, SPEC rule 2's ≤ 5/day budget). The write itself is
+ * the one metering UPSERT after the response (usage/meter.ts).
+ */
+export async function countRequest(_env: Env, businessId: string, _now: number) {
+  meterBusiness(businessId);
 }
 
 function deviceCode(seq: number): string {
@@ -371,7 +365,9 @@ export function v1Routes(deps: Deps = defaultDeps) {
       const r = { deviceId: device.id, ...b.anchor, serverTime: now };
       anchorReceipt = { ...b.anchor, serverTime: now, sig: signAnchorReceipt(c.env, r) };
     }
+    track(business.id, 'checkins');
     if (rows.length) {
+      track(business.id, 'announcements_delivered', rows.length);
       const last = rows[rows.length - 1]!.created_at;
       effects.push(
         c.env.DB.prepare(`UPDATE devices SET announcements_until = MAX(announcements_until, ?2) WHERE id = ?1`).bind(device.id, last),

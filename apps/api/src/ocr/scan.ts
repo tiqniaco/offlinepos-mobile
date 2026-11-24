@@ -29,6 +29,7 @@ import { effectiveLimits } from '../licence/issue';
 import { decodeImage } from '../billing/manual';
 import type { Deps } from '../routes/v1';
 import { bumpCounter } from '../otp/service';
+import { track } from '../usage/meter';
 
 export const DEFAULT_OCR_MODEL = 'claude-haiku-5-5';
 export const DEFAULT_OCR_FALLBACK_MODEL = 'claude-opus-5-5';
@@ -499,6 +500,16 @@ export function addOcrRoutes(app: Hono<AppEnv>, deps: Deps) {
         r.calls.length > 1 ? 1 : 0,
       )
       .run();
+    // Usage: tokens of every model call (cost), scans that counted, expensive retry-model calls.
+    const opus = r.calls.filter((x) => /opus/i.test(x.model));
+    track(business.id, 'ocr_input_tokens', r.calls.reduce((a, x) => a + x.in, 0));
+    track(business.id, 'ocr_output_tokens', r.calls.reduce((a, x) => a + x.out, 0));
+    if (opus.length) {
+      track(business.id, 'ocr_opus_calls', opus.length);
+      track(business.id, 'ocr_opus_input_tokens', opus.reduce((a, x) => a + x.in, 0));
+      track(business.id, 'ocr_opus_output_tokens', opus.reduce((a, x) => a + x.out, 0));
+    }
+    if (ok) track(business.id, 'ocr_scans');
     if (!ok) {
       if ('unavailable' in r && r.unavailable) throw new ApiError(503, 'ocr_unavailable', 'the reading service is not reachable, try again');
       throw new ApiError(422, 'ocr_failed', mode === 'list' ? 'could not read this list' : 'could not read this invoice');

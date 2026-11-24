@@ -7,6 +7,8 @@ import { Screen, Text, Card, Button, Sheet, TextField, Banner, EmptyState, color
 import { getDb } from '../../db/client';
 import { useApp } from '../../state/app';
 import { getPurchase, voidPurchase, PurchaseError } from '../../domain/purchases/purchases';
+import type { Approval } from '../../domain/auth/approval';
+import { useApprovalGate } from '../../features/approval/useApprovalGate';
 import { getParty } from '../../domain/parties/parties';
 import { getShift } from '../../domain/shifts/shifts';
 import { ExportBar } from '../../features/common/ExportBar';
@@ -52,17 +54,26 @@ export default function PurchaseDetail() {
     }
   }, [id, tz, user.permissions, t]);
   useFocusEffect(useCallback(() => void load(), [load]));
-  const doVoid = async () => {
+  const gate = useApprovalGate();
+  const askVoid = () => {
+    if (!ctx || voiding) return;
+    setErr(null);
+    // «تأكيد المدير»: one sheet at a time — the void sheet comes back with the error if the void fails.
+    setVoidOpen(false);
+    gate.run('void', (a) => doVoid(a), { permission: 'doc.void' });
+  };
+  const doVoid = async (approval: Approval | null) => {
     if (!ctx || voiding) return;
     setErr(null);
     setVoiding(true);
     try {
-      await voidPurchase(ctx, id, reason);
+      await voidPurchase(ctx, id, reason, { approvedBy: approval });
       setVoidOpen(false);
       toast(t('voucher.voided'));
       void load();
     } catch (e) {
       setErr(e instanceof PurchaseError ? t(`purchase.errors.${e.code}`) : errorMessage(t, e));
+      setVoidOpen(true);
     } finally {
       setVoiding(false);
     }
@@ -112,10 +123,11 @@ export default function PurchaseDetail() {
       {d.supplierId && d.creditMinor > 0 && roleHas(user.permissions, 'purchases.manage') ? <Button kind="secondary" icon="arrowOut" title={t('parties.pay')} onPress={() => router.push({ pathname: '/vouchers/new', params: { type: 'PAYMENT', partyId: d.supplierId! } })} /> : null}
       {canVoid ? <Button kind="danger" icon="trash" title={t('invoice.void')} onPress={() => { setReason(''); setErr(null); setVoidOpen(true); }} /> : null}
       {p.returns.length ? <Text variant="caption">{t('purchase.hasReturns', { n: p.returns.length })}</Text> : null}
-      <Sheet visible={voidOpen} onClose={() => setVoidOpen(false)} title={t('invoice.void')} footer={<Button kind="danger" title={t('voucher.voidConfirm')} disabled={!reason.trim()} loading={voiding} onPress={() => void doVoid()} />}>
+      <Sheet visible={voidOpen} onClose={() => setVoidOpen(false)} title={t('invoice.void')} footer={<Button kind="danger" title={t('voucher.voidConfirm')} disabled={!reason.trim()} loading={voiding} onPress={askVoid} />}>
         <TextField label={t('invoice.voidReason')} value={reason} onChangeText={setReason} latinDigits={false} autoFocus />
         {err ? <Banner tone="danger" text={err} /> : null}
       </Sheet>
+      {gate.sheet}
     </Screen>
   );
 }

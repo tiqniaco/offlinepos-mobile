@@ -10,7 +10,8 @@ import type { AppEnv, Env } from '../env';
 import { ApiError, body, errorResponse } from '../lib/http';
 import { requireSession } from '../auth/tokens';
 import { ownedBusiness } from '../routes/phase6';
-import type { PlanRow } from '../licence/issue';
+import { effectiveLimits, type PlanRow } from '../licence/issue';
+import { limitReached, track, usedThisMonth } from '../usage/meter';
 import type { Deps } from '../routes/v1';
 
 export const PAYMENT_DEFAULTS = { instapay: '01558858884', vodafoneCash: '01017686542', slaHours: 12 };
@@ -117,6 +118,12 @@ export function addManualBillingRoutes(app: Hono<AppEnv>, deps: Deps, countReque
       .first<{ pending: number | null; today: number | null; oldest: number | null }>();
     if ((counts?.today ?? 0) >= MAX_REQUESTS_PER_DAY) throw new ApiError(429, 'rate_limited', 'too many payment requests today', (counts?.oldest ?? now) + DAY_MS - now);
     if ((counts?.pending ?? 0) >= MAX_PENDING_PER_BUSINESS) throw new ApiError(409, 'too_many_pending', 'wait for the pending requests to be reviewed');
+    // Receipt uploads per shop per Cairo month (receipt_uploads_month, override ?? plan).
+    const { limits } = await effectiveLimits(c.env, business, now);
+    if (limits.receipt_uploads_month !== -1) {
+      const used = await usedThisMonth(c.env, business.id, 'receipt_uploads', now);
+      if (used >= limits.receipt_uploads_month) throw limitReached('receipt_uploads_month', limits.receipt_uploads_month, used, 'monthly receipt uploads limit reached');
+    }
 
     const id = uuidv7(now);
     const key = `receipts/${business.id}/${id}.${receipt.ext}`;
@@ -135,6 +142,7 @@ export function addManualBillingRoutes(app: Hono<AppEnv>, deps: Deps, countReque
       await c.env.BACKUPS.delete(key);
       return c.json({ id: won.id, status: won.status, amountMinor: won.amount_minor, createdAt: won.created_at }, 200);
     }
+    track(business.id, 'receipt_uploads', 1, receipt.bytes.length);
     await countRequest(c.env, business.id, now);
     return c.json({ id, status: 'pending', amountMinor: amount, createdAt: now }, 201);
   });

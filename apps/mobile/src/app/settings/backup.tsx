@@ -16,6 +16,8 @@ import { exportPortableBackup, lastPortableBackup } from '../../features/backup/
 import { hasDocuments, portableReminder } from '../../domain/backup/portable';
 import { getDb } from '../../db/client';
 import { exportAllToExcel } from '../../features/backup/excelExport';
+import { useApprovalGate } from '../../features/approval/useApprovalGate';
+import type { Approval } from '../../domain/auth/approval';
 import { dateTimeLabel } from '../../lib/format';
 
 const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)} MB`;
@@ -50,17 +52,20 @@ export default function BackupScreen() {
   }, [business?.serverBusinessId]);
   useFocusEffect(load);
 
-  const run = async (kind: 'cloud' | 'local' | 'excel') => {
+  const gate = useApprovalGate();
+  /** Excel / file exports pass «تأكيد المدير» first when the shop asks for it (cloud backups never leave the account). */
+  const run = (kind: 'cloud' | 'local' | 'excel') => (kind === 'cloud' ? doRun(kind, null) : gate.run('export', (a) => doRun(kind, a)));
+  const doRun = async (kind: 'cloud' | 'local' | 'excel', approval: Approval | null) => {
     setMsg(null);
     setBusy(kind);
     try {
       if (kind === 'cloud') await backupNow((v, stage) => setP({ v, stage }));
       else if (kind === 'local') {
-        await exportPortableBackup(pass, (v, stage) => setP({ v, stage }));
+        await exportPortableBackup(pass, (v, stage) => setP({ v, stage }), approval);
         setForm(false);
         setPass('');
         setPass2('');
-      } else await exportAllToExcel({ range: xRange.key === 'all' ? null : { from: xRange.from, to: xRange.to }, onProgress: (v) => setP({ v, stage: 'excel' }) });
+      } else await exportAllToExcel({ range: xRange.key === 'all' ? null : { from: xRange.from, to: xRange.to }, onProgress: (v) => setP({ v, stage: 'excel' }), approvedBy: approval });
       fx.success();
       if (kind === 'cloud') setMsg({ tone: 'success', text: t('backup.done') });
       if (kind === 'local') setMsg({ tone: 'success', text: t('portable.done') });
@@ -143,6 +148,7 @@ export default function BackupScreen() {
       <Button kind="secondary" icon="sheet" title={t('backup.excel')} loading={busy === 'excel'} disabled={!!busy} onPress={() => void run('excel')} />
       <Text variant="caption">{t('backup.privacy')}</Text>
       {docs ? <Text variant="caption">{t('portable.restoreHasDocs')}</Text> : <Button kind="ghost" icon="download" title={t('portable.restoreTitle')} disabled={!!busy} onPress={() => router.push('/settings/restore-file')} />}
+      {gate.sheet}
     </Screen>
   );
 }

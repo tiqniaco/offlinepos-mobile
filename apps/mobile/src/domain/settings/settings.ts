@@ -8,7 +8,7 @@ import { appendAudit } from '../audit/audit';
 import { assertCanWrite } from '../licence/guard';
 import { PermissionError } from '../auth/users';
 
-export type SettingKey = keyof BusinessSettings | 'language' | 'palette' | 'appearance' | 'font' | 'textSize' | 'sounds' | 'soundVolume' | 'haptics' | 'notifications' | 'tipsSeen' | 'blockScreenshots' | 'hideSensitive' | 'printer' | 'receipt' | 'cashRoundingMinor' | 'requireShift' | 'reminderDays' | 'reminderTemplate' | 'defaultMarkupBp' | 'priceRoundingMinor';
+export type SettingKey = keyof BusinessSettings | 'language' | 'palette' | 'appearance' | 'font' | 'textSize' | 'sounds' | 'soundVolume' | 'haptics' | 'notifications' | 'tipsSeen' | 'blockScreenshots' | 'hideSensitive' | 'printer' | 'receipt' | 'cashRoundingMinor' | 'requireShift' | 'reminderDays' | 'reminderTemplate' | 'defaultMarkupBp' | 'priceRoundingMinor' | 'managerApproval' | 'appSwitcherCover';
 /** palette/appearance are personal display settings (src/ui/theme.ts). */
 export type AppSettings = BusinessSettings & { language: 'ar' | 'en'; palette: 'tiqnia' | 'teal' | 'emerald' | 'sunset' | 'graphite'; appearance: 'light' | 'dark' | 'comfort' | 'system';
   font: 'readex' | 'alexandria' | 'almarai' | 'plex';
@@ -41,6 +41,10 @@ export type AppSettings = BusinessSettings & { language: 'ar' | 'en'; palette: '
   defaultMarkupBp: number;
   /** Sale prices made from the markup are rounded UP to this step (minor units: 0 / 25 / 50 / 100; default 50). */
   priceRoundingMinor: number;
+  /** «تأكيد المدير للعمليات الحساسة» (shop-wide; see domain/auth/approval.ts). */
+  managerApproval: Partial<import('../auth/approval').ApprovalPolicy>;
+  /** Cover the app with the logo while it is in the background / app switcher (iOS snapshot). Default on. */
+  appSwitcherCover: boolean;
 };
 
 /** Receipt / invoice template options (SPEC §3 + «شكل الفواتير»). Every field has a good default. */
@@ -103,7 +107,7 @@ export async function writeSettings(tx: Pick<AppDb, 'insert'>, values: Partial<A
 }
 
 /** Security settings that protect the whole shop: only someone with settings.manage may change them. */
-const MANAGED_KEYS: ReadonlySet<SettingKey> = new Set<SettingKey>(['autoLockMinutes', 'blockScreenshots', 'negativeStock', 'wallets', 'defaultMarkupBp', 'priceRoundingMinor']);
+const MANAGED_KEYS: ReadonlySet<SettingKey> = new Set<SettingKey>(['autoLockMinutes', 'blockScreenshots', 'negativeStock', 'wallets', 'defaultMarkupBp', 'priceRoundingMinor', 'managerApproval', 'appSwitcherCover']);
 
 /** Change one setting with an audit entry. Language and lock time are personal → allowed even read-only. */
 export async function changeSetting<K extends SettingKey>(

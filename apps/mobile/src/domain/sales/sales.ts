@@ -31,7 +31,8 @@ import { products, productUnits, salesDocs, salesLines, payments, units, journal
 import type { Db } from '../../db/types';
 import { withTx } from '../../db/tx';
 import { appendAudit } from '../audit/audit';
-import { requirePermission, type SessionUser } from '../auth/users';
+import { PermissionError, requirePermission, type SessionUser } from '../auth/users';
+import { assertApproval, type Approval } from '../auth/approval';
 import { assertCanWrite, getLicenceState, LicenceError } from '../licence/guard';
 import { UNLIMITED } from '@daftarak/shared';
 import type { InvCtx } from '../inventory/context';
@@ -792,7 +793,7 @@ async function planReturn(db: Db, invoiceId: string, items: { lineId: string; qt
  * at what the customer actually paid on the invoice (minus earlier refunds): the rest of a credit (آجل) invoice is
  * taken off the customer's balance instead (result.creditMinor says how much).
  */
-export async function postReturn(ctx: SalesCtx, invoiceId: string, items: { lineId: string; qtyMilli: number }[], refunds: PaymentInput[], reason: string): Promise<PostResult & { creditMinor: number }> {
+export async function postReturn(ctx: SalesCtx, invoiceId: string, items: { lineId: string; qtyMilli: number }[], refunds: PaymentInput[], reason: string, opts: { approvedBy?: Approval | null } = {}): Promise<PostResult & { creditMinor: number }> {
   requirePermission(ctx.user, 'sales.return');
   assertCanWrite();
   return withTx(ctx.db, async (tx) => {
@@ -811,6 +812,8 @@ export async function postReturn(ctx: SalesCtx, invoiceId: string, items: { line
     const refundSum = refunds.reduce((s, r) => s + r.amountMinor, 0);
     if (refundSum !== total || refunds.some((r) => r.amountMinor < 0)) throw new SalesError('refund_mismatch', { total });
     if (refunds.some((r) => r.method === 'credit' && r.amountMinor > 0) && !inv.customerId) throw new SalesError('credit_refund_without_customer');
+    // «مرتجع أكبر من مبلغ»: above the shop's threshold a non-owner needs a manager's PIN.
+    await assertApproval(tx, { user: ctx.user, deviceId: ctx.device.id, at: t }, 'return', { approvedBy: opts.approvedBy, amountMinor: total, entity: 'sales_docs', entityId: invoiceId, details: { of: inv.number } });
     // Money back never exceeds what was paid: the excess of a credit invoice comes off the customer's balance.
     let room = (await refundablePaid(tx, invoiceId)).leftMinor;
     let excess = 0;
@@ -927,8 +930,9 @@ export async function postReturn(ctx: SalesCtx, invoiceId: string, items: { line
  * (without shifts: the same business day) and only when the invoice has no posted returns (Q-05).
  * Everything is reversed by new entries; the original rows stay untouched (only status flips).
  */
-export async function voidSale(ctx: SalesCtx, docId: string, reason: string): Promise<void> {
-  requirePermission(ctx.user, 'doc.void');
+export async function voidSale(ctx: SalesCtx, docId: string, reason: string, opts: { approvedBy?: Approval | null } = {}): Promise<void> {
+  // Without `doc.void` (cashier) only with a manager's approval (checked in the transaction below).
+  if (!roleHas(ctx.user.permissions, 'doc.void') && !opts.approvedBy) throw new PermissionError('doc.void');
   assertCanWrite();
   if (!reason.trim()) throw new SalesError('not_voidable', { why: 'reason_required' });
   await withTx(ctx.db, async (tx) => {
@@ -944,6 +948,7 @@ export async function voidSale(ctx: SalesCtx, docId: string, reason: string): Pr
     }
     const rets = await tx.select({ id: salesDocs.id }).from(salesDocs).where(and(eq(salesDocs.originalDocId, docId), eq(salesDocs.type, 'RETURN'), eq(salesDocs.status, 'POSTED')));
     if (rets.length) throw new SalesError('has_returns');
+    await assertApproval(tx, { user: ctx.user, deviceId: ctx.device.id, at: t }, 'void', { approvedBy: opts.approvedBy, permission: 'doc.void', entity: 'sales_docs', entityId: docId, amountMinor: doc.totalMinor, details: { number: doc.number } });
 
     const lines = await tx.select().from(salesLines).where(eq(salesLines.docId, docId));
     const warehouseId = await defaultWarehouseId(tx);

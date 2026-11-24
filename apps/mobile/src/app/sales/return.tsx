@@ -11,6 +11,8 @@ import { useCurrency } from '../../features/inventory/useInvCtx';
 import { salesErrorMessage } from '../../features/sales/errors';
 import { money, qty } from '../../lib/format';
 import { toast } from '../../state/toast';
+import { useApprovalGate } from '../../features/approval/useApprovalGate';
+import type { Approval } from '../../domain/auth/approval';
 
 /** Sales return linked to the original invoice (SPEC §5). */
 export default function Return() {
@@ -71,13 +73,18 @@ export default function Return() {
       .finally(() => my === previewId.current && setPreviewing(false));
   }, [items, id, ctx?.settings.cashRoundingMinor]);
   const fmt = (m: number) => money(m, currency, i18n.language);
-  const submit = async () => {
+  const gate = useApprovalGate();
+  const submit = () => {
+    if (!ctx || previewing || inFlight.current) return;
+    gate.run('return', (a) => post(a), { amountMinor: total });
+  };
+  const post = async (approval: Approval | null) => {
     if (!ctx || previewing || inFlight.current) return;
     inFlight.current = true;
     setBusy(true);
     setErr(null);
     try {
-      const r = await postReturn(ctx, id, items, [{ method, amountMinor: total }], reason || '-');
+      const r = await postReturn(ctx, id, items, [{ method, amountMinor: total }], reason || '-', { approvedBy: approval });
       toast(method !== 'credit' && r.creditMinor > 0 ? t('ret.doneSplit', { number: r.number, amount: fmt(r.creditMinor) }) : t('ret.done', { number: r.number }));
       router.replace({ pathname: '/sales/[id]', params: { id: r.docId } });
     } catch (e) {
@@ -123,6 +130,7 @@ export default function Return() {
       </Card>
       {method !== 'credit' && paidLeft != null && total > paidLeft ? <Banner tone="warn" text={t('ret.overPaid', { paid: fmt(paidLeft), rest: fmt(total - paidLeft) })} /> : null}
       {err ? <Banner tone="danger" text={err} /> : null}
+      {gate.sheet}
     </Screen>
   );
 }

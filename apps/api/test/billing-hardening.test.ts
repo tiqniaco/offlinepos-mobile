@@ -188,6 +188,8 @@ describe('backups (server)', () => {
     const c = makeClient();
     const s = await shop(c, '01099990005');
     await setBiz(c, s.businessId, 'free', 'active', c.clock.now); // keeps 3
+    // Free has no cloud storage by default (backup_storage_mb 0): a super-admin override gives it 50 MB.
+    await c.env.DB.prepare(`INSERT INTO business_limit_overrides (business_id, limit_key, value, set_at) VALUES (?1, 'backup_storage_mb', 50, 0)`).bind(s.businessId).run();
     const ids: string[] = [];
     for (let i = 0; i < 4; i++) {
       c.advance(60_000);

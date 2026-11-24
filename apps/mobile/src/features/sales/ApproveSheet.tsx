@@ -6,12 +6,17 @@ import { roleHas } from '@daftarak/shared';
 import { Sheet, Text, Avatar, PinDots, PinPad, Button, colors, fonts } from '../../ui';
 import { getDb } from '../../db/client';
 import { listActiveUsers, unlockWithPin, PinError, type SessionUser } from '../../domain/auth/users';
+import { approveWithPin, ApprovalError, type Approval, type SensitiveAction } from '../../domain/auth/approval';
+
+const SENSITIVE: readonly string[] = ['void', 'return', 'productDelete', 'priceChange', 'export', 'restore'] satisfies SensitiveAction[];
 
 /**
  * Manager PIN override (SPEC §5: discounts capped per role). Verifies the approver's PIN with the
  * normal lock-out rules; the posting service re-checks the approver's own caps and audits it.
+ * For «تأكيد المدير للعمليات الحساسة» (`needs` = a SensitiveAction) it also hands back a single-use approval
+ * token that the domain service redeems (domain/auth/approval.ts).
  */
-export function ApproveSheet({ visible, onClose, onApproved, needs }: { visible: boolean; onClose: () => void; onApproved: (u: SessionUser) => void; needs: 'discount' | 'price' | 'credit' }) {
+export function ApproveSheet({ visible, onClose, onApproved, needs }: { visible: boolean; onClose: () => void; onApproved: (u: SessionUser, approval?: Approval) => void; needs: 'discount' | 'price' | 'credit' | SensitiveAction }) {
   const { t } = useTranslation();
   const [users, setUsers] = useState<Awaited<ReturnType<typeof listActiveUsers>>>([]);
   const [sel, setSel] = useState<string | null>(null);
@@ -36,12 +41,17 @@ export function ApproveSheet({ visible, onClose, onApproved, needs }: { visible:
   const submit = async () => {
     if (!sel) return;
     try {
+      if (SENSITIVE.includes(needs)) {
+        const r = await approveWithPin(getDb(), sel, pin, needs as SensitiveAction);
+        return onApproved(r.user, r.approval);
+      }
       const u = await unlockWithPin(getDb(), sel, pin);
       if (needs === 'price' && !roleHas(u.permissions, 'price.change')) return setMsg(t('approve.noRight'));
       if (needs === 'credit' && !roleHas(u.permissions, 'doc.void')) return setMsg(t('approve.noRight'));
       onApproved(u);
     } catch (e) {
       setPin('');
+      if (e instanceof ApprovalError) return setMsg(t('approve.noRight'));
       if (e instanceof PinError && e.code === 'locked') {
         const secs = Math.max(1, Math.ceil(((e.lockedUntil ?? Date.now()) - Date.now()) / 1000));
         setMsg(t('lock.lockedFor', { time: secs >= 60 ? t('approve.minutes', { n: Math.ceil(secs / 60) }) : t('approve.seconds', { n: secs }) }));
@@ -50,7 +60,7 @@ export function ApproveSheet({ visible, onClose, onApproved, needs }: { visible:
   };
   return (
     <Sheet visible={visible} onClose={onClose} title={t('approve.title')} footer={<Button title={t('approve.ok')} disabled={!sel || pin.length < 4} onPress={submit} />}>
-      <Text variant="body">{needs === 'credit' ? t('approve.creditBody') : t('approve.body')}</Text>
+      <Text variant="body">{needs === 'credit' ? t('approve.creditBody') : SENSITIVE.includes(needs) ? t(`approve.actions.${needs}`) : t('approve.body')}</Text>
       {loaded && users.length === 0 ? <Text style={{ color: colors.rose[700], fontFamily: fonts.medium, lineHeight: 22 }}>{t('approve.noApprovers')}</Text> : null}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
         {users.map((u) => (

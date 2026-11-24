@@ -8,6 +8,8 @@ import { exportProductsToExcel } from './excel';
 import { startCountFlow } from './countFlow';
 import { toast } from '../../state/toast';
 import { errorMessage } from '../../lib/errors';
+import { useApprovalGate } from '../approval/useApprovalGate';
+import type { Approval } from '../../domain/auth/approval';
 
 /** "⋯" menu of the products tab: everything that isn't "add" lives here (SPEC §10: no clutter). */
 export function ProductsMenu({ visible, onClose }: { visible: boolean; onClose: () => void }) {
@@ -16,6 +18,7 @@ export function ProductsMenu({ visible, onClose }: { visible: boolean; onClose: 
   const adjust = useCan('stock.adjust');
   const costView = useCan('cost.view');
   const [busy, setBusy] = useState(false);
+  const gate = useApprovalGate();
   const go = (path: Parameters<typeof router.push>[0]) => {
     onClose();
     router.push(path);
@@ -31,29 +34,39 @@ export function ProductsMenu({ visible, onClose }: { visible: boolean; onClose: 
       icon: 'download' as const,
       hue: 'leaf' as const,
       title: busy ? t('common.loading') : t('products.export'),
-      onPress: async () => {
+      onPress: () => {
         if (busy) return;
-        setBusy(true);
-        try {
-          await exportProductsToExcel(costView);
-        } catch (e) {
-          toast(errorMessage(t, e), 'error');
-        } finally {
-          setBusy(false);
+        const doExport = async (approval: Approval | null) => {
+          setBusy(true);
+          try {
+            await exportProductsToExcel(costView, approval);
+          } catch (e) {
+            toast(errorMessage(t, e), 'error');
+          } finally {
+            setBusy(false);
+            onClose();
+          }
+        };
+        // «تأكيد المدير»: the menu closes first (one sheet at a time).
+        if (gate.needs('export')) {
           onClose();
-        }
+          gate.run('export', (a) => doExport(a));
+        } else void doExport(null);
       },
     },
     adjust && { key: 'check', icon: 'refresh' as const, hue: 'ink' as const, title: t('products.checkStock'), onPress: () => go('/products/check') },
   ].filter(Boolean) as { key: string; icon: 'layers'; hue: 'amber'; title: string; onPress: () => void }[];
   return (
-    <Sheet visible={visible} onClose={onClose}>
-      <ListGroup>
-        {items.map((it, i) => (
-          <ListRow key={it.key} icon={it.icon} hue={it.hue} title={it.title} onPress={it.onPress} last={i === items.length - 1} />
-        ))}
-      </ListGroup>
-    </Sheet>
+    <>
+      <Sheet visible={visible} onClose={onClose}>
+        <ListGroup>
+          {items.map((it, i) => (
+            <ListRow key={it.key} icon={it.icon} hue={it.hue} title={it.title} onPress={it.onPress} last={i === items.length - 1} />
+          ))}
+        </ListGroup>
+      </Sheet>
+      {gate.sheet}
+    </>
   );
 }
 

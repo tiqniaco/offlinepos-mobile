@@ -1,3 +1,4 @@
+import { cairoDay } from '../src/usage/meter';
 import { describe, expect, it } from 'vitest';
 import { computeLicenceState, ed25519PublicKey, verifyLicence, DAY_MS, canonicalJson, utf8ToBytes, ed25519Verify, base64urlDecode } from '@daftarak/shared';
 import { makeClient, login, device, stepUp, BACKUP_KEY, TEST_PK_SK } from './helpers';
@@ -55,9 +56,7 @@ describe('daily check-in', () => {
     expect(verifyLicence(r.json.licence, keys).ok).toBe(true);
     const msg = utf8ToBytes(canonicalJson({ t: 'anchor', deviceId: reg.deviceId, ...anchor, serverTime: r.json.serverTime }));
     expect(ed25519Verify(base64urlDecode(r.json.anchorReceipt.sig), msg, keys['2026-01'])).toBe(true);
-    const day = new Date(c.clock.now);
-    const ymd = day.getUTCFullYear() * 10000 + (day.getUTCMonth() + 1) * 100 + day.getUTCDate();
-    const cnt = await c.env.DB.prepare('SELECT count FROM request_counters WHERE day = ?1').bind(ymd).first<any>();
+    const cnt = await c.env.DB.prepare(`SELECT count FROM usage_daily WHERE day = ?1 AND metric = 'api_requests' AND business_id != '*'`).bind(cairoDay(c.clock.now)).first<any>();
     expect(cnt.count).toBe(1);
   });
 

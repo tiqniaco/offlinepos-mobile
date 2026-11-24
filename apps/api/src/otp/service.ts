@@ -7,6 +7,8 @@ import type { Env } from '../env';
 import { ApiError } from '../lib/http';
 import { hmacHex, randomDigits, safeEqual } from '../lib/crypto';
 import type { OtpProvider } from './providers';
+import { effectiveLimits, type BusinessRow } from '../licence/issue';
+import { limitReached, track, usedToday } from '../usage/meter';
 
 type Purpose = 'login' | 'step_up';
 const HOUR = 3_600_000;
@@ -95,6 +97,20 @@ export async function requestOtp(
     throw new ApiError(429, 'otp_rate_limited', 'too many codes for this number');
   }
 
+  // Per-shop SMS budget (sms_day, override ?? plan): the phone's (first) shop pays for its codes. A phone without a
+  // shop (first sign-in) has only the per-phone / IP / global caps.
+  const shop = await db
+    .prepare(`SELECT b.* FROM businesses b JOIN accounts a ON a.id = b.owner_account_id WHERE a.phone = ?1 ORDER BY b.created_at LIMIT 1`)
+    .bind(phone)
+    .first<BusinessRow>();
+  if (shop) {
+    const { limits } = await effectiveLimits(env, shop, now);
+    if (limits.sms_day !== -1) {
+      const used = await usedToday(env, shop.id, 'otp_sms_sent', now);
+      if (used >= limits.sms_day) throw limitReached('sms_day', limits.sms_day, used, 'daily SMS limit of this shop reached, sign in with the password or try tomorrow');
+    }
+  }
+
   const ipCount = await bumpCounter(db, `otp-ip:${ip}`, HOUR, now);
   if (ipCount > OTP_POLICY.maxPerIpPerHour) {
     throw new ApiError(429, 'otp_rate_limited', 'too many codes from this network');
@@ -151,6 +167,7 @@ export async function requestOtp(
     await unbumpCounter(db, slotKey, OTP_POLICY.resendCooldownMs, now);
     throw new ApiError(502, 'otp_send_failed', 'could not send the code');
   }
+  track(shop?.id ?? null, 'otp_sms_sent');
   return { resendAfterMs: OTP_POLICY.resendCooldownMs, expiresInMs: OTP_POLICY.ttlMs };
 }
 

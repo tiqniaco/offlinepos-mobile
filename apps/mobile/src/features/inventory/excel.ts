@@ -7,6 +7,9 @@ import * as DocumentPicker from 'expo-document-picker';
 import { IMPORT_TEMPLATE_AR } from '@daftarak/shared';
 import { getDb } from '../../db/client';
 import { exportProductRows } from '../../domain/inventory/import';
+import { approveDataExport } from '../approval/exportGate';
+import type { Approval } from '../../domain/auth/approval';
+import { withLockHold } from '../../state/lockHold';
 
 /** SheetJS is ~1 MB: required on first use only, so it never slows the app start. */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -26,14 +29,15 @@ async function shareWorkbook(rows: (string | number)[][], fileName: string, shee
   if (file.exists) file.delete();
   file.create();
   file.write(b64, { encoding: 'base64' });
-  await Sharing.shareAsync(file.uri, { mimeType: XLSX_MIME, dialogTitle: fileName, UTI: 'org.openxmlformats.spreadsheetml.sheet' });
+  await withLockHold(() => Sharing.shareAsync(file.uri, { mimeType: XLSX_MIME, dialogTitle: fileName, UTI: 'org.openxmlformats.spreadsheetml.sheet' }));
 }
 
 export async function shareImportTemplate() {
   await shareWorkbook([IMPORT_TEMPLATE_AR.headers, IMPORT_TEMPLATE_AR.example], 'daftarak-products-template.xlsx', 'المنتجات');
 }
 
-export async function exportProductsToExcel(includeCost: boolean) {
+export async function exportProductsToExcel(includeCost: boolean, approvedBy?: Approval | null) {
+  await approveDataExport('export', 'products_excel', approvedBy);
   const rows = await exportProductRows(getDb(), includeCost);
   const stamp = new Date().toISOString().slice(0, 10);
   await shareWorkbook(rows, `daftarak-products-${stamp}.xlsx`, 'المنتجات');
@@ -48,10 +52,10 @@ export interface PickedSheet {
 
 /** Pick an .xlsx/.xls/.csv file and read its first sheet. Returns null if cancelled. */
 export async function pickSpreadsheet(): Promise<PickedSheet | null> {
-  const r = await DocumentPicker.getDocumentAsync({
+  const r = await withLockHold(() => DocumentPicker.getDocumentAsync({
     type: [XLSX_MIME, 'application/vnd.ms-excel', 'text/csv', 'text/comma-separated-values', 'application/octet-stream'],
     copyToCacheDirectory: true,
-  });
+  }));
   if (r.canceled || !r.assets?.[0]) return null;
   const asset = r.assets[0];
   // Let the caller's spinner render before SheetJS blocks the JS thread.

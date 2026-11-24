@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fonts } from '../../ui/fonts';
 import { Image, Linking, Switch, View } from 'react-native';
 import { Pressable } from '../../ui/Press';
@@ -17,6 +17,9 @@ import { useScanner } from '../../state/scanner';
 import { toast } from '../../state/toast';
 import { saveProductImage } from '../../features/inventory/images';
 import { useApp } from '../../state/app';
+import { useApprovalGate } from '../../features/approval/useApprovalGate';
+import type { Approval } from '../../domain/auth/approval';
+import { withLockHold } from '../../state/lockHold';
 
 type Unit = Awaited<ReturnType<typeof listUnits>>[number];
 type Cat = Awaited<ReturnType<typeof listCategories>>[number];
@@ -40,6 +43,9 @@ export default function ProductForm() {
   const ctx = useInvCtx();
   const canCost = useCan('cost.view');
   const canPrice = useCan('price.change');
+  const gate = useApprovalGate();
+  /** Prices as loaded (edit): a change needs «تأكيد المدير» when the shop asks for it. */
+  const origPrice = useRef<{ retail: number; wholesale: number } | null>(null);
   const device = useApp((s) => s.device);
   const multiUnit = ctx?.features.includes('multi_unit') ?? false;
   const expiryFeature = ctx?.features.includes('expiry') ?? false;
@@ -97,6 +103,7 @@ export default function ProductForm() {
         setCost(p.costMinor);
         setRetail(p.retailPriceMinor);
         setWholesale(p.wholesalePriceMinor);
+        origPrice.current = { retail: p.retailPriceMinor, wholesale: p.wholesalePriceMinor };
         setTrackStock(p.trackStock);
         setTrackExpiry(p.trackExpiry);
         setLowStock(p.lowStockMilli);
@@ -150,7 +157,7 @@ export default function ProductForm() {
           return;
         }
       }
-      const r = camera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
+      const r = camera ? await withLockHold(() => ImagePicker.launchCameraAsync(opts)) : await withLockHold(() => ImagePicker.launchImageLibraryAsync(opts));
       if (r.canceled || !r.assets[0]) return;
       setImagePath(await saveProductImage(r.assets[0].uri, uuidv7()));
     } catch (e) {
@@ -186,10 +193,16 @@ export default function ProductForm() {
           ? { unitId: largerUnitId, factorMilli: factor, retailPriceMinor: largerPrice, wholesalePriceMinor: null, barcode: largerBarcode || null }
           : null,
     };
+    const o = origPrice.current;
+    if (editing && o && (o.retail !== input.retailPriceMinor || o.wholesale !== input.wholesalePriceMinor)) gate.run('priceChange', (a) => persist(input, a), { permission: 'price.change' });
+    else await persist(input, null);
+  };
+  const persist = async (input: ProductInput, approval: Approval | null) => {
+    if (!ctx) return;
     setBusy(true);
     try {
       if (editing) {
-        await updateProduct(ctx, params.id!, input);
+        await updateProduct(ctx, params.id!, input, { approvedBy: approval });
         router.back();
       } else {
         const id = await createProduct(ctx, { ...input, openingQtyMilli: trackStock ? opening : null });
@@ -367,6 +380,7 @@ export default function ProductForm() {
       >
         <TextField label={t('categories.name')} value={newCat ?? ''} onChangeText={setNewCat} latinDigits={false} autoFocus />
       </Sheet>
+      {gate.sheet}
     </Screen>
   );
 }

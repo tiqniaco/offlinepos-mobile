@@ -16,6 +16,8 @@ import { newActivationCode } from '../routes/phase6';
 import { activationStatement, planActivation } from '../billing/activate';
 import { receiptContentType } from '../billing/manual';
 import { cairoMonthStart } from '../ocr/scan';
+import { addUsageAdminRoutes, freeTierStatus } from './usage';
+import { cairoDay, cairoDayMinus } from '../usage/meter';
 
 const SESSION_TTL = 8 * 3_600_000;
 const MAX_FAILED = 5;
@@ -58,6 +60,12 @@ const planSchema = z.object({
     backups_kept: z.number().int().min(-1),
     /** Invoice photo scans per month (0 = not in the plan). */
     ocr_month: z.number().int().min(-1).default(0),
+    /** Usage limits (optional: a plan saved without them uses the plan's seed defaults on the server). */
+    sms_day: z.number().int().min(-1).optional(),
+    backup_storage_mb: z.number().int().min(-1).optional(),
+    receipt_uploads_month: z.number().int().min(-1).optional(),
+    api_requests_day: z.number().int().min(-1).optional(),
+    devices: z.number().int().min(-1).optional(),
   }),
   features: z.array(z.enum(FEATURES)),
   trialDays: z.number().int().min(0).max(90),
@@ -181,7 +189,7 @@ export function adminRoutes(deps: Deps = defaultDeps) {
     const devices = await c.env.DB.prepare(`SELECT id, code, platform, model, app_version, activated_at, deactivated_at, last_checkin_at FROM devices WHERE business_id = ?1 ORDER BY activated_at DESC`)
       .bind(id)
       .all();
-    const requests = await c.env.DB.prepare(`SELECT day, count FROM request_counters WHERE business_id = ?1 ORDER BY day DESC LIMIT 14`).bind(id).all();
+    const requests = await c.env.DB.prepare(`SELECT day, count FROM usage_daily WHERE business_id = ?1 AND metric = 'api_requests' ORDER BY day DESC LIMIT 14`).bind(id).all();
     const ocr = await c.env.DB.prepare(
       `SELECT SUM(CASE WHEN status = 'ok' THEN 1 ELSE 0 END) AS ok, SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens
        FROM ocr_scans WHERE business_id = ?1 AND created_at >= ?2`,
@@ -598,16 +606,22 @@ export function adminRoutes(deps: Deps = defaultDeps) {
     const paidNow = Object.values(byPlan).reduce((a, b) => a + b, 0);
     const lapsed = await q<{ n: number }>(`SELECT COUNT(*) AS n FROM businesses b JOIN plans p ON p.code = b.plan_code WHERE p.is_free = 0 AND b.status != 'trial' AND b.plan_expires_at BETWEEN ?1 AND ?2`, d30, now);
     const churn = paidNow + (lapsed?.n ?? 0) ? (lapsed?.n ?? 0) / (paidNow + (lapsed?.n ?? 0)) : 0;
-    const today = Number(new Date(now).toISOString().slice(0, 10).replace(/-/g, ''));
-    const req = await q<{ avg: number | null; max: number | null }>(`SELECT AVG(count) AS avg, MAX(count) AS max FROM request_counters WHERE day >= ?1`, today - 7);
+    const req = await q<{ avg: number | null; max: number | null }>(
+      `SELECT AVG(count) AS avg, MAX(count) AS max FROM usage_daily WHERE business_id != '*' AND metric = 'api_requests' AND day >= ?1`,
+      cairoDayMinus(now, 7),
+    );
+    // Dashboard banner: any global gauge above 70 % of the Cloudflare free tier today.
+    const tier = await freeTierStatus(c.env, now).catch(() => null);
+    const usageAlert = tier && tier.maxPct >= 70 ? { day: cairoDay(now), gauges: tier.gauges.filter((g) => g.pct >= 70) } : null;
     const pendingPayments = await q<{ n: number }>(`SELECT COUNT(*) AS n FROM payment_requests WHERE status = 'pending'`);
     const expired = await q<{ n: number }>(`SELECT COUNT(*) AS n FROM businesses b WHERE ${effectiveStatusSql('b', '?1')} = 'expired'`, now);
     const ocr = await q<{ n: number; tin: number | null; tout: number | null }>(
       `SELECT COUNT(*) AS n, SUM(input_tokens) AS tin, SUM(output_tokens) AS tout FROM ocr_scans WHERE status = 'ok' AND created_at >= ?1`,
       cairoMonthStart(now),
     );
-    return c.json({ ocrMonth: { scans: ocr?.n ?? 0, inputTokens: ocr?.tin ?? 0, outputTokens: ocr?.tout ?? 0 }, pendingPayments: pendingPayments?.n ?? 0, expired: expired?.n ?? 0, total: total?.n ?? 0, active30: active?.n ?? 0, trials: trials?.n ?? 0, paid: paidNow, byPlan, mrrMinor: mrr, churn30: churn, requestsPerBusinessDay: { avg: req?.avg ?? 0, max: req?.max ?? 0 } });
+    return c.json({ usageAlert, ocrMonth: { scans: ocr?.n ?? 0, inputTokens: ocr?.tin ?? 0, outputTokens: ocr?.tout ?? 0 }, pendingPayments: pendingPayments?.n ?? 0, expired: expired?.n ?? 0, total: total?.n ?? 0, active30: active?.n ?? 0, trials: trials?.n ?? 0, paid: paidNow, byPlan, mrrMinor: mrr, churn30: churn, requestsPerBusinessDay: { avg: req?.avg ?? 0, max: req?.max ?? 0 } });
   });
 
+  addUsageAdminRoutes(app, deps, requireAdmin, audit);
   return app;
 }

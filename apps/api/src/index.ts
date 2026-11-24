@@ -5,6 +5,7 @@ import { runCleanup } from './cron/cleanup';
 import { ApiError, errorResponse } from './lib/http';
 import { defaultDeps, v1Routes, type Deps } from './routes/v1';
 import { adminRoutes } from './admin/routes';
+import { usageMiddleware } from './usage/meter';
 
 export function createApp(deps: Deps = defaultDeps) {
   const app = new Hono<AppEnv>();
@@ -15,6 +16,9 @@ export function createApp(deps: Deps = defaultDeps) {
     return c.json({ error: { code: 'internal', message: 'internal error' } }, 500);
   });
   app.notFound((c) => c.json({ error: { code: 'not_found', message: 'not found' } }, 404));
+
+  // Usage metering (usage_daily): one UPSERT per request after the answer; never blocks or fails a request.
+  app.use('*', usageMiddleware(deps.now));
 
   app.get('/health', (c) => c.json({ ok: true }));
 

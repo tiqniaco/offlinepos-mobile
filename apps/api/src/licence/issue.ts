@@ -4,6 +4,8 @@ import {
   GRACE_DAYS,
   MAX_OFFLINE_DAYS,
   FREE_PLAN_CODE,
+  LIMIT_KEYS,
+  defaultUsageLimits,
   signLicence,
   base64urlEncode,
   ed25519Sign,
@@ -61,22 +63,59 @@ export async function getPlan(env: Env, code: string): Promise<PlanRow> {
   return p;
 }
 
-/** Plan limits as stored; a row saved before a limit existed reads it as 0 (e.g. ocr_month). */
-export function planLimits(p: PlanRow): PlanLimits {
+/** Every limit, server side (the usage limits are always present here). */
+export type ServerLimits = Required<PlanLimits>;
+
+/**
+ * Plan limits as stored. A row saved before a limit existed reads it as 0 (e.g. ocr_month); the usage limits added
+ * later (sms_day, backup_storage_mb, …) read as the seed default of that plan.
+ */
+export function planLimits(p: Pick<PlanRow, 'code' | 'is_free' | 'limits_json'>): ServerLimits {
   const l = JSON.parse(p.limits_json) as Partial<PlanLimits>;
-  return { users: 0, products: 0, parties: 0, invoices_month: 0, backups_kept: 0, ocr_month: 0, ...l };
+  return { users: 0, products: 0, parties: 0, invoices_month: 0, backups_kept: 0, ocr_month: 0, ...defaultUsageLimits(p.code, !!p.is_free), ...l } as ServerLimits;
+}
+
+/** Per-business super-admin overrides (limit key → value). */
+export async function loadOverrides(env: Env, businessId: string): Promise<Partial<Record<keyof PlanLimits, number>>> {
+  const r = await env.DB.prepare(`SELECT limit_key, value FROM business_limit_overrides WHERE business_id = ?1`).bind(businessId).all<{ limit_key: string; value: number }>();
+  return parseOverrides(r.results);
+}
+
+export function parseOverrides(rows: { limit_key: string; value: number }[] | Record<string, number> | null | undefined): Partial<Record<keyof PlanLimits, number>> {
+  const out: Partial<Record<keyof PlanLimits, number>> = {};
+  const entries = Array.isArray(rows) ? rows.map((r) => [r.limit_key, r.value] as const) : Object.entries(rows ?? {});
+  for (const [k, v] of entries) if ((LIMIT_KEYS as readonly string[]).includes(k) && Number.isFinite(Number(v))) out[k as keyof PlanLimits] = Math.trunc(Number(v));
+  return out;
+}
+
+/** effective limit = override ?? plan limit. */
+export const withOverrides = (l: ServerLimits, o: Partial<Record<keyof PlanLimits, number>>): ServerLimits => ({ ...l, ...o });
+
+/**
+ * Pure part of effectiveLimits: the plan while it runs (trial included), paid plans keep it through grace, then the
+ * free plan; suspended shops get the free plan without OCR. Overrides apply on top.
+ */
+export function pickLimits(
+  business: Pick<BusinessRow, 'status' | 'plan_expires_at'>,
+  plan: Pick<PlanRow, 'code' | 'is_free' | 'limits_json'>,
+  free: Pick<PlanRow, 'code' | 'is_free' | 'limits_json'>,
+  overrides: Partial<Record<keyof PlanLimits, number>>,
+  now: number,
+): { plan: string; limits: ServerLimits } {
+  const graceUntil = business.plan_expires_at + (business.status === 'trial' ? 0 : GRACE_DAYS * DAY_MS);
+  if (business.status !== 'suspended' && (plan.is_free || now <= graceUntil)) return { plan: plan.code, limits: withOverrides(planLimits(plan), overrides) };
+  const base = business.status === 'suspended' ? { ...planLimits(free), ocr_month: 0 } : planLimits(free);
+  return { plan: free.code, limits: business.status === 'suspended' ? { ...withOverrides(base, overrides), ocr_month: 0 } : withOverrides(base, overrides) };
 }
 
 /**
  * The limits the business may use right now — the same decision the phone makes from the licence
- * (computeLicenceState): the plan while it runs (trial included), paid plans keep it through grace, then the free plan.
+ * (computeLicenceState) — with the super-admin overrides applied.
  */
-export async function effectiveLimits(env: Env, business: BusinessRow, now: number): Promise<{ plan: string; limits: PlanLimits }> {
+export async function effectiveLimits(env: Env, business: BusinessRow, now: number): Promise<{ plan: string; limits: ServerLimits }> {
   const plan = await getPlan(env, business.plan_code);
-  const graceUntil = business.plan_expires_at + (business.status === 'trial' ? 0 : GRACE_DAYS * DAY_MS);
-  if (business.status !== 'suspended' && (plan.is_free || now <= graceUntil)) return { plan: plan.code, limits: planLimits(plan) };
-  const free = await getPlan(env, FREE_PLAN_CODE);
-  return { plan: free.code, limits: business.status === 'suspended' ? { ...planLimits(free), ocr_month: 0 } : planLimits(free) };
+  const free = plan.code === FREE_PLAN_CODE ? plan : await getPlan(env, FREE_PLAN_CODE);
+  return pickLimits(business, plan, free, await loadOverrides(env, business.id), now);
 }
 
 async function adsEnabled(env: Env): Promise<boolean> {
@@ -87,6 +126,7 @@ async function adsEnabled(env: Env): Promise<boolean> {
 export async function buildLicence(env: Env, business: BusinessRow, device: DeviceRow, now: number): Promise<string> {
   const plan = await getPlan(env, business.plan_code);
   const free = await getPlan(env, FREE_PLAN_CODE);
+  const overrides = await loadOverrides(env, business.id);
   // The free plan never expires; it still needs the 30-day check-in (refresh_by).
   const expiresAt = plan.is_free ? now + TEN_YEARS : business.plan_expires_at;
   const payload: LicencePayload = {
@@ -96,9 +136,9 @@ export async function buildLicence(env: Env, business: BusinessRow, device: Devi
     did: device.id,
     plan: plan.code,
     status: device.deactivated_at ? 'deactivated' : business.status,
-    limits: planLimits(plan),
+    limits: withOverrides(planLimits(plan), overrides),
     features: JSON.parse(plan.features_json) as Feature[],
-    fallback: { plan: free.code, limits: planLimits(free), features: JSON.parse(free.features_json) as Feature[] },
+    fallback: { plan: free.code, limits: withOverrides(planLimits(free), overrides), features: JSON.parse(free.features_json) as Feature[] },
     iat: now,
     expires_at: expiresAt,
     grace_until: expiresAt + GRACE_DAYS * DAY_MS,

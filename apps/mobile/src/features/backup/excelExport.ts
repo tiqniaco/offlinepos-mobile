@@ -3,6 +3,8 @@ import { File, Paths } from 'expo-file-system';
 import { sql } from 'drizzle-orm';
 import { getDb } from '../../db/client';
 import { shareFile } from '../export/whatsapp';
+import { approveDataExport } from '../approval/exportGate';
+import type { Approval } from '../../domain/auth/approval';
 
 /** SheetJS is ~1 MB: required on first use only, so it never slows the app start. */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -22,7 +24,8 @@ export interface ExcelRange {
 type Row = Record<string, unknown>;
 
 /** Builds the workbook one sheet at a time, in chunks of rows, yielding between them. */
-export async function exportAllToExcel(opts: { range?: ExcelRange | null; onProgress?: (p: number) => void } = {}) {
+export async function exportAllToExcel(opts: { range?: ExcelRange | null; onProgress?: (p: number) => void; approvedBy?: Approval | null } = {}) {
+  await approveDataExport('export', 'excel', opts.approvedBy);
   const X = xlsx();
   const db = getDb();
   const wb = X.utils.book_new();

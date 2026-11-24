@@ -8,10 +8,21 @@ import { Screen, ListGroup, ListRow, Button, Avatar, Card, IconBadge, Text, colo
 import { getDb } from '../../db/client';
 import { users as usersTable, roles } from '../../db/schema';
 import { useApp } from '../../state/app';
+import { OwnerReauthGate } from '../../features/lock/OwnerReauthGate';
 
 type Row = { id: string; name: string; color: string; roleName: string; isActive: boolean };
 
-export default function Users() {
+/** Opening needs the owner again (2 minutes, OwnerReauthGate). */
+export default function UsersRoute() {
+  const { t } = useTranslation();
+  return (
+    <OwnerReauthGate title={t('users.title')}>
+      <Users />
+    </OwnerReauthGate>
+  );
+}
+
+function Users() {
   const { t } = useTranslation();
   const me = useApp((s) => s.user);
   const [rows, setRows] = useState<Row[]>([]);

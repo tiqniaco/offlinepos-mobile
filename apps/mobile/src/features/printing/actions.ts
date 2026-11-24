@@ -27,6 +27,7 @@ import { getParty } from '../../domain/parties/parties';
 import { getMeta, setMeta } from '../../domain/device';
 import { pdfFileName } from './a4';
 import type { ReceiptData } from './receiptData';
+import { withLockHold } from '../../state/lockHold';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const t = (k: string, o?: Record<string, unknown>) => (i18n.t as any)(k, o) as string;
@@ -81,7 +82,7 @@ async function makePdf(docId: string): Promise<{ data: ReceiptData; file: File; 
 export async function sharePdf(docId: string): Promise<void> {
   try {
     const { data, file } = await makePdf(docId);
-    await Sharing.shareAsync(file.uri, { mimeType: 'application/pdf', dialogTitle: data.number, UTI: 'com.adobe.pdf' });
+    await withLockHold(() => Sharing.shareAsync(file.uri, { mimeType: 'application/pdf', dialogTitle: data.number, UTI: 'com.adobe.pdf' }));
   } catch {
     toast(t('errors.unknown'), 'error');
   }
@@ -108,7 +109,7 @@ async function openPdf(contentUri: string, localUri: string) {
   try {
     await IntentLauncher.startActivityAsync('android.intent.action.VIEW', { data: contentUri, flags: 1, type: 'application/pdf' });
   } catch {
-    await Sharing.shareAsync(localUri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' }).catch(() => undefined);
+    await withLockHold(() => Sharing.shareAsync(localUri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' })).catch(() => undefined);
   }
 }
 
@@ -120,7 +121,7 @@ export async function downloadPdf(docId: string): Promise<void> {
   try {
     const { file, name } = await makePdf(docId);
     if (Platform.OS !== 'android') {
-      await Sharing.shareAsync(file.uri, { mimeType: 'application/pdf', dialogTitle: name, UTI: 'com.adobe.pdf' });
+      await withLockHold(() => Sharing.shareAsync(file.uri, { mimeType: 'application/pdf', dialogTitle: name, UTI: 'com.adobe.pdf' }));
       return;
     }
     const b64 = await file.base64();
@@ -150,7 +151,8 @@ export async function downloadPdf(docId: string): Promise<void> {
 export async function printA4(docId: string): Promise<void> {
   try {
     const data = await buildReceiptData(docId);
-    await Print.printAsync({ html: await receiptHtml(data) });
+    const html = await receiptHtml(data);
+    await withLockHold(() => Print.printAsync({ html }));
   } catch (e) {
     // Closing the print dialog is not an error.
     if (!/cancel/i.test(String((e as Error)?.message ?? ''))) toast(t('errors.unknown'), 'error');
@@ -160,7 +162,7 @@ export async function printA4(docId: string): Promise<void> {
 /** Preview any A4 HTML (settings «شكل الفواتير») in the system print preview. */
 export async function previewHtml(html: string): Promise<void> {
   try {
-    await Print.printAsync({ html });
+    await withLockHold(() => Print.printAsync({ html }));
   } catch (e) {
     if (!/cancel/i.test(String((e as Error)?.message ?? ''))) toast(t('errors.unknown'), 'error');
   }

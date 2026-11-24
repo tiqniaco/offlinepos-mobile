@@ -9,6 +9,7 @@ import { ProductDetailView, type DetailData } from '../../features/inventory/Pro
 import { useCan, useCurrency, useInvCtx } from '../../features/inventory/useInvCtx';
 import { invErrorMessage } from '../../features/inventory/errors';
 import { toast } from '../../state/toast';
+import { useApprovalGate } from '../../features/approval/useApprovalGate';
 import { Sheet, TextField, Button, Screen, EmptyState } from '../../ui';
 
 export default function ProductScreen() {
@@ -25,6 +26,7 @@ export default function ProductScreen() {
   const [missing, setMissing] = useState(false);
   const [variant, setVariant] = useState<{ label: string; current: string } | null>(null);
   const [savingVariant, setSavingVariant] = useState(false);
+  const gate = useApprovalGate();
 
   useFocusEffect(
     useCallback(() => {
@@ -53,10 +55,10 @@ export default function ProductScreen() {
       {
         text: t('product.delete'),
         style: 'destructive',
-        onPress: async () => {
+        onPress: () => gate.run('productDelete', async (approval) => {
           if (!ctx) return;
           try {
-            await deleteProduct(ctx, id);
+            await deleteProduct(ctx, id, { approvedBy: approval });
             router.back();
             toast(t('products.deleted', { name: d.name }), 'info', {
               label: t('products.undo'),
@@ -69,7 +71,7 @@ export default function ProductScreen() {
           } catch (e) {
             toast(invErrorMessage(t, e), 'error');
           }
-        },
+        }),
       },
     ]);
 
@@ -116,6 +118,7 @@ export default function ProductScreen() {
         {variant && !d.variantLabel ? <TextField label={t('product.currentVariant')} placeholder="M" value={variant.current} onChangeText={(v) => setVariant({ ...variant, current: v })} latinDigits={false} /> : null}
         <TextField label={t('product.variantName')} placeholder={t('product.variantPh')} value={variant?.label ?? ''} onChangeText={(v) => variant && setVariant({ ...variant, label: v })} latinDigits={false} autoFocus />
       </Sheet>
+      {gate.sheet}
     </>
   );
 }

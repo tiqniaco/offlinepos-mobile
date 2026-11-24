@@ -18,6 +18,7 @@ import { accessToken } from '../../lib/session';
 import { errorMessage } from '../../lib/errors';
 import { useApp } from '../../state/app';
 import { fx } from '../../ui/fx';
+import { withLockHold } from '../../state/lockHold';
 
 type Method = 'instapay' | 'vodafone_cash';
 const egp = (minor: number) => `${(minor / 100).toLocaleString('en-US')} ج.م`;
@@ -72,7 +73,7 @@ export default function Upgrade() {
         if (!perm.granted) return setErr(t('upgrade.cameraDenied'));
       }
       const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 1 };
-      const r = camera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
+      const r = camera ? await withLockHold(() => ImagePicker.launchCameraAsync(opts)) : await withLockHold(() => ImagePicker.launchImageLibraryAsync(opts));
       if (r.canceled || !r.assets[0]) return;
       const a = r.assets[0];
       const width = Math.min(a.width || 1400, 1400);

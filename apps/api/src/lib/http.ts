@@ -9,6 +9,8 @@ export class ApiError extends Error {
     public readonly code: ApiErrorCode,
     message?: string,
     public readonly retryAfterMs?: number,
+    /** Extra fields merged into the error body (e.g. limit_reached: {key, limit, used}). */
+    public readonly details?: Record<string, unknown>,
   ) {
     super(message ?? code);
   }
@@ -16,7 +18,7 @@ export class ApiError extends Error {
 
 export function errorResponse(c: Context, err: ApiError) {
   return c.json(
-    { error: { code: err.code, message: err.message, ...(err.retryAfterMs != null ? { retryAfterMs: err.retryAfterMs } : {}) } },
+    { error: { ...(err.details ?? {}), code: err.code, message: err.message, ...(err.retryAfterMs != null ? { retryAfterMs: err.retryAfterMs } : {}) } },
     err.status,
   );
 }

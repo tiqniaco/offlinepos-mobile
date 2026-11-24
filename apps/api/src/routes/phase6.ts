@@ -9,7 +9,8 @@ import type { AppEnv, Env } from '../env';
 import { ApiError, body, clientIp } from '../lib/http';
 import { safeEqual, unwrapSecret } from '../lib/crypto';
 import { requireSession } from '../auth/tokens';
-import { effectiveLimits, getPlan, type BusinessRow } from '../licence/issue';
+import { effectiveLimits, getPlan, loadOverrides, planLimits, type BusinessRow } from '../licence/issue';
+import { limitReached, onBusinessAccess, setGauge, track } from '../usage/meter';
 import { bumpCounter } from '../otp/service';
 import { presign } from '../backups/r2';
 import { activatePlan, planRank, storeEndStatement } from '../billing/activate';
@@ -27,8 +28,12 @@ type RegisterDevice = (env: Env, business: BusinessRow, sessionId: string, devic
 export async function ownedBusiness(env: Env, businessId: string, accountId: string): Promise<BusinessRow> {
   const b = await env.DB.prepare(`SELECT * FROM businesses WHERE id = ?1 AND owner_account_id = ?2`).bind(businessId, accountId).first<BusinessRow>();
   if (!b) throw new ApiError(404, 'not_found');
+  // Usage: the request is this shop's; soft daily request limit (usage/meter.ts; /checkin & co. are exempt).
+  await onBusinessAccess(env, b);
   return b;
 }
+
+const MB = 1024 * 1024;
 
 /** Max backup file size per (effective) plan. Unknown paid plans get the basic cap. */
 export const BACKUP_MAX_BYTES: Record<string, number> = { free: 50 * 1024 * 1024, basic: 300 * 1024 * 1024, pro: 1024 * 1024 * 1024 };
@@ -70,9 +75,24 @@ export async function startBackup(env: Env, businessId: string, deviceId: string
   if (dev.deactivated_at) throw new ApiError(403, 'device_deactivated');
   const business = await env.DB.prepare(`SELECT * FROM businesses WHERE id = ?1`).bind(businessId).first<BusinessRow>();
   if (!business) throw new ApiError(404, 'not_found');
-  const { plan } = await effectiveLimits(env, business, now);
+  const { plan, limits } = await effectiveLimits(env, business, now);
   const max = BACKUP_MAX_BYTES[plan] ?? BACKUP_MAX_BYTES.basic!;
   if (meta.size > max) throw new ApiError(413, 'backup_too_large', `backup must be at most ${Math.round(max / 1024 / 1024)} MB on this plan`);
+  // Cloud storage per shop (backup_storage_mb, override ?? plan; 0 = no cloud backup, -1 = unlimited). What the shop
+  // would hold after this backup: this one + the newest backups the hard cap keeps beside it.
+  const storageMb = limits.backup_storage_mb;
+  if (storageMb !== -1) {
+    const cap = BACKUP_HARD_CAP[plan] ?? BACKUP_HARD_CAP.basic!;
+    const kept = await env.DB.prepare(
+      `SELECT COALESCE(SUM(size), 0) AS kept, (SELECT COALESCE(SUM(size), 0) FROM backups WHERE business_id = ?1 AND committed_at IS NOT NULL) AS stored
+       FROM (SELECT size FROM backups WHERE business_id = ?1 AND committed_at IS NOT NULL ORDER BY committed_at DESC LIMIT ?2)`,
+    )
+      .bind(businessId, Math.max(0, cap.count - 1))
+      .first<{ kept: number; stored: number }>();
+    const usedMb = Math.ceil((kept?.stored ?? 0) / MB);
+    if (storageMb <= 0) throw limitReached('backup_storage_mb', 0, usedMb, 'cloud backup is not in this plan: use the backup folder on the phone', 403);
+    if (meta.size + (kept?.kept ?? 0) > storageMb * MB) throw limitReached('backup_storage_mb', storageMb, usedMb, `cloud backup storage is limited to ${storageMb} MB`, 413);
+  }
   const id = uuidv7(now);
   const key = `b/${businessId}/${deviceId}/${id}.obk`;
   await env.DB.prepare(
@@ -99,7 +119,8 @@ export async function commitBackup(env: Env, backupId: string, businessId: strin
   if (!head || head.size !== row.size) throw new ApiError(409, 'backup_not_uploaded');
   await env.DB.prepare(`UPDATE backups SET committed_at = ?2 WHERE id = ?1`).bind(backupId, now).run();
   const biz = (await env.DB.prepare(`SELECT * FROM businesses WHERE id = ?1`).bind(businessId).first<BusinessRow>())!;
-  const keep = JSON.parse((await getPlan(env, biz.plan_code)).limits_json).backups_kept as number;
+  const overrides = await loadOverrides(env, businessId);
+  const keep = overrides.backups_kept ?? planLimits(await getPlan(env, biz.plan_code)).backups_kept;
   const prev = await env.DB.prepare(`SELECT counts_json FROM backups WHERE business_id = ?1 AND committed_at IS NOT NULL AND id != ?2 ORDER BY committed_at DESC LIMIT 1`)
     .bind(businessId, backupId)
     .first<{ counts_json: string }>();
@@ -115,8 +136,10 @@ export async function commitBackup(env: Env, backupId: string, businessId: strin
   // Hard cap per business (all devices), whatever the retention / shrink rules decided: newest first, at most
   // `count` backups and `bytes` in total. The shrink guard may keep ONE extra older backup: the one holding the most
   // records (the real history a wiped phone must not push out).
-  const { plan } = await effectiveLimits(env, biz, now);
-  const cap = BACKUP_HARD_CAP[plan] ?? BACKUP_HARD_CAP.basic!;
+  const { plan, limits } = await effectiveLimits(env, biz, now);
+  const hard = BACKUP_HARD_CAP[plan] ?? BACKUP_HARD_CAP.basic!;
+  // The shop's cloud storage limit (backup_storage_mb) tightens the byte cap; the new backup itself is always kept.
+  const cap = { count: hard.count, bytes: limits.backup_storage_mb > 0 ? Math.min(hard.bytes, limits.backup_storage_mb * MB) : hard.bytes };
   const all = await env.DB.prepare(`SELECT id, r2_key, size, counts_json FROM backups WHERE business_id = ?1 AND committed_at IS NOT NULL ORDER BY committed_at DESC, id DESC`)
     .bind(businessId)
     .all<{ id: string; r2_key: string; size: number; counts_json: string }>();
@@ -141,6 +164,10 @@ export async function commitBackup(env: Env, backupId: string, businessId: strin
     .bind(businessId, now - UNCOMMITTED_TTL_MS)
     .all<{ id: string; r2_key: string }>();
   if (stale.results.length) await deleteBackups(env, stale.results);
+  // Usage: one upload of `size` bytes; the shop's stored total (gauge) after retention.
+  track(businessId, 'backup_uploads', 1, row.size);
+  const guardedSize = guarded ? (all.results.find((b) => b.id === guarded)?.size ?? 0) : 0;
+  setGauge(businessId, 'backup_bytes_stored', n + (guarded ? 1 : 0), bytes + guardedSize);
   return true;
 }
 
