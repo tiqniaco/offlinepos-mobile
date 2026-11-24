@@ -15,7 +15,7 @@ const config: ExpoConfig = {
   // The app follows the system only when the owner picks "automatic" in المظهر.
   userInterfaceStyle: 'automatic',
   ios: {
-    bundleIdentifier: 'app.daftarak',
+    bundleIdentifier: process.env.IOS_BUNDLE_ID || 'app.daftarak',
     // Store build number (GitHub Actions run number; EAS manages its own remotely).
     buildNumber: process.env.BUILD_NUMBER || '1',
     supportsTablet: true,

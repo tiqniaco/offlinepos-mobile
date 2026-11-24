@@ -41,7 +41,8 @@ export const useUpdate = create<UpdateState>((set) => ({ latest: null, forced: f
 
 const extra = () => (Constants.expoConfig?.extra ?? {}) as { storeBuild?: boolean; appStoreId?: string };
 /** Play / App Store build: store billing only, updates from the store. */
-export const isStoreBuild = () => !!extra().storeBuild;
+/** iOS apps only come from the App Store (or TestFlight): always a store build (Apple's in-app purchase only). */
+export const isStoreBuild = () => Platform.OS === 'ios' || !!extra().storeBuild;
 
 /** Store listing of this app (fallback when the release row has no URL). */
 export function storeListingUrl(): string {

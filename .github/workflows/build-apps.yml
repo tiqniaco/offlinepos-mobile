@@ -149,6 +149,11 @@ jobs:
     env:
       HAS_SIGNING: ${{ secrets.IOS_DIST_CERT_P12_BASE64 != '' && secrets.IOS_PROVISION_PROFILE_BASE64 != '' }}
       HAS_ASC: ${{ secrets.ASC_KEY_P8_BASE64 != '' }}
+      # Easiest path (no Mac, no certificate files): only the App Store Connect API key + the team id.
+      # Xcode then creates the cloud-managed distribution certificate and the profile itself.
+      AUTO_SIGN: ${{ secrets.IOS_DIST_CERT_P12_BASE64 == '' && secrets.ASC_KEY_P8_BASE64 != '' && vars.IOS_TEAM_ID != '' }}
+      IOS_TEAM_ID: ${{ vars.IOS_TEAM_ID }}
+      IOS_BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
@@ -171,7 +176,7 @@ jobs:
           echo "Licence key: $KEY"
           echo "APP_VERSION=${APP_VERSION#v}" >> "$GITHUB_ENV"
           echo "BUILD_NUMBER=$(( ($(date +%s) - 1767225600) / 60 + ${{ vars.BUILD_NUMBER_OFFSET || 0 }} ))" >> "$GITHUB_ENV"
-          [ "$HAS_SIGNING" = "true" ] && echo "IOS_APS_MODE=production" >> "$GITHUB_ENV" || true
+          { [ "$HAS_SIGNING" = "true" ] || [ "$AUTO_SIGN" = "true" ]; } && echo "IOS_APS_MODE=production" >> "$GITHUB_ENV" || true
 
       - name: Generate native project
         working-directory: apps/mobile
@@ -194,7 +199,7 @@ jobs:
 
       # ── Without Apple secrets: simulator build (proves it compiles; runs on the iOS Simulator) ──
       - name: Simulator build
-        if: env.HAS_SIGNING != 'true'
+        if: env.HAS_SIGNING != 'true' && env.AUTO_SIGN != 'true'
         working-directory: apps/mobile/ios
         run: |
           echo "::notice::No IOS_* signing secrets — building for the iOS Simulator only."
@@ -270,6 +275,46 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/out"
           cp build/ipa/*.ipa "$GITHUB_WORKSPACE/out/daftarak-${APP_VERSION:-dev}-${BUILD_NUMBER}.ipa"
 
+      # ── Only the App Store Connect API key: automatic signing → App Store IPA → TestFlight ──
+      - name: Archive + export IPA (automatic signing)
+        if: env.AUTO_SIGN == 'true'
+        working-directory: apps/mobile/ios
+        env:
+          ASC_KEY: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -o pipefail
+          KEY="$RUNNER_TEMP/AuthKey_${ASC_KEY_ID}.p8"
+          echo "$ASC_KEY" | base64 -d > "$KEY"
+          AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+          ruby -rxcodeproj -e '
+            p = Xcodeproj::Project.open(Dir["*.xcodeproj"].first)
+            t = p.targets.find { |x| x.product_type == "com.apple.product-type.application" }
+            t.build_configurations.each do |c|
+              s = c.build_settings
+              s["CODE_SIGN_STYLE"] = "Automatic"; s["DEVELOPMENT_TEAM"] = ENV["IOS_TEAM_ID"]
+              s.delete("PROVISIONING_PROFILE_SPECIFIER"); s["CODE_SIGN_IDENTITY"] = "Apple Development"
+            end
+            p.save'
+          xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath build/app.xcarchive "${AUTH[@]}" archive | tail -50
+          cat > build/ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>${IOS_TEAM_ID}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive -archivePath build/app.xcarchive -exportOptionsPlist build/ExportOptions.plist -exportPath build/ipa "${AUTH[@]}" | tail -20
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp build/ipa/*.ipa "$GITHUB_WORKSPACE/out/kashiro-${APP_VERSION:-dev}-${BUILD_NUMBER}.ipa"
+          echo "EXPORT_METHOD=app-store-connect" >> "$GITHUB_ENV"
+          rm -f "$KEY"
+
       - uses: actions/upload-artifact@v4
         with:
           name: ios
@@ -277,7 +322,7 @@ jobs:
           retention-days: 30
 
       - name: Upload to TestFlight
-        if: env.HAS_SIGNING == 'true' && env.HAS_ASC == 'true' && env.EXPORT_METHOD == 'app-store-connect'
+        if: (env.HAS_SIGNING == 'true' || env.AUTO_SIGN == 'true') && env.HAS_ASC == 'true' && env.EXPORT_METHOD == 'app-store-connect'
         env:
           ASC_KEY: ${{ secrets.ASC_KEY_P8_BASE64 }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -286,6 +331,7 @@ jobs:
           mkdir -p ~/.appstoreconnect/private_keys
           echo "$ASC_KEY" | base64 -d > ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
           xcrun altool --upload-app -t ios -f out/*.ipa --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+          rm -f ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
 
       - name: Clean up keychain
         if: always() && env.KEYCHAIN != ''
