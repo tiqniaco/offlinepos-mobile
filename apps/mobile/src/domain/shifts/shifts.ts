@@ -3,7 +3,7 @@
  * while a shift is open carries its id. Close: expected cash = opening float + cash in − cash out;
  * the counted difference is posted to "Cash over/short" and the closed shift joins the hash chain.
  */
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import { businessDay, uuidv7 } from '@daftarak/shared';
 import { payments, salesDocs, shifts } from '../../db/schema';
 import type { Db } from '../../db/types';
@@ -142,8 +142,9 @@ export async function closeShift(ctx: ShiftCtx, countedCashMinor: number, note?:
   });
 }
 
-export async function listShifts(db: Db, limit = 50) {
-  return db.select().from(shifts).orderBy(desc(shifts.openedAt)).limit(limit);
+export async function listShifts(db: Db, limit = 50, range?: { from: number; to: number } | null) {
+  const where = range ? and(gte(shifts.businessDay, range.from), lte(shifts.businessDay, range.to)) : undefined;
+  return db.select().from(shifts).where(where).orderBy(desc(shifts.openedAt)).limit(limit);
 }
 
 export async function getShift(db: Db, id: string) {

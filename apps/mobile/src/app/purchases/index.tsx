@@ -12,6 +12,11 @@ import { AdBanner } from '../../features/ads/AdBanner';
 import { money, dateTimeLabel } from '../../lib/format';
 import { errorMessage } from '../../lib/errors';
 import { toast } from '../../state/toast';
+import { roleHas } from '@daftarak/shared';
+import { useApp } from '../../state/app';
+import { ListExport } from '../../features/export/ListExport';
+import { purchasesListDoc } from '../../features/export/lists';
+import { bizHeader } from '../../features/export/builders';
 
 const PAGE = 50;
 
@@ -21,6 +26,7 @@ export default function Purchases() {
   const [f, setF] = useState<'all' | 'PURCHASE' | 'PURCHASE_RETURN'>('all');
   const [rows, setRows] = useState<Awaited<ReturnType<typeof listPurchases>>>([]);
   const [loading, setLoading] = useState(true);
+  const canExport = useApp((s) => !!s.user && roleHas(s.user.permissions, 'purchases.manage'));
   const req = useRef(0);
   const more = useRef({ busy: false, done: false });
   useFocusEffect(
@@ -59,7 +65,25 @@ export default function Purchases() {
   };
   return (
     <View style={{ flex: 1 }}>
-      <Screen back title={t('purchase.listTitle')} scroll={false}>
+      <Screen
+        back
+        title={t('purchase.listTitle')}
+        scroll={false}
+        right={
+          canExport ? (
+            <ListExport
+              dated
+              what="purchases_list"
+              build={async (r) =>
+                purchasesListDoc(await listPurchases(getDb(), { types: f === 'all' ? undefined : [f], from: r?.from, to: r?.to, limit: 20_000 }), await bizHeader(), {
+                  range: r,
+                  filterLabel: f === 'all' ? null : t(f === 'PURCHASE' ? 'purchase.invoices' : 'purchase.returns'),
+                })
+              }
+            />
+          ) : null
+        }
+      >
         <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
           <Chip label={t('parties.all')} selected={f === 'all'} onPress={() => setF('all')} />
           <Chip label={t('purchase.invoices')} selected={f === 'PURCHASE'} onPress={() => setF('PURCHASE')} />

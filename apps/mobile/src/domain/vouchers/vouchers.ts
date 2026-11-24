@@ -286,6 +286,27 @@ export async function saveExpenseCategory(ctx: VoucherCtx, input: { id?: string;
   });
 }
 
+/** Add expense categories from a list (Excel import). Names already saved (same text, any spacing/case) are skipped. */
+export async function importExpenseCategories(ctx: VoucherCtx, names: readonly string[]): Promise<{ created: number; skipped: number }> {
+  requirePermission(ctx.user, 'expenses.manage');
+  assertCanWrite();
+  const key = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+  const have = new Set((await listExpenseCategories(ctx.db)).map((c) => key(c.name)));
+  let created = 0;
+  let skipped = 0;
+  for (const raw of names) {
+    const name = raw.trim();
+    if (!name || have.has(key(name))) {
+      skipped++;
+      continue;
+    }
+    await saveExpenseCategory(ctx, { name });
+    have.add(key(name));
+    created++;
+  }
+  return { created, skipped };
+}
+
 export async function deleteExpenseCategory(ctx: VoucherCtx, id: string): Promise<void> {
   requirePermission(ctx.user, 'expenses.manage');
   assertCanWrite();

@@ -196,3 +196,31 @@ export async function exportProductRows(db: Db, includeCost: boolean): Promise<(
   ];
 }
 
+
+/** Every live product with its category, first base-unit barcode and stock (products list PDF). */
+export async function productListForExport(db: Db) {
+  const ps = await db
+    .select({
+      id: products.id,
+      name: products.name,
+      variantLabel: products.variantLabel,
+      category: categories.name,
+      unitName: units.nameAr,
+      costMinor: products.costMinor,
+      retailPriceMinor: products.retailPriceMinor,
+      qtyMilli: stockLevels.qtyMilli,
+      trackStock: products.trackStock,
+    })
+    .from(products)
+    .innerJoin(units, eq(units.id, products.baseUnitId))
+    .leftJoin(categories, eq(categories.id, products.categoryId))
+    .leftJoin(stockLevels, eq(stockLevels.productId, products.id))
+    .where(isNull(products.deletedAt))
+    .orderBy(products.name);
+  const larger = new Set((await db.select({ id: productUnits.id }).from(productUnits).where(and(eq(productUnits.isBase, false), isNull(productUnits.deletedAt)))).map((u) => u.id));
+  const codes = new Map<string, string>();
+  for (const c of await db.select({ productId: barcodes.productId, code: barcodes.code, unitRow: barcodes.productUnitId }).from(barcodes).where(isNull(barcodes.deletedAt))) {
+    if (!codes.has(c.productId) && !(c.unitRow && larger.has(c.unitRow))) codes.set(c.productId, c.code);
+  }
+  return ps.map((p) => ({ ...p, qtyMilli: p.qtyMilli ?? 0, barcode: codes.get(p.id) ?? null }));
+}

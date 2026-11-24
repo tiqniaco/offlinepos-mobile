@@ -14,6 +14,11 @@ import { reminderText } from '../../features/parties/format';
 import { Tip } from '../../features/Tip';
 import { EyeToggle } from '../../features/privacy/EyeToggle';
 import { useSensitive } from '../../state/privacy';
+import { ListGroup, ListRow } from '../../ui';
+import { ListExport } from '../../features/export/ListExport';
+import { partiesListDoc } from '../../features/export/lists';
+import { bizHeader } from '../../features/export/builders';
+import { isCashierPhone } from '../../domain/sync/role';
 
 export default function Parties() {
   const { t, i18n } = useTranslation();
@@ -85,8 +90,53 @@ export default function Parties() {
     }, []),
   );
 
+  const canExport = roleHas(user.permissions, type === 'C' ? 'reports.view' : 'purchases.manage');
+  const canImport = roleHas(user.permissions, type === 'C' ? 'parties.manage' : 'purchases.manage') && !isCashierPhone();
+  /** Every party matching the screen's type, filter and search (not only the rows on screen). */
+  const exportRows = async () => {
+    const db = getDb();
+    const all = await listParties(db, type, { search: dq, filter: filter === 'late' ? 'owing' : filter, sort: 'name', limit: 100_000 });
+    if (!(type === 'C' && filter === 'late')) return all;
+    const due = new Set((await customersDue(db, businessDay(Date.now(), tz), reminderDays)).map((d) => d.id));
+    return all.filter((r) => due.has(r.id));
+  };
+  const filterLabel = [
+    filter === 'all' ? null : filter === 'late' ? t('parties.late') : filter === 'credit' ? t('parties.creditC') : t(type === 'C' ? 'parties.owingC' : 'parties.owingS'),
+    dq.trim() ? t('lists.search', { q: dq.trim() }) : null,
+  ]
+    .filter(Boolean)
+    .join(' — ');
+
   return (
     <PartiesListView
+      actions={
+        canExport || canImport ? (
+          <ListExport
+            what={type === 'C' ? 'customers_list' : 'suppliers_list'}
+            label={canExport ? 'Excel / PDF' : 'Excel'}
+            testID="parties-export"
+            build={async () => partiesListDoc(type, canExport ? await exportRows() : [], await bizHeader(), { filterLabel: filterLabel || null })}
+            hideExport={!canExport}
+            extra={(close) =>
+              canImport ? (
+                <ListGroup>
+                  <ListRow
+                    icon="upload"
+                    hue="primary"
+                    testID="parties-import"
+                    title={t(type === 'C' ? 'lists.importC' : 'lists.importS')}
+                    last
+                    onPress={() => {
+                      close();
+                      router.push({ pathname: '/parties/import', params: { type } });
+                    }}
+                  />
+                </ListGroup>
+              ) : null
+            }
+          />
+        ) : null
+      }
       topInset={insets.top}
       type={type}
       rows={rows}

@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { Switch, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { businessDay, formatMinor, offerLive } from '@daftarak/shared';
+import { businessDay, formatMinor, offerLive, roleHas } from '@daftarak/shared';
 import { Screen, Text, EmptyState, Fab, Card, IconBadge, colors, fonts } from '../../ui';
 import { getDb } from '../../db/client';
 import { useApp } from '../../state/app';
@@ -12,6 +12,9 @@ import { useBizCtx } from '../../features/sales/useSalesCtx';
 import { dayText } from '../../features/export/builders';
 import { errorMessage } from '../../lib/errors';
 import { toast } from '../../state/toast';
+import { ListExport } from '../../features/export/ListExport';
+import { offersListDoc } from '../../features/export/lists';
+import { bizHeader } from '../../features/export/builders';
 
 type Row = Awaited<ReturnType<typeof listOffers>>[number];
 
@@ -25,6 +28,8 @@ export default function Offers() {
   const load = useCallback(() => void listOffers(getDb()).then(setRows), []);
   useFocusEffect(load);
   const locked = !hasFeature('offers');
+  const canExport = useApp((s) => !!s.user && roleHas(s.user.permissions, 'products.manage'));
+  const stateOf = (r: Row) => (!r.active ? t('offers.stopped') : r.endsDay && today > r.endsDay ? t('offers.ended') : r.startsDay && today < r.startsDay ? t('offers.upcoming') : t('offers.running'));
 
   const summary = (r: Row) => {
     const d = toDef(r);
@@ -44,7 +49,24 @@ export default function Offers() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Screen back title={t('offers.title')} subtitle={t('offers.subtitle')}>
+      <Screen
+        back
+        title={t('offers.title')}
+        subtitle={t('offers.subtitle')}
+        right={
+          canExport && rows.length ? (
+            <ListExport
+              what="offers_list"
+              build={async () =>
+                offersListDoc(
+                  rows.map((r) => ({ name: r.name, typeLabel: t(`offers.types.${r.type}`), summary: summary(r), state: stateOf(r), startsDay: r.startsDay, endsDay: r.endsDay, live: offerLive(toDef(r), today) })),
+                  await bizHeader(),
+                )
+              }
+            />
+          ) : null
+        }
+      >
         {locked ? (
           <Card style={{ backgroundColor: colors.amber[50] }}>
             <Text style={{ color: colors.amber[700], fontFamily: fonts.semibold, fontSize: 14, lineHeight: 21 }}>{t('licence.feature')}</Text>
@@ -53,7 +75,7 @@ export default function Offers() {
         {rows.length === 0 ? <EmptyState icon="tag" hue="leaf" title={t('offers.empty')} body={t('offers.emptyBody')} /> : null}
         {rows.map((r) => {
           const live = offerLive(toDef(r), today);
-          const state = !r.active ? t('offers.stopped') : r.endsDay && today > r.endsDay ? t('offers.ended') : r.startsDay && today < r.startsDay ? t('offers.upcoming') : t('offers.running');
+          const state = stateOf(r);
           return (
             <Card key={r.id} onPress={() => router.push({ pathname: '/offers/form', params: { id: r.id } })}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>

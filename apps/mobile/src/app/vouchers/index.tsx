@@ -11,6 +11,9 @@ import { listVouchers, type VoucherType } from '../../domain/vouchers/vouchers';
 import { DocRow } from '../../features/common/DocRow';
 import { useCurrency } from '../../features/inventory/useInvCtx';
 import { money, dateTimeLabel } from '../../lib/format';
+import { ListExport } from '../../features/export/ListExport';
+import { vouchersListDoc } from '../../features/export/lists';
+import { bizHeader } from '../../features/export/builders';
 
 const FILTERS: { key: string; types?: VoucherType[] }[] = [
   { key: 'all' },
@@ -66,7 +69,25 @@ export default function Vouchers() {
     void loadPage(rows.length).catch(() => undefined);
   };
   return (
-    <Screen back title={t('voucher.listTitle')} scroll={false}>
+    <Screen
+      back
+      title={t('voucher.listTitle')}
+      scroll={false}
+      right={
+        roleHas(user.permissions, 'reports.view') ? (
+          <ListExport
+            dated
+            what="vouchers_list"
+            build={async (r) =>
+              vouchersListDoc(await listVouchers(getDb(), { types: FILTERS.find((x) => x.key === f)?.types, from: r?.from, to: r?.to, limit: 20_000 }), await bizHeader(), {
+                range: r,
+                filterLabel: f === 'all' ? null : t(`voucher.filter.${f}`),
+              })
+            }
+          />
+        ) : null
+      }
+    >
       <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
         {FILTERS.map((x) => (
           <Chip key={x.key} label={t(`voucher.filter.${x.key}`)} selected={f === x.key} onPress={() => setF(x.key)} />

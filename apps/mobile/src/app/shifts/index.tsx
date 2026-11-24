@@ -20,6 +20,9 @@ import { fx } from '../../ui/fx';
 import { toast } from '../../state/toast';
 import { EyeToggle } from '../../features/privacy/EyeToggle';
 import { useSensitive } from '../../state/privacy';
+import { ListExport } from '../../features/export/ListExport';
+import { shiftsListDoc } from '../../features/export/lists';
+import { bizHeader } from '../../features/export/builders';
 
 type Shift = NonNullable<Awaited<ReturnType<typeof currentShift>>>;
 
@@ -73,7 +76,16 @@ export default function Shifts() {
   const diff = sum && counted != null ? counted - sum.expectedCashMinor : null;
 
   return (
-    <Screen back title={t('shift.title')} right={<EyeToggle />}>
+    <Screen
+      back
+      title={t('shift.title')}
+      right={
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <EyeToggle />
+          {roleHas(user.permissions, 'reports.view') ? <ListExport dated what="shifts_list" build={async (r) => shiftsListDoc(await listShifts(getDb(), 5_000, r), await bizHeader(), { range: r })} /> : null}
+        </View>
+      }
+    >
       {locked ? (
         <Card style={{ backgroundColor: colors.amber[50] }}>
           <Text style={{ color: colors.amber[700], fontFamily: fonts.semibold, fontSize: 14, lineHeight: 21 }}>{t('licence.feature')}</Text>

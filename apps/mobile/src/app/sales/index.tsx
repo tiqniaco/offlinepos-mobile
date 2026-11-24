@@ -4,13 +4,16 @@ import { Pressable } from '../../ui/Press';
 import { FlashList } from '@shopify/flash-list';
 import { router, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { businessDay } from '@daftarak/shared';
+import { businessDay, roleHas } from '@daftarak/shared';
 import { Screen, Text, TextField, EmptyState, Card, colors, fonts, shadow } from '../../ui';
 import { getDb } from '../../db/client';
 import { listSales, todaySummary } from '../../domain/sales/sales';
 import { useCurrency } from '../../features/inventory/useInvCtx';
 import { useApp } from '../../state/app';
 import { money, dateTimeLabel } from '../../lib/format';
+import { ListExport } from '../../features/export/ListExport';
+import { salesListDoc } from '../../features/export/lists';
+import { bizHeader } from '../../features/export/builders';
 
 type Row = Awaited<ReturnType<typeof listSales>>[number];
 const PAGE = 40;
@@ -19,6 +22,7 @@ export default function SalesList() {
   const { t, i18n } = useTranslation();
   const currency = useCurrency();
   const tz = useApp((s) => s.settings.timezone ?? 'Africa/Cairo');
+  const canExport = useApp((s) => !!s.user && roleHas(s.user.permissions, 'reports.view'));
   const [rows, setRows] = useState<Row[]>([]);
   const [q, setQ] = useState('');
   /** Debounced search text: the only thing queries depend on. */
@@ -64,7 +68,20 @@ export default function SalesList() {
     }
   };
   return (
-    <Screen back title={t('more.invoices')} scroll={false}>
+    <Screen
+      back
+      title={t('more.invoices')}
+      scroll={false}
+      right={
+        canExport ? (
+          <ListExport
+            dated
+            what="sales_list"
+            build={async (r) => salesListDoc(await listSales(getDb(), { search: dq, from: r?.from, to: r?.to, limit: 20_000 }), await bizHeader(), { range: r, search: dq })}
+          />
+        ) : null
+      }
+    >
       {today ? (
         <Card>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
