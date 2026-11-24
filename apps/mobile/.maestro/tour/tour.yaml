@@ -7,8 +7,20 @@ appId: app.daftarak
 # A slow emulator sometimes shows "… isn't responding" over the app: wait it out.
 - tapOn: { text: "Wait", optional: true }
 - waitForAnimationToEnd: { timeout: 3000 }
+- extendedWaitUntil:
+    visible: { id: welcome-start }
+    timeout: 45000
 - takeScreenshot: shots/a01-welcome
-- tapOn: { id: welcome-start }
+- runFlow:
+    when:
+      visible: { id: welcome-start }
+    commands:
+      - tapOn: { id: welcome-start }
+- runFlow:
+    when:
+      visible: { text: "يلا نبدأ" }
+    commands:
+      - tapOn: { text: "يلا نبدأ" }
 - takeScreenshot: shots/a02-phone
 - tapOn: { id: phone-input }
 - inputText: "01000000001"
