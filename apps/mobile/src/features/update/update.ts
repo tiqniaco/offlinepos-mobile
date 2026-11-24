@@ -40,7 +40,6 @@ interface UpdateState {
 export const useUpdate = create<UpdateState>((set) => ({ latest: null, forced: false, forceAt: null, unknownSources: null, snoozed: null, progress: null, error: null, set: (p) => set(p) }));
 
 const extra = () => (Constants.expoConfig?.extra ?? {}) as { storeBuild?: boolean; appStoreId?: string };
-/** Play / App Store build: store billing only, updates from the store. */
 /** iOS apps only come from the App Store (or TestFlight): always a store build (Apple's in-app purchase only). */
 export const isStoreBuild = () => Platform.OS === 'ios' || !!extra().storeBuild;
 
