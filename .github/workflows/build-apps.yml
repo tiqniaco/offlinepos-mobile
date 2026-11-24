@@ -151,6 +151,7 @@ jobs:
       HAS_ASC: ${{ secrets.ASC_KEY_P8_BASE64 != '' }}
       # Easiest path (no Mac, no certificate files): only the App Store Connect API key + the team id.
       # Xcode then creates the cloud-managed distribution certificate and the profile itself.
+      # ASC_KEY_P8_BASE64 may hold the .p8 text as-is (pasted from the file) or base64 of it.
       AUTO_SIGN: ${{ secrets.IOS_DIST_CERT_P12_BASE64 == '' && secrets.ASC_KEY_P8_BASE64 != '' && vars.IOS_TEAM_ID != '' }}
       IOS_TEAM_ID: ${{ vars.IOS_TEAM_ID }}
       IOS_BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID }}
@@ -286,7 +287,7 @@ jobs:
         run: |
           set -o pipefail
           KEY="$RUNNER_TEMP/AuthKey_${ASC_KEY_ID}.p8"
-          echo "$ASC_KEY" | base64 -d > "$KEY"
+          if printf '%s' "$ASC_KEY" | grep -q 'BEGIN PRIVATE KEY'; then printf '%s\n' "$ASC_KEY" > "$KEY"; else echo "$ASC_KEY" | base64 -d > "$KEY"; fi
           AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
           ruby -rxcodeproj -e '
             p = Xcodeproj::Project.open(Dir["*.xcodeproj"].first)
@@ -329,7 +330,8 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
           mkdir -p ~/.appstoreconnect/private_keys
-          echo "$ASC_KEY" | base64 -d > ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+          P8=~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+          if printf '%s' "$ASC_KEY" | grep -q 'BEGIN PRIVATE KEY'; then printf '%s\n' "$ASC_KEY" > "$P8"; else echo "$ASC_KEY" | base64 -d > "$P8"; fi
           xcrun altool --upload-app -t ios -f out/*.ipa --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
           rm -f ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
 
