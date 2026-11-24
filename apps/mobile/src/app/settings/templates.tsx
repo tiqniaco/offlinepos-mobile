@@ -6,7 +6,7 @@ import { Switch, useWindowDimensions, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { zatcaTimestamp, zatcaTlvBase64 } from '@daftarak/shared';
-import { Screen, Text, Button, Card, TextField, Choice, ListRow, SectionTitle, colors, fonts } from '../../ui';
+import { Screen, Text, Button, Card, TextField, Choice, ListRow, SectionTitle, Banner, colors, fonts } from '../../ui';
 import { Pressable } from '../../ui/Press';
 import { Segmented } from '../../features/common/Segmented';
 import { getDb } from '../../db/client';
@@ -113,7 +113,7 @@ export default function Templates() {
     ['showItemCode', t('templates.showItemCode')],
     ['showDiscount', t('printers.showDiscount')],
     ['showTax', t('printers.showTax')],
-    ['showWords', t('templates.showWords')],
+    ...(fmt === 'A4' ? ([['showWords', t('templates.showWords')]] as [keyof Tpl, string][]) : []),
     ...(qrAvailable ? ([['showQr', t('templates.showQr')]] as [keyof Tpl, string][]) : []),
   ];
 
@@ -121,7 +121,14 @@ export default function Templates() {
     <Screen back title={t('templates.title')} footer={<Button title={t('common.save')} loading={saving} onPress={save} />}>
       {/* ── Live preview ─────────────────────────────────────────── */}
       <Segmented value={kind} onChange={setKind} options={[{ value: 'INVOICE', label: t('templates.invoice') }, { value: 'QUOTATION', label: t('templates.quote') }]} />
-      <Segmented value={fmt} onChange={setFmt} options={[{ value: '58', label: t('templates.fmt58') }, { value: '80', label: t('templates.fmt80') }, { value: 'A4', label: 'A4' }]} />
+      <Segmented
+        value={fmt}
+        onChange={(v) => {
+          setFmt(v);
+          // Choosing a thermal tab is also the default thermal paper size (one control, not two).
+          if (v !== 'A4') set('thermalSize', v === '58' ? 58 : 80);
+        }}
+        options={[{ value: '58', label: t('templates.fmt58') }, { value: '80', label: t('templates.fmt80') }, { value: 'A4', label: 'A4' }]} />
       <View style={{ backgroundColor: colors.paper.sunk, borderRadius: 16, padding: 12, alignItems: 'center', gap: 10 }}>
         {fmt === 'A4' ? (
           <>
@@ -144,33 +151,28 @@ export default function Templates() {
         </Text>
       </View>
 
-      {/* ── Format & style ───────────────────────────────────────── */}
-      <SectionTitle>{t('templates.thermalSize')}</SectionTitle>
-      <Segmented
-        value={String(tpl.thermalSize) as '58' | '80'}
-        onChange={(v) => {
-          set('thermalSize', v === '58' ? 58 : 80);
-          if (fmt !== 'A4') setFmt(v);
-        }}
-        options={[{ value: '58', label: t('printers.mm58') }, { value: '80', label: t('printers.mm80') }]}
-      />
-      {printer && printer.paperWidth !== tpl.thermalSize ? <Text variant="caption">{t('templates.thermalNote', { mm: printer.paperWidth })}</Text> : null}
+      {fmt !== 'A4' && printer && printer.paperWidth !== tpl.thermalSize ? <Banner tone="info" text={t('templates.thermalNote', { mm: printer.paperWidth })} /> : null}
 
-      <SectionTitle>{t('templates.a4Style')}</SectionTitle>
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        <Choice compact title={t('templates.modern')} hint={t('templates.modernHint')} selected={tpl.a4Style === 'modern'} onPress={() => { set('a4Style', 'modern'); setFmt('A4'); }} />
-        <Choice compact title={t('templates.classic')} hint={t('templates.classicHint')} selected={tpl.a4Style === 'classic'} onPress={() => { set('a4Style', 'classic'); setFmt('A4'); }} />
-      </View>
+      {/* ── A4 only: style & colour (thermal paper is black & white) ── */}
+      {fmt === 'A4' ? (
+        <>
+          <SectionTitle>{t('templates.a4Style')}</SectionTitle>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Choice compact title={t('templates.modern')} hint={t('templates.modernHint')} selected={tpl.a4Style === 'modern'} onPress={() => set('a4Style', 'modern')} />
+            <Choice compact title={t('templates.classic')} hint={t('templates.classicHint')} selected={tpl.a4Style === 'classic'} onPress={() => set('a4Style', 'classic')} />
+          </View>
 
-      <SectionTitle>{t('templates.brand')}</SectionTitle>
-      <Card>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
-          <Swatch color={colors.primary['600']} label={t('templates.themeColor')} selected={tpl.brandColor == null} onPress={() => { set('brandColor', null); setFmt('A4'); }} />
-          {SWATCHES.map((c) => (
-            <Swatch key={c} color={c} selected={tpl.brandColor === c} onPress={() => { set('brandColor', c); setFmt('A4'); }} />
-          ))}
-        </View>
-      </Card>
+          <SectionTitle>{t('templates.brand')}</SectionTitle>
+          <Card>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
+              <Swatch color={colors.primary['600']} label={t('templates.themeColor')} selected={tpl.brandColor == null} onPress={() => set('brandColor', null)} />
+              {SWATCHES.map((c) => (
+                <Swatch key={c} color={c} selected={tpl.brandColor === c} onPress={() => set('brandColor', c)} />
+              ))}
+            </View>
+          </Card>
+        </>
+      ) : null}
 
       {/* ── What shows ───────────────────────────────────────────── */}
       <SectionTitle>{t('templates.show')}</SectionTitle>
@@ -191,8 +193,12 @@ export default function Templates() {
       <SectionTitle>{t('templates.texts')}</SectionTitle>
       <TextField label={t('templates.headerNote')} hint={t('templates.headerNoteHint')} value={tpl.headerNote} onChangeText={(v) => set('headerNote', v)} latinDigits={false} maxLength={80} />
       <TextField label={t('printers.footer')} value={tpl.footer} onChangeText={(v) => set('footer', v)} latinDigits={false} maxLength={120} />
-      <TextField label={t('templates.quoteTerms')} value={tpl.quoteTerms} onChangeText={(v) => { set('quoteTerms', v); setKind('QUOTATION'); }} latinDigits={false} multiline style={{ height: 80 }} maxLength={400} />
-      <TextField label={t('templates.quoteDays')} value={days} onChangeText={(v) => { setDays(v.replace(/\D/g, '')); const n = parseInt(v, 10); if (n > 0 && n <= 365) set('quoteValidDays', n); setKind('QUOTATION'); }} keyboardType="number-pad" ltr maxLength={3} />
+      {kind === 'QUOTATION' ? (
+        <>
+          <TextField label={t('templates.quoteTerms')} value={tpl.quoteTerms} onChangeText={(v) => set('quoteTerms', v)} latinDigits={false} multiline style={{ height: 80 }} maxLength={400} />
+          <TextField label={t('templates.quoteDays')} value={days} onChangeText={(v) => { setDays(v.replace(/\D/g, '')); const n = parseInt(v, 10); if (n > 0 && n <= 365) set('quoteValidDays', n); }} keyboardType="number-pad" ltr maxLength={3} />
+        </>
+      ) : null}
 
       <Card padded={false}>
         <ListRow icon="store" hue="amber" title={t('templates.shopDetails')} subtitle={t('templates.shopDetailsHint')} onPress={() => router.push('/settings/receipt')} />
