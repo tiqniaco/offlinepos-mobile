@@ -56,7 +56,7 @@
     "title": "Your business",
     "body": "This number already has a business.",
     "useExisting": "Use “{{name}}” on this phone",
-    "existingWarning": "“Use on this phone” moves the whole shop here and locks the old phone. To only follow it without moving, choose “Just follow the shop”.",
+    "existingWarning": "We will restore your data from the latest backup, and the old phone will be locked for editing.",
     "createNew": "Create a new business"
   },
   "business": {
@@ -2165,7 +2165,6 @@
     "other": "You reached a limit of your plan ({{used}} of {{limit}})."
   },
   "follow": {
-    "chooseFollow": "Just follow the shop from this phone (without moving it)",
     "title": "Follow-up phone",
     "subtitle": "Follow “{{name}}” from this phone while you are away. The shop keeps running on its own phone.",
     "p1": "Today’s and this month’s sales, profit, expenses and money received",
@@ -2235,11 +2234,6 @@
     "since": "Since {{at}}",
     "stop": "Stop",
     "stopConfirm": "This follow-up phone will no longer see the shop’s figures.",
-    "howTitle": "How to follow the shop from another phone?",
-    "how1": "Install Kashiro on the other phone.",
-    "how2": "Sign in with your own (owner) phone number.",
-    "how3": "Choose “Just follow the shop from this phone” under the shop name.",
-    "how4": "Enter the code we text you; the figures appear within minutes.",
-    "cashierSoon": "A second cashier selling from another phone on the same shop: coming in the next update."
+    "cashierSoon": "Coming soon: every user (owner or cashier) works on the same shop from their own phone, in the same app, with their own permissions."
   }
 }

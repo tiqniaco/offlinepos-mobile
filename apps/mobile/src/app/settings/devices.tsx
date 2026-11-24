@@ -7,7 +7,7 @@ import { Alert, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import type { ShopDevicesResponse } from '@daftarak/shared';
-import { Screen, Card, Text, Button, Banner, IconBadge, SectionTitle, colors, fonts } from '../../ui';
+import { Screen, Card, Text, Button, Banner, IconBadge, colors, fonts } from '../../ui';
 import { api } from '../../api/client';
 import { accessToken } from '../../lib/session';
 import { errorMessage } from '../../lib/errors';
@@ -82,19 +82,6 @@ export default function Devices() {
           </View>
         </Card>
       ))}
-      <SectionTitle>{t('devices.howTitle')}</SectionTitle>
-      <Card>
-        <View style={{ gap: 8 }}>
-          {[1, 2, 3, 4].map((n) => (
-            <View key={n} style={{ flexDirection: 'row', gap: 10 }}>
-              <View style={{ width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary[100] }}>
-                <Text style={{ fontFamily: fonts.bold, fontSize: 12, lineHeight: 19, color: colors.primary[700] }}>{n}</Text>
-              </View>
-              <Text style={{ flex: 1, fontSize: 13.5, lineHeight: 22, color: colors.ink.DEFAULT }}>{t(`devices.how${n}`)}</Text>
-            </View>
-          ))}
-        </View>
-      </Card>
       <Banner tone="info" icon="info" text={t('devices.cashierSoon')} />
     </Screen>
   );
