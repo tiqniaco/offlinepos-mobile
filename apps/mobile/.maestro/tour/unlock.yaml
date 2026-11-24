@@ -1,6 +1,7 @@
 # If the app is on the lock screen (auto-lock, restart) or a screen asks for the owner again, sign in and go on.
 appId: app.daftarak
 ---
+- tapOn: { text: "Wait", optional: true }
 - runFlow:
     when:
       visible: { id: lock-password }

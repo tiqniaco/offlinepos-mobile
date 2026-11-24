@@ -4,6 +4,9 @@ appId: app.daftarak
 ---
 - launchApp: { clearState: true }
 - waitForAnimationToEnd: { timeout: 8000 }
+# A slow emulator sometimes shows "… isn't responding" over the app: wait it out.
+- tapOn: { text: "Wait", optional: true }
+- waitForAnimationToEnd: { timeout: 3000 }
 - takeScreenshot: shots/a01-welcome
 - tapOn: { id: welcome-start }
 - takeScreenshot: shots/a02-phone
@@ -207,6 +210,7 @@ appId: app.daftarak
 - runFlow: { file: visit.yaml, env: { ROUTE: "settings/backup", NAME: "j10-backup" } }
 - runFlow: { file: visit.yaml, env: { ROUTE: "settings/sessions", NAME: "j11-sessions" } }
 - runFlow: { file: visit.yaml, env: { ROUTE: "settings/devices", NAME: "j11b-devices" } }
+- runFlow: { file: visit.yaml, env: { ROUTE: "settings/add-phone", NAME: "j11c-add-phone" } }
 - runFlow: { file: visit.yaml, env: { ROUTE: "settings/integrity", NAME: "j12-integrity" } }
 - runFlow: { file: visit.yaml, env: { ROUTE: "settings/audit", NAME: "j13-audit" } }
 # Lock screen and unlock with the password
