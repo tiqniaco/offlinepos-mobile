@@ -11,7 +11,8 @@ import { useApp } from '../../state/app';
 import { api } from '../../api/client';
 import { accessToken } from '../../lib/session';
 import { errorMessage } from '../../lib/errors';
-import { backupNow, lastBackup, type LastBackup } from '../../features/backup/service';
+import { backupNow, cloudBackupAllowed, lastBackup, type LastBackup } from '../../features/backup/service';
+import { FolderBackupCard } from '../../features/backup/FolderBackupCard';
 import { exportPortableBackup, lastPortableBackup } from '../../features/backup/portable';
 import { hasDocuments, portableReminder } from '../../domain/backup/portable';
 import { getDb } from '../../db/client';
@@ -87,6 +88,8 @@ export default function BackupScreen() {
 
   const age = last ? Date.now() - last.at : null;
   const stale = age == null || age > 3 * 86_400_000;
+  // Cloud backup is plan-limited (licence backup_storage_mb; 0 = paid plans only): the folder backup comes first.
+  const cloudOk = cloudBackupAllowed();
   return (
     <Screen back title={t('backup.title')} subtitle={t('backup.subtitle')}>
       <NoScreenshots id="backup" />
@@ -102,7 +105,10 @@ export default function BackupScreen() {
         {cloud != null ? <Text variant="caption" style={{ marginTop: 8 }}>{t('backup.cloudCount', { n: cloud })}</Text> : null}
       </Card>
       {stale ? <Banner tone="warn" text={t('backup.staleHint')} /> : null}
-      <Banner tone="info" text={t('backup.autoHint')} />
+      <SectionTitle>{t('folderBackup.title')}</SectionTitle>
+      <FolderBackupCard disabled={!!busy} gated={(fn) => gate.run('export', (a) => void fn(a).catch((e) => setMsg({ tone: 'danger', text: errorMessage(t, e) })))} />
+      <SectionTitle>{t('folderBackup.cloudTitle')}</SectionTitle>
+      {cloudOk ? <Banner tone="info" text={t('backup.autoHint')} /> : <Banner tone="info" text={t('folderBackup.cloudPaidOnly')} />}
       {busy ? (
         <Card>
           <Text variant="subtitle">{p.stage === 'upload' ? t('backup.uploading') : p.stage === 'key' ? t('portable.securing') : p.stage === 'excel' ? t('backup.excelBuilding') : t('backup.building')}</Text>
@@ -113,7 +119,7 @@ export default function BackupScreen() {
         </Card>
       ) : null}
       {msg ? <Banner tone={msg.tone} text={msg.text} /> : null}
-      <Button testID="backup-now" icon="upload" title={t('backup.now')} loading={busy === 'cloud'} disabled={!!busy} onPress={() => void run('cloud')} />
+      {cloudOk ? <Button testID="backup-now" icon="upload" title={t('backup.now')} loading={busy === 'cloud'} disabled={!!busy} onPress={() => void run('cloud')} /> : null}
       <SectionTitle>{t('portable.exportTitle')}</SectionTitle>
       <Card>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>

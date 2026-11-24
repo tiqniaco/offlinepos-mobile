@@ -17,7 +17,8 @@ import { integrityToken } from '../features/integrity/integrity';
 import { pushToken, showAnnouncements } from '../features/notify/notify';
 import { getMeta, setMeta } from '../domain/device';
 import { isUnlinked } from '../domain/backup/portable';
-import { finishAutoBackup, markCommitted, pendingBackupId, prepareAutoBackup, abandonIncompleteRestore } from '../features/backup/service';
+import { finishAutoBackup, markCommitted, noteBackupError, pendingBackupId, prepareAutoBackup, abandonIncompleteRestore } from '../features/backup/service';
+import { runFolderBackup } from '../features/backup/folderBackup';
 import { cleanBackupCache } from '../features/backup/files';
 import { flushPendingErrors, reportClientError } from '../features/errors/CrashScreen';
 
@@ -38,8 +39,9 @@ hooks.onAnnouncements = async (fresh) => {
   useApp.getState().set({ inboxBump: Date.now() });
   await showAnnouncements(fresh);
 };
-hooks.afterCheckin = async (put, committed) => {
+hooks.afterCheckin = async (put, committed, backupError) => {
   await markCommitted(committed);
+  await noteBackupError(backupError).catch(() => undefined);
   void finishAutoBackup(put);
 };
 import { subscribeLicence } from '../domain/licence/guard';
@@ -153,6 +155,12 @@ export function backgroundCheckin(force = false): Promise<CheckinResult> {
     if (inflight === p) inflight = null;
   });
   inflight = p;
+  // The daily file in the shop's own folder (offline, no server): after the check-in, never at the same time as its
+  // snapshot. Silent; the backup screen shows the last success / a warning.
+  void p
+    .catch(() => null)
+    .then(() => runFolderBackup())
+    .catch(() => undefined);
   return p;
 }
 

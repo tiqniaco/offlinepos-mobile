@@ -16,6 +16,8 @@ import { useApp } from '../../state/app';
 import { computeReminders, summaryLines } from '../../domain/notify/reminders';
 import { money } from '../../lib/format';
 import { lastBackup } from '../backup/service';
+import { lastPortableExport } from '../../domain/backup/portable';
+import { IOS_REMIND_DAYS } from '../../domain/backup/folder';
 
 const TAG = 'daftarak';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -68,6 +70,16 @@ export async function planNotifications(opts: { ask?: boolean } = {}) {
         content: { title: t(lic?.trialDaysLeft != null ? 'notify.trialTitle' : 'notify.graceTitle'), body: t('notify.trialBody', { n: days }), data: { tag: TAG, url: '/settings/subscription' } },
         trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(at.getTime() + 60_000), channelId: 'daily' },
       });
+    }
+    // iOS has no lasting folder access: a weekly reminder to save the shop's own .kashiro file (share sheet).
+    if (Platform.OS === 'ios') {
+      const lastFile = await lastPortableExport(db).catch(() => null);
+      if (!lastFile || Date.now() - lastFile > IOS_REMIND_DAYS * 86_400_000) {
+        await Notifications.scheduleNotificationAsync({
+          content: { title: t('folderBackup.iosRemindTitle'), body: t('folderBackup.iosRemindBody'), data: { tag: TAG, url: '/settings/backup' } },
+          trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(at.getTime() + 9 * 3_600_000), channelId: 'daily' },
+        });
+      }
     }
     const lb = await lastBackup().catch(() => null);
     if (!lb || Date.now() - lb.at > 7 * 86_400_000) {

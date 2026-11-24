@@ -339,7 +339,18 @@
     "pdf_unsupported": "We cannot read this PDF. Take photos of the invoice pages and upload them as images.",
     "business_suspended": "This account is suspended. Contact us.",
     "backup_too_large": "The backup is larger than your plan allows.",
-    "concurrent_update": "Something changed at the same time, please try again."
+    "concurrent_update": "Something changed at the same time, please try again.",
+    "limit_reached": "You reached a limit of your plan.",
+    "limitReached": {
+      "sms_day": "This shop reached today's SMS code limit ({{limit}}). Sign in with the password or try tomorrow.",
+      "backup_storage_mb": "Cloud backup is not available or its space is full ({{limit}} MB). Use the folder backup on your phone.",
+      "receipt_uploads_month": "You reached this month's receipt uploads ({{limit}}). Contact us on WhatsApp if you need to send another.",
+      "api_requests_day": "This shop reached today's server limit. Work on the phone continues normally; try again tomorrow.",
+      "ocr_month": "You used all invoice scans for this month ({{limit}}).",
+      "devices": "You reached the number of phones in your plan ({{limit}}).",
+      "backups_kept": "You reached the number of cloud backups kept.",
+      "other": "You reached a limit of your plan ({{used}} of {{limit}})."
+    }
   },
   "audit": {
     "intact": "The log is intact — nothing was edited",
@@ -2120,5 +2131,34 @@
     "prompt": "Confirm it's you",
     "confirm": "Confirm",
     "biometric": "Use fingerprint"
+  },
+  "folderBackup": {
+    "title": "Automatic backup to your folder",
+    "pitch": "A password-protected copy every day in a folder on your phone — no internet, no server.",
+    "pickHint": "Pick a folder on the phone or SD card, or a Drive folder if it shows. We suggest Download/Kashiro.",
+    "passHint": "Choose a backup password once. You need it to restore on a new phone, so keep it somewhere safe.",
+    "pick": "Pick the folder and start",
+    "folder": "Folder: {{name}}",
+    "lastOk": "Last good copy: {{at}}",
+    "never": "No copy in the folder yet",
+    "keeps": "The newest 7 copies are kept; older ones are deleted automatically.",
+    "warn": "The folder backup has failed for {{n}} days. Check that the folder still exists or pick it again.",
+    "now": "Back up to the folder now",
+    "done": "Saved to the folder ✓",
+    "change": "Change folder",
+    "changePass": "Change password",
+    "passSaved": "Password changed. Next copies use it.",
+    "off": "Stop the folder backup",
+    "cloudTitle": "Cloud backup",
+    "cloudPaidOnly": "Cloud backup is in the paid plans — use your folder.",
+    "iosHint": "On iPhone: every week we remind you to save the backup file to Files or Drive with «Save a copy to Drive / file» below.",
+    "iosRemindTitle": "Save a copy of your data",
+    "iosRemindBody": "A week without saving a backup file. Open Backup and save it to Files or Drive.",
+    "err": {
+      "no_password": "The backup password is not saved. Enter it again so backups continue.",
+      "folder_lost": "We cannot reach the folder. Pick it again.",
+      "write_failed": "The copy was not saved to the folder. Try again.",
+      "not_set": "Pick a folder first."
+    }
   }
 }

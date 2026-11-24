@@ -23,6 +23,7 @@ import { restoreBusinessId } from './restoreState';
 import { integrityToken } from '../integrity/integrity';
 import { backupHeader, buildBackup, decryptBackup, downloadBackup, installSnapshot, openSnapshot, uploadBackup, type BuiltBackup } from './files';
 import { Directory, File, Paths } from 'expo-file-system';
+import { folderBackupHealthy, getFolderConfig } from '../../domain/backup/folder';
 
 export interface LastBackup {
   at: number;
@@ -35,6 +36,22 @@ export const SCHEMA_VERSION = Object.keys(migrations.migrations).length;
 const AUTO_EVERY_MS = 20 * 3_600_000;
 /** The automatic backup carries product photos once a week (they rarely change and dominate the file size). */
 const PHOTOS_EVERY_MS = 7 * 86_400_000;
+/** With a healthy folder backup on the phone (domain/backup/folder.ts) the cloud copy is refreshed weekly only. */
+const AUTO_EVERY_WITH_FOLDER_MS = 7 * 86_400_000;
+/** After the server refused the automatic backup for the shop's storage limit, wait this long before trying again. */
+const CLOUD_LIMITED_PAUSE_MS = 7 * 86_400_000;
+export const CLOUD_LIMITED_META = 'backup.cloudLimitedAt';
+
+/**
+ * Cloud backup allowance from the licence (backup_storage_mb): 0 = not in the plan (use the folder backup),
+ * a number = MB on the server, null = unknown (older licence): the server decides.
+ */
+export function cloudBackupAllowance(): number | null {
+  const l = useApp.getState().licence?.limits.backup_storage_mb;
+  return l == null ? null : l;
+}
+export const cloudBackupAllowed = () => cloudBackupAllowance() !== 0;
+
 /** Owners see a home reminder when no cloud backup succeeded for this long. */
 export const BACKUP_STALE_MS = 3 * 86_400_000;
 
@@ -97,6 +114,7 @@ export async function backupNow(onProgress?: (p: number, stage: 'build' | 'uploa
     await api.backupCommit(await accessToken(), put.backupId, serverBusinessId);
     const done: LastBackup = { at: Date.now(), size: built.size, id: put.backupId, kind: 'manual' };
     await recordDone(done);
+    await setMeta(getDb(), CLOUD_LIMITED_META, ''); // the server took it: automatic cloud backups resume
     return done;
   } finally {
     if (built.file.exists) built.file.delete();
@@ -111,6 +129,8 @@ export async function backupNow(onProgress?: (p: number, stage: 'build' | 'uploa
  * A shop that never had one is measured from the first time this was asked (no nagging on day one).
  */
 export async function cloudBackupOverdue(now = Date.now()): Promise<{ days: number; never: boolean } | null> {
+  // No cloud backup in the plan: the backup screen watches the folder backup / the shop's own file instead.
+  if (!cloudBackupAllowed()) return null;
   const db = getDb();
   let ref = await lastCloudBackupAt();
   const never = ref == null;
@@ -147,8 +167,16 @@ export async function prepareAutoBackup(): Promise<{ size: number; sha256: strin
     // Joined an existing shop without its server backup key (domain/onboarding adoptServerBackupKey): a backup made
     // with a new local key could never be restored — stay off until a restore or the key fetch.
     if ((await getMeta(db, 'backup.keyMissing')) === '1') return undefined;
+    // Cloud backup is plan-limited (backup_storage_mb): not in the plan → the folder backup only; refused for the
+    // shop's storage limit → pause a week.
+    if (!cloudBackupAllowed()) return undefined;
+    const limitedAt = Number((await getMeta(db, CLOUD_LIMITED_META)) ?? 0);
+    if (limitedAt && Date.now() - limitedAt < CLOUD_LIMITED_PAUSE_MS) return undefined;
     const last = await lastBackup();
+    const every = folderBackupHealthy(await getFolderConfig(db)) ? AUTO_EVERY_WITH_FOLDER_MS : AUTO_EVERY_MS;
+    const lastCloud = await lastCloudBackupAt();
     if (last && Date.now() - last.at < AUTO_EVERY_MS) return undefined;
+    if (lastCloud && Date.now() - lastCloud < every) return undefined;
     if ((await getMeta(db, 'backup.lastHead')) === (await chainHead(db, dev.id)).hash && last) return undefined;
     // Network first: never spend battery building a file that cannot leave the phone today.
     const net = await Network.getNetworkStateAsync();
@@ -204,6 +232,11 @@ export async function finishAutoBackup(put: { backupId: string; url: string; hea
 export async function pendingBackupId(): Promise<string | undefined> {
   const v = await getMeta(getDb(), 'backup.pending');
   return v ? (JSON.parse(v) as { id: string }).id : undefined;
+}
+
+/** The check-in said why the automatic backup was refused (limit_reached = the shop's cloud storage is full / not in the plan). */
+export async function noteBackupError(error: string | undefined) {
+  if (error === 'limit_reached') await setMeta(getDb(), CLOUD_LIMITED_META, String(Date.now()));
 }
 
 export async function markCommitted(committed: boolean | undefined) {

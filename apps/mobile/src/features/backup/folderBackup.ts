@@ -24,6 +24,7 @@ import {
   type SecretStore,
 } from '../../domain/backup/folder';
 import { buildPortableFile, type PortableStage } from './portable';
+import { recordDone } from './service';
 
 /** The OS keystore behind the folder-backup password. */
 export const secureStore: SecretStore = { get: getSecret, set: setSecret, del: deleteSecret };
@@ -104,6 +105,8 @@ export function runFolderBackup(opts: { force?: boolean; onProgress?: (p: number
       }
       await recordFolderResult(db, { ok: true, at: now, file: nameFromUri(target) || name });
       await recordPortableExport(db, now);
+      // "Last backup" on the backup screen / the stale-backup nudge; never counts as the cloud copy.
+      await recordDone({ at: now, size: built.size, id: null, kind: 'local' }, { cloudHead: false });
       return { ok: true };
     } catch (e) {
       const error = e instanceof Error && e.message === 'folder_lost' ? 'folder_lost' : 'write_failed';
