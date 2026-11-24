@@ -20,7 +20,7 @@ const config: ExpoConfig = {
     buildNumber: process.env.BUILD_NUMBER || '1',
     supportsTablet: true,
     infoPlist: {
-      NSFaceIDUsageDescription: 'لفتح دفترك بالبصمة بدل الرقم السري',
+      NSFaceIDUsageDescription: 'لفتح كاشيرو ببصمة الوش بدل الرقم السري',
       NSCameraUsageDescription: 'لقراءة الباركود وتصوير المنتجات',
       NSBluetoothAlwaysUsageDescription: 'للطباعة على طابعة الفواتير بالبلوتوث',
       CFBundleAllowMixedLocalizations: true,
@@ -49,7 +49,7 @@ const config: ExpoConfig = {
     'expo-secure-store',
     ['expo-localization', { supportedLocales: { ios: ['ar', 'en'], android: ['ar', 'en'] } }],
     'expo-font',
-    ['expo-local-authentication', { faceIDPermission: 'لفتح دفترك بالبصمة بدل الرقم السري' }],
+    ['expo-local-authentication', { faceIDPermission: 'لفتح كاشيرو ببصمة الوش بدل الرقم السري' }],
     ['expo-image-picker', { cameraPermission: 'لقراءة الباركود وتصوير المنتجات', photosPermission: 'لاختيار صورة المنتج', microphonePermission: false }],
     'expo-document-picker',
     ['react-native-ble-plx', { isBackgroundEnabled: false, modes: [], bluetoothAlwaysPermission: 'للطباعة على طابعة الفواتير بالبلوتوث', neverForLocation: true }],
