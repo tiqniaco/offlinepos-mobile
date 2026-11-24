@@ -12,12 +12,15 @@ import { useCurrency } from '../../features/inventory/useInvCtx';
 import { openWhatsApp } from '../../features/export/whatsapp';
 import { reminderText } from '../../features/parties/format';
 import { Tip } from '../../features/Tip';
+import { EyeToggle } from '../../features/privacy/EyeToggle';
+import { useSensitive } from '../../state/privacy';
 
 export default function Parties() {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ type?: string; filter?: string; t?: string }>();
   const currency = useCurrency();
+  const { masked } = useSensitive();
   const user = useApp((s) => s.user)!;
   const business = useApp((s) => s.business);
   const tz = useApp((s) => s.settings.timezone ?? 'Africa/Cairo');
@@ -104,6 +107,8 @@ export default function Parties() {
       onOpen={(id) => router.push({ pathname: '/parties/[id]', params: { id, type } })}
       onAdd={() => router.push({ pathname: '/parties/form', params: { type } })}
       tip={<Tip id="parties" />}
+      masked={masked}
+      eye={<EyeToggle testID="parties-eye" />}
       onRemind={(id) => {
         const r = rows.find((x) => x.id === id);
         if (!r) return;

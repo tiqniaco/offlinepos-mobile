@@ -8,6 +8,7 @@ import { Segmented } from '../common/Segmented';
 import { balanceLabel, partyColor } from './format';
 import { money, phoneLabel } from '../../lib/format';
 import { AdBanner } from '../ads/AdBanner';
+import { maskMoney } from '../../state/privacy';
 
 export interface PartyListItem {
   id: string;
@@ -38,6 +39,8 @@ export function PartiesListView({
   onRemind,
   tip,
   loading = false,
+  masked = false,
+  eye,
 }: {
   topInset: number;
   type: 'C' | 'S';
@@ -58,6 +61,10 @@ export function PartiesListView({
   tip?: React.ReactNode;
   /** First load still running: no empty state yet. */
   loading?: boolean;
+  /** «إخفاء الأرقام الحساسة»: balances and the total show ••••. */
+  masked?: boolean;
+  /** The privacy eye, next to the title. */
+  eye?: React.ReactNode;
 }) {
   const { t } = useTranslation();
   const filters: { key: PartyFilter; label: string }[] =
@@ -75,12 +82,15 @@ export function PartiesListView({
   return (
     <View style={{ flex: 1, backgroundColor: colors.paper.DEFAULT, paddingTop: topInset }}>
       <View style={{ paddingHorizontal: 16, paddingTop: 8, gap: 10 }}>
-        <Text variant="display">{t('parties.title')}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Text variant="display" style={{ flex: 1 }}>{t('parties.title')}</Text>
+          {eye}
+        </View>
         <Segmented value={type} onChange={onType} options={[{ value: 'C', label: t('parties.customers') }, { value: 'S', label: t('parties.suppliers') }]} />
         <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 16, backgroundColor: colors.paper.card }, shadow.soft]}>
           <View style={{ flex: 1 }}>
             <Text variant="caption">{t(type === 'C' ? 'parties.totalOwedC' : 'parties.totalOwedS')}</Text>
-            <Text style={{ fontFamily: fonts.bold, fontSize: 20, lineHeight: 28, color: type === 'C' ? colors.rose[700] : colors.amber[700] }}>{money(totalOwedMinor, currency, lang)}</Text>
+            <Text style={{ fontFamily: fonts.bold, fontSize: 20, lineHeight: 28, color: type === 'C' ? colors.rose[700] : colors.amber[700] }}>{maskMoney(money(totalOwedMinor, currency, lang), masked)}</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <Text variant="caption">{t(type === 'C' ? 'parties.countC' : 'parties.countS')}</Text>
@@ -105,6 +115,7 @@ export function PartiesListView({
         ) : (
           <FlashList
             data={rows}
+            extraData={masked}
             keyExtractor={(r) => r.id}
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 96 }}
             // The ad sits at the TOP of the list, far from the floating + (no accidental taps).
@@ -122,7 +133,7 @@ export function PartiesListView({
                     </Text>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={{ fontFamily: fonts.bold, fontSize: 15.5, lineHeight: 22, color: b.color }}>{b.text}</Text>
+                    <Text style={{ fontFamily: fonts.bold, fontSize: 15.5, lineHeight: 22, color: b.color }}>{maskMoney(b.text, masked)}</Text>
                     {item.owedMinor ? <Text style={{ fontFamily: fonts.medium, fontSize: 12, lineHeight: 17, color: b.color }}>{b.tag}</Text> : null}
                   </View>
                   {onRemind && item.lateDays != null && item.mobile ? (

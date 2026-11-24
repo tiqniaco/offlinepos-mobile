@@ -20,6 +20,8 @@ import { dayText } from '../../features/export/builders';
 import { money, phoneLabel } from '../../lib/format';
 import { errorMessage } from '../../lib/errors';
 import { toast } from '../../state/toast';
+import { EyeToggle } from '../../features/privacy/EyeToggle';
+import { useSensitive } from '../../state/privacy';
 
 type Party = NonNullable<Awaited<ReturnType<typeof getParty>>>;
 
@@ -29,6 +31,7 @@ export default function PartyDetail() {
   const { id, type: tp } = useLocalSearchParams<{ id: string; type?: string }>();
   const type: 'C' | 'S' = tp === 'S' ? 'S' : 'C';
   const currency = useCurrency();
+  const { show } = useSensitive();
   const ctx = useBizCtx();
   const user = useApp((s) => s.user)!;
   const business = useApp((s) => s.business);
@@ -113,16 +116,19 @@ export default function PartyDetail() {
     <Screen
       back
       right={
-        can(type === 'C' ? 'parties.manage' : 'purchases.manage') ? (
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <EyeToggle />
+          {can(type === 'C' ? 'parties.manage' : 'purchases.manage') ? (
+          <>
             <Pressable hitSlop={8} onPress={() => router.push({ pathname: '/parties/form', params: { id, type } })} style={[{ width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.paper.card }, shadow.soft]}>
               <Icon name="edit" size={18} color={colors.ink.DEFAULT} />
             </Pressable>
             <Pressable hitSlop={8} onPress={del} style={[{ width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.paper.card }, shadow.soft]}>
               <Icon name="trash" size={18} color={colors.rose[600]} />
             </Pressable>
-          </View>
-        ) : undefined
+          </>
+          ) : null}
+        </View>
       }
     >
       <View style={[{ borderRadius: 20, overflow: 'hidden' }, shadow.lifted]}>
@@ -134,9 +140,9 @@ export default function PartyDetail() {
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, marginTop: 10 }}>
             <View style={{ flex: 1 }}>
               <Text style={{ color: 'rgba(255,255,255,0.8)', fontFamily: fonts.medium, fontSize: 13, lineHeight: 22 }}>{o ? b.tag : t('parties.settled')}</Text>
-              <Text numberOfLines={1} adjustsFontSizeToFit style={{ color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 30, lineHeight: 49 }}>{money(Math.abs(o), currency, i18n.language)}</Text>
+              <Text numberOfLines={1} adjustsFontSizeToFit style={{ color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 30, lineHeight: 49 }}>{show(money(Math.abs(o), currency, i18n.language))}</Text>
             </View>
-            {type === 'C' && p.creditLimitMinor ? <Text numberOfLines={2} style={{ flexShrink: 1, color: 'rgba(255,255,255,0.85)', fontFamily: fonts.medium, fontSize: 12.5, lineHeight: 21 }}>{t('parties.limitIs', { amount: money(p.creditLimitMinor, currency, i18n.language) })}</Text> : null}
+            {type === 'C' && p.creditLimitMinor ? <Text numberOfLines={2} style={{ flexShrink: 1, color: 'rgba(255,255,255,0.85)', fontFamily: fonts.medium, fontSize: 12.5, lineHeight: 21 }}>{t('parties.limitIs', { amount: show(money(p.creditLimitMinor, currency, i18n.language)) })}</Text> : null}
           </View>
         </LinearGradient>
       </View>
@@ -179,9 +185,9 @@ export default function PartyDetail() {
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={{ fontFamily: fonts.bold, fontSize: 14.5, lineHeight: 21, color: r.debitMinor - r.creditMinor > 0 === (type === 'C') ? colors.rose[700] : colors.leaf[700] }}>
-                  {money(r.debitMinor && r.creditMinor ? r.docTotalMinor ?? r.debitMinor : r.debitMinor || r.creditMinor, currency, i18n.language)}
+                  {show(money(r.debitMinor && r.creditMinor ? r.docTotalMinor ?? r.debitMinor : r.debitMinor || r.creditMinor, currency, i18n.language))}
                 </Text>
-                <Text variant="caption">{t('report.balance')} {formatMinor(r.balanceMinor)}</Text>
+                <Text variant="caption">{t('report.balance')} {show(formatMinor(r.balanceMinor))}</Text>
               </View>
             </Pressable>
           ))}

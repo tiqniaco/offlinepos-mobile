@@ -16,6 +16,8 @@ import { ExportBar } from '../../features/common/ExportBar';
 import { bizHeader } from '../../features/export/builders';
 import type { ReportDoc } from '../../features/export/report';
 import { maybeShowInterstitial } from '../../features/ads/ads';
+import { EyeToggle } from '../../features/privacy/EyeToggle';
+import { useSensitive } from '../../state/privacy';
 
 /** One screen for every report: date filter → numbers → WhatsApp / PDF / Excel / print. */
 export default function ReportScreen() {
@@ -23,6 +25,7 @@ export default function ReportScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const def = REPORTS.find((r) => r.id === id);
   const user = useApp((s) => s.user)!;
+  const { masked } = useSensitive();
   const tz = useApp((s) => s.settings.timezone ?? 'Africa/Cairo');
   const today = businessDay(Date.now(), tz);
   const [range, setRange] = useState<{ key: RangeKey; from: number; to: number }>(() => {
@@ -80,7 +83,7 @@ export default function ReportScreen() {
     );
   }
   return (
-    <Screen back title={t(`reports.names.${def.id}`)} subtitle={doc?.period ?? undefined}>
+    <Screen back title={t(`reports.names.${def.id}`)} subtitle={doc?.period ?? undefined} right={<EyeToggle />}>
       <NoScreenshots id="report" />
       {def.ranged ? <DateRangeBar value={range} today={today} onChange={setRange} presets={['today', 'week', 'month', 'lastMonth', 'quarter', 'year', 'custom']} /> : null}
       {def.options ? (
@@ -95,7 +98,7 @@ export default function ReportScreen() {
       {doc ? (
         <>
           <ExportBar build={build} kinds={['pdf', 'excel', 'print', 'whatsapp']} />
-          <ReportDocView d={doc} />
+          <ReportDocView d={doc} masked={masked} />
           {__DEV__ && ms != null ? <Text variant="caption">{ms} ms</Text> : null}
         </>
       ) : null}

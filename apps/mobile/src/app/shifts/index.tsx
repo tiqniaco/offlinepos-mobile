@@ -18,6 +18,8 @@ import { money, dateTimeLabel } from '../../lib/format';
 import { errorMessage } from '../../lib/errors';
 import { fx } from '../../ui/fx';
 import { toast } from '../../state/toast';
+import { EyeToggle } from '../../features/privacy/EyeToggle';
+import { useSensitive } from '../../state/privacy';
 
 type Shift = NonNullable<Awaited<ReturnType<typeof currentShift>>>;
 
@@ -37,7 +39,11 @@ export default function Shifts() {
   const [note, setNote] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const fmt = (v: number) => money(v, currency, i18n.language);
+  const { show } = useSensitive();
+  /** Real amount (what the cashier typed, confirm dialogs). */
+  const real = (v: number) => money(v, currency, i18n.language);
+  /** Shift figures: •••• while «إخفاء الأرقام الحساسة» masks them. */
+  const fmt = (v: number) => show(real(v));
 
   const load = useCallback(async () => {
     const db = getDb();
@@ -67,7 +73,7 @@ export default function Shifts() {
   const diff = sum && counted != null ? counted - sum.expectedCashMinor : null;
 
   return (
-    <Screen back title={t('shift.title')}>
+    <Screen back title={t('shift.title')} right={<EyeToggle />}>
       {locked ? (
         <Card style={{ backgroundColor: colors.amber[50] }}>
           <Text style={{ color: colors.amber[700], fontFamily: fonts.semibold, fontSize: 14, lineHeight: 21 }}>{t('licence.feature')}</Text>
@@ -146,7 +152,7 @@ export default function Shifts() {
             <View style={{ height: 8 }} />
             <Button testID="shift-close" kind="danger" icon="lock" title={t('shift.close')} loading={busy} disabled={counted == null} onPress={() =>
                 ctx &&
-                Alert.alert(t('shift.closeConfirmTitle'), t('shift.closeConfirmBody', { amount: fmt(counted ?? 0) }), [
+                Alert.alert(t('shift.closeConfirmTitle'), t('shift.closeConfirmBody', { amount: real(counted ?? 0) }), [
                   { text: t('common.cancel'), style: 'cancel' },
                   { text: t('shift.close'), style: 'destructive', onPress: () => void run(() => closeShift(ctx, counted ?? 0, note), () => { setCounted(null); setNote(''); router.push({ pathname: '/shifts/[id]', params: { id: cur.id } }); }) },
                 ])

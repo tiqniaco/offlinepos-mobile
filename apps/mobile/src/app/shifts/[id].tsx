@@ -9,6 +9,8 @@ import { ExportBar } from '../../features/common/ExportBar';
 import { bizHeader, shiftDoc } from '../../features/export/builders';
 import { useCurrency } from '../../features/inventory/useInvCtx';
 import { money, dateTimeLabel } from '../../lib/format';
+import { EyeToggle } from '../../features/privacy/EyeToggle';
+import { useSensitive } from '../../state/privacy';
 
 type S = NonNullable<Awaited<ReturnType<typeof getShift>>>;
 
@@ -17,6 +19,7 @@ export default function ShiftReport() {
   const { t, i18n } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const currency = useCurrency();
+  const { show } = useSensitive();
   const [s, setS] = useState<S | null>(null);
   const [sum, setSum] = useState<ShiftSummary | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -37,10 +40,10 @@ export default function ShiftReport() {
         {loaded ? <EmptyState icon="clock" hue="sky" title={t('common.notFound')} /> : <ActivityIndicator color={colors.primary[600]} style={{ marginTop: 32 }} />}
       </Screen>
     );
-  const fmt = (v: number) => money(v, currency, i18n.language);
+  const fmt = (v: number) => show(money(v, currency, i18n.language));
   const d = s.differenceMinor ?? 0;
   return (
-    <Screen back title={t('shift.reportTitle')} subtitle={`${s.number} · ${s.userName}`}>
+    <Screen back title={t('shift.reportTitle')} subtitle={`${s.number} · ${s.userName}`} right={<EyeToggle />}>
       <Card>
         <Text variant="caption">
           {dateTimeLabel(i18n.language, s.openedAt)} → {s.closedAt ? dateTimeLabel(i18n.language, s.closedAt) : t('shift.stillOpen')}
