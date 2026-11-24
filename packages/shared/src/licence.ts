@@ -22,6 +22,12 @@ const limitsSchema = z.object({
   backups_kept: z.number().int(),
   /** Added later: licences signed before it existed have no OCR (0). */
   ocr_month: z.number().int().default(0),
+  /** Usage limits (added later; missing on older licences = unlimited for display, the server enforces). */
+  sms_day: z.number().int().optional(),
+  backup_storage_mb: z.number().int().optional(),
+  receipt_uploads_month: z.number().int().optional(),
+  api_requests_day: z.number().int().optional(),
+  devices: z.number().int().optional(),
 });
 
 const featureSchema = z.enum(FEATURES);

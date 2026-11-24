@@ -7,7 +7,7 @@ import {
   type LicencePayload,
 } from '../src/licence';
 import { ed25519GenerateSecretKey, ed25519PublicKey, ed25519Sign, base64urlEncode, utf8ToBytes } from '../src/crypto';
-import { DEFAULT_PLANS } from '../src/plans';
+import { DEFAULT_PLANS, defaultUsageLimits, withinLimit } from '../src/plans';
 
 const sk = ed25519GenerateSecretKey();
 const pk = ed25519PublicKey(sk);
@@ -60,6 +60,28 @@ describe('licence token', () => {
       expect(v.payload.fallback.limits.ocr_month).toBe(0);
     }
     expect(computeLicenceState(v, ctx(NOW)).limits.ocr_month).toBe(0);
+  });
+  it('plans carry the usage limits (sms/day, cloud backup MB, receipts/month, requests/day, devices)', () => {
+    const pick = (l: (typeof DEFAULT_PLANS)[number]['limits']) => [l.sms_day, l.backup_storage_mb, l.receipt_uploads_month, l.api_requests_day, l.devices];
+    expect(DEFAULT_PLANS.map((p) => [p.code, ...pick(p.limits)])).toEqual([
+      ['free', 5, 0, 5, 2000, 1],
+      ['basic', 10, 150, 10, 5000, 2],
+      ['pro', 20, 1024, 20, 15000, 5],
+    ]);
+    expect(defaultUsageLimits('pro', false).backup_storage_mb).toBe(1024);
+    expect(defaultUsageLimits('gold', false).sms_day).toBe(10); // unknown paid plan → basic
+    expect(defaultUsageLimits('promo_free', true).backup_storage_mb).toBe(0);
+  });
+  it('a licence without the usage limits verifies; a missing limit reads as unlimited', () => {
+    const strip = ({ sms_day: _a, backup_storage_mb: _b, receipt_uploads_month: _c, api_requests_day: _d, devices: _e, ...rest }: typeof pro.limits) => rest;
+    const old = { ...payload(), limits: strip(pro.limits), fallback: { plan: 'free', limits: strip(free.limits), features: [] } };
+    const body = base64urlEncode(utf8ToBytes(JSON.stringify(old)));
+    const token = `lic1.${body}.${base64urlEncode(ed25519Sign(utf8ToBytes(`lic1.${body}`), sk))}`;
+    const v = verifyLicence(token, keys);
+    expect(v.ok).toBe(true);
+    if (v.ok) expect(v.payload.limits.backup_storage_mb).toBeUndefined();
+    expect(withinLimit(undefined, 1_000_000)).toBe(true);
+    expect(withinLimit(0, 0)).toBe(false);
   });
   it('signs and verifies offline', () => {
     const v = verifyLicence(signLicence(payload(), sk), keys);

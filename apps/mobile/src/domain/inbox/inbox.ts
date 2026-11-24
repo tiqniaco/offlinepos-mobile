@@ -18,7 +18,7 @@ export interface Announcement {
 }
 
 /** Only these in-app screens may be opened from a message (mirrors the server allow-list). */
-const SAFE = /^(\/settings\/(subscription|backup|printers)|\/reports|\/offers|\/\(main\)\/(parties|products|sell)|store)$/;
+const SAFE = /^(\/settings\/(subscription|backup|printers|sessions)|\/reports|\/offers|\/\(main\)\/(parties|products|sell)|store)$/;
 export const safeUrl = (u: string | null | undefined) => (u && SAFE.test(u) ? (u === '/(main)/sell' ? '/sales/pos' : u) : null);
 
 /** Store new messages; returns the ones that were not already there. Keeps the newest 100. */

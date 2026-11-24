@@ -314,5 +314,7 @@ export const API_ERROR_CODES = [
   'business_suspended',
   'backup_too_large',
   'concurrent_update',
+  /** A per-business usage limit (plan or super-admin override) is used up; the error carries {key, limit, used}. */
+  'limit_reached',
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];

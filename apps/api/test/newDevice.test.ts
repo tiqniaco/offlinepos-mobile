@@ -32,6 +32,7 @@ describe('new-device sign-in alert', () => {
 
     c.advance(61_000);
     const auth2 = await login(c, '01066660001', 'install-0009');
+    c.advance(61_000);
     await stepUp(c, auth2.accessToken, '201066660001');
     const a = await c.call('POST', '/v1/devices/attach', { businessId: business.id, device: { ...device('install-0009'), model: 'Galaxy A15' } }, { Authorization: `Bearer ${auth2.accessToken}` });
     expect(a.status).toBe(200);
@@ -56,6 +57,7 @@ describe('new-device sign-in alert', () => {
     // Re-attaching a phone that was registered on this shop before is not a new device.
     c.advance(61_000);
     const auth3 = await login(c, '01066660001', 'install-0001');
+    c.advance(61_000);
     await stepUp(c, auth3.accessToken, '201066660001');
     const back = await c.call('POST', '/v1/devices/attach', { businessId: business.id, device: device('install-0001') }, { Authorization: `Bearer ${auth3.accessToken}` });
     expect(back.status).toBe(200);
@@ -68,6 +70,7 @@ describe('new-device sign-in alert', () => {
     c.advance(61_000);
     const auth2 = await login(c, '01066660002', 'install-0002');
     const h2 = { Authorization: `Bearer ${auth2.accessToken}` };
+    c.advance(61_000);
     await stepUp(c, auth2.accessToken, '201066660002');
     const r = await c.call('POST', '/v1/devices/activate', { businessId: business.id, device: device('install-0002') }, h2);
     expect(r.status).toBe(200);
