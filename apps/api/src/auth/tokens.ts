@@ -214,6 +214,11 @@ export async function requireSession(env: Env, authHeader: string | undefined, n
   return { ...claims, stepUpUntil: s.step_up_until };
 }
 
+/** Any live session (the owner's or a cashier phone's): logout. */
+export async function requireAnySession(env: Env, authHeader: string | undefined, now: number): Promise<AccessClaims> {
+  return (await loadSession(env, authHeader, now)).claims;
+}
+
 /** A cashier phone's session: bound to one shop. */
 export async function requireDeviceSession(env: Env, authHeader: string | undefined, now: number): Promise<AccessClaims & { businessId: string }> {
   const { claims, s } = await loadSession(env, authHeader, now);

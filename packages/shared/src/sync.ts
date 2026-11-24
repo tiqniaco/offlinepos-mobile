@@ -83,6 +83,8 @@ export const syncStatusResponseSchema = z.object({
   /** Highest op seq of this phone that the shop phone has applied. */
   appliedSeq: z.number().int(),
   serverTime: z.number(),
+  /** The owner removed this phone: it may only deliver the sales it already made. */
+  stopped: z.boolean().optional(),
 });
 
 export const syncOpsPullResponseSchema = z.object({

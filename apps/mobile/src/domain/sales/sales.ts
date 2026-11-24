@@ -44,7 +44,7 @@ import { partyBalance, postPartyLedger } from '../parties/customers';
 import { shiftIdFor } from '../shifts/shifts';
 import { assertVoidWindow } from '../vouchers/vouchers';
 import { rollupDoc } from '../reports/rollup';
-import { isCashierPhone } from '../sync/role';
+import { isCashierPhone, isCashierStopped } from '../sync/role';
 
 export interface SalesSettings {
   pricesIncludeVat: boolean;
@@ -213,15 +213,23 @@ export interface ImportedSale {
   docId: string;
   number: string;
   at: number;
+  /** The offers as they were on the cashier phone (priced exactly as there). */
+  offers?: Awaited<ReturnType<typeof loadOffers>>;
+  /** Runs inside the posting transaction (records the op as applied atomically). */
+  onPosted?: (tx: Db) => Promise<void>;
 }
 
 export async function postSale(ctx: SalesCtx, draft: SaleDraft, pays: PaymentInput[], opts: { approvedBy?: SessionUser | null; imported?: ImportedSale } = {}): Promise<PostResult> {
   const imp = opts.imported;
   if (!imp) requirePermission(ctx.user, 'sales.create');
-  assertCanWrite();
+  // A cashier phone the owner removed sells no more (its earlier sales are still delivered).
+  if (!imp && isCashierStopped()) throw new PermissionError('sales.create');
+  // A cashier phone's sale already happened: it is recorded even while this phone's plan is read-only.
+  if (!imp) assertCanWrite();
   if (!draft.lines.length) throw new SalesError('empty_cart');
   const tPrice = imp ? imp.at : now(ctx);
-  const priced = priceDraft(draft, ctx.settings, { offers: await loadOffers(ctx.db), day: businessDay(tPrice, ctx.timezone) });
+  const offerDefs = imp?.offers ?? (await loadOffers(ctx.db));
+  const priced = priceDraft(draft, ctx.settings, { offers: offerDefs, day: businessDay(tPrice, ctx.timezone) });
   if (!imp && draft.couponCode && priced.offers?.couponError) throw new SalesError('coupon_invalid', { reason: priced.offers.couponError });
   const need = approvalsNeeded(ctx.user, draft, priced);
   const approver = opts.approvedBy ?? null;
@@ -407,11 +415,12 @@ export async function postSale(ctx: SalesCtx, draft: SaleDraft, pays: PaymentInp
       const stock = draft.lines.filter((l) => tracked.has(l.productId)).map((l) => [l.productId, toBaseQty(l.qtyMilli, l.factorMilli)]);
       await tx.insert(syncOutbox).values({
         kind: 'sale',
-        payload: JSON.stringify({ docId, number, at: t, userId: ctx.user.id, approvedById: approver?.id ?? null, draft: rest, pays, settings: ctx.settings }),
+        payload: JSON.stringify({ docId, number, at: t, userId: ctx.user.id, approvedById: approver?.id ?? null, draft: rest, pays, settings: ctx.settings, offers: offerDefs }),
         stockJson: JSON.stringify(stock),
         createdAt: t,
       });
     }
+    if (imp?.onPosted) await imp.onPosted(tx);
     return { docId, number, totalMinor: priced.totalMinor, changeMinor: settlement.changeMinor };
   });
 }

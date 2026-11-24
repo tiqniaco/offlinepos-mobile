@@ -73,7 +73,7 @@ describe('cashier phone ⇄ main phone', () => {
     expect(await qtyOf(cash, tea)).toBe(7000);
 
     // A newer catalog arrives before the main phone got the sale: the sale is still counted on the cashier phone.
-    await installCatalog(cash, await buildCatalog(main, clock));
+    await installCatalog(cash, await buildCatalog(main, clock), CASH.id);
     expect(await qtyOf(cash, tea)).toBe(7000);
 
     // Main phone: receives the op (sealed per phone + seq), posts it with the cashier phone's number.
@@ -93,7 +93,7 @@ describe('cashier phone ⇄ main phone', () => {
     // Applied → the cashier phone no longer subtracts it; the fresh catalog already has it.
     setPhoneRole('cashier');
     await cash.update(syncOutbox).set({ appliedAt: clock });
-    await installCatalog(cash, await buildCatalog(main, clock));
+    await installCatalog(cash, await buildCatalog(main, clock), CASH.id);
     expect(await qtyOf(cash, tea)).toBe(7000);
   });
 
@@ -101,6 +101,36 @@ describe('cashier phone ⇄ main phone', () => {
     const op = { deviceId: CASH.id, deviceCode: CASH.code, seq: 9, kind: 'sale', payload: { docId: uuidv7(clock), number: 'INV-B-000009', at: clock, userId: 'nobody', approvedById: null, draft: { lines: [], priceTier: 'retail' }, pays: [], settings } };
     expect(await applyOp(main, op, { timezone: TZ, features: pro.features })).toBe('failed');
     expect((await main.select().from(syncApplied))[0]).toMatchObject({ key: `${CASH.id}:9`, error: 'unknown_user' });
+    // Not "applied": the next catalog tells the cashier phone to keep counting it, and it is retried.
+    expect((await buildCatalog(main, clock)).applied[CASH.id]).toEqual({ upTo: 0, failed: [9] });
+    expect(await applyOp(main, op, { timezone: TZ, features: pro.features })).toBe('failed');
+  });
+
+  it("the owner's password hash never goes to a cashier phone; PIN lockout stays per phone", async () => {
+    const cat = await buildCatalog(main, clock);
+    expect(cat.tables.users.map((u) => u.name)).toEqual(['سارة']);
+    const cash = createTestDb();
+    await writeCashierLocal(cash, { business: { id: BIZ, name: 'x', country: 'EG', type: 'shop' }, deviceId: CASH.id, deviceCode: CASH.code }, newSyncKey(), cat, 'android', clock);
+    await cash.update(users).set({ failedPinAttempts: 4, lockedUntil: clock + 60_000 });
+    await installCatalog(cash, await buildCatalog(main, clock), CASH.id);
+    expect((await cash.select().from(users))[0]).toMatchObject({ failedPinAttempts: 4, lockedUntil: clock + 60_000 });
+  });
+
+  it('a sale the main phone posted before a crash is recognised, not posted twice', async () => {
+    const key = newSyncKey();
+    const cash = createTestDb();
+    await writeCashierLocal(cash, { business: { id: BIZ, name: 'x', country: 'EG', type: 'shop' }, deviceId: CASH.id, deviceCode: CASH.code }, key, await buildCatalog(main, clock), 'android', clock);
+    const sara = await unlockWithPin(cash, cashierId, '258147');
+    const cctx = { db: cash, user: sara, device: CASH, timezone: TZ, negativeStock: 'warn' as const, features: pro.features, now: () => (clock += 1000), settings } as SalesCtx;
+    await postSale(cctx, { lines: [await cartLineFor(cash, settings, tea, null, 'retail', 1000)], priceTier: 'retail' }, [{ method: 'cash', amountMinor: 2000 }]);
+    const row = (await cash.select().from(syncOutbox))[0]!;
+    setPhoneRole('main');
+    const op = { deviceId: CASH.id, deviceCode: CASH.code, seq: row.seq, kind: 'sale', payload: JSON.parse(row.payload) };
+    expect(await applyOp(main, op, { timezone: TZ, features: pro.features })).toBe('applied');
+    await main.delete(syncApplied); // crash before the record (simulated)
+    expect(await applyOp(main, op, { timezone: TZ, features: pro.features })).toBe('duplicate');
+    expect(await main.select().from(salesDocs).where(eq(salesDocs.cashierId, cashierId))).toHaveLength(1);
+    expect(await qtyOf(main, tea)).toBe(9000);
   });
 
   it('the catalog fingerprint ignores the build time and changes with the data', async () => {

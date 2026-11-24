@@ -93,7 +93,13 @@ describe('cashier phones (QR join + sync)', () => {
 
     const stop = await s.c.call('POST', `/v1/devices/${j.json.deviceId}/stop`, { businessId: s.businessId }, s.h);
     expect(stop.json).toEqual({ ok: true });
-    expect((await s.c.call('GET', `/v1/sync/status?deviceId=${j.json.deviceId}`, undefined, ch)).json.error.code).toBe('session_revoked');
+    // Stopped: it can still deliver the sales it made, nothing else.
+    const st = await s.c.call('GET', `/v1/sync/status?deviceId=${j.json.deviceId}`, undefined, ch);
+    expect(st.json.stopped).toBe(true);
+    expect((await s.c.call('POST', '/v1/sync/ops', { deviceId: j.json.deviceId, ops: [{ seq: 1, data: 'late' }] }, ch)).json.stored).toBe(1);
+    expect((await s.c.call('GET', `/v1/sync/catalog?deviceId=${j.json.deviceId}`, undefined, ch)).json.error.code).toBe('device_deactivated');
+    // The cashier phone can sign itself out.
+    expect((await s.c.call('POST', '/v1/auth/logout', {}, ch)).json.ok).toBe(true);
   });
 
   it('the plan devices limit caps cashier phones; expired codes are refused', async () => {
@@ -108,5 +114,18 @@ describe('cashier phones (QR join + sync)', () => {
     const inv = await s.c.call('POST', '/v1/sync/invite', { businessId: s.businessId, deviceId: s.mainId }, s.h);
     s.c.advance(16 * 60_000);
     expect((await s.c.call('POST', '/v1/sync/join', { code: inv.json.code, device: device('install-b') })).json.error.code).toBe('code_invalid');
+  });
+
+  it('applied progress has no gaps: a sale the main phone could not post keeps the cashier phone waiting', async () => {
+    const s = await shop('01088880005');
+    const { j } = await join(s);
+    const ch = { Authorization: `Bearer ${j.json.accessToken}` };
+    await s.c.call('POST', '/v1/sync/ops', { deviceId: j.json.deviceId, ops: [1, 2, 3].map((seq) => ({ seq, data: `op${seq}` })) }, ch);
+    const pull = await s.c.call('GET', `/v1/sync/ops?businessId=${s.businessId}&deviceId=${s.mainId}`, undefined, s.h);
+    // seq 2 failed on the main phone: only 1 and 3 are acked.
+    await s.c.call('POST', '/v1/sync/ops/ack', { businessId: s.businessId, deviceId: s.mainId, ids: pull.json.ops.filter((o: any) => o.seq !== 2).map((o: any) => o.id) }, s.h);
+    expect((await s.c.call('GET', `/v1/sync/status?deviceId=${j.json.deviceId}`, undefined, ch)).json.appliedSeq).toBe(1);
+    // …and it is offered again.
+    expect((await s.c.call('GET', `/v1/sync/ops?businessId=${s.businessId}&deviceId=${s.mainId}`, undefined, s.h)).json.ops.map((o: any) => o.seq)).toEqual([2]);
   });
 });

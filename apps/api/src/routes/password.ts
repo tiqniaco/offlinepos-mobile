@@ -170,7 +170,7 @@ export function addPasswordRoutes(app: Hono<AppEnv>, deps: Deps, businessesOf: (
         `UPDATE accounts SET password_hash = ?2, password_salt = ?3, password_iters = ?4, password_updated_at = ?5, password_failed = 0, password_locked_until = NULL WHERE id = ?1`,
       ).bind(acc.id, hash, salt, PBKDF2_ITERATIONS, now),
       // Sign out every other phone; this one stays signed in. The reset window is used up.
-      c.env.DB.prepare(`UPDATE sessions SET revoked_at = ?3, revoke_reason = 'password_changed' WHERE account_id = ?1 AND id != ?2 AND revoked_at IS NULL`).bind(acc.id, s.sid, now),
+      c.env.DB.prepare(`UPDATE sessions SET revoked_at = ?3, revoke_reason = 'password_changed' WHERE account_id = ?1 AND id != ?2 AND revoked_at IS NULL AND device_business_id IS NULL`).bind(acc.id, s.sid, now),
       c.env.DB.prepare(`UPDATE sessions SET password_reset_until = NULL WHERE id = ?1`).bind(s.sid),
     ]);
     return c.json({ ok: true });

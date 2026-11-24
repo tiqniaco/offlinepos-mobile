@@ -14,9 +14,9 @@ import { api, ApiError } from '../../api/client';
 import { getDb } from '../../db/client';
 import { syncApplied, syncOutbox } from '../../db/schema';
 import { getMeta, setMeta } from '../../domain/device';
-import { applyOp } from '../../domain/sync/apply';
+import { applyOp, recordFailure } from '../../domain/sync/apply';
 import { buildCatalog, catalogKey, installCatalog, type Catalog } from '../../domain/sync/catalog';
-import { isCashierPhone } from '../../domain/sync/role';
+import { isCashierPhone, setCashierStopped } from '../../domain/sync/role';
 import { accessToken } from '../../lib/session';
 import { bumpData, useApp } from '../../state/app';
 
@@ -71,8 +71,9 @@ export async function runSync(force = false): Promise<void> {
     if (isCashierPhone()) await cashierSync(app.business.serverBusinessId, app.device.id);
     else await mainSync(app.business.serverBusinessId, app.device.id, app.settings.timezone ?? 'Africa/Cairo', force);
   } catch (e) {
-    if (e instanceof ApiError && ENDED.has(e.code)) {
+    if (e instanceof ApiError && ENDED.has(e.code) && isCashierPhone()) {
       await setMeta(getDb(), K.stopped, '1');
+      setCashierStopped(true);
       useSync.getState().set({ stopped: true });
     }
   } finally {
@@ -104,19 +105,23 @@ async function mainSync(businessId: string, deviceId: string, timezone: string, 
     const r = await api.syncPullOps(token, businessId, deviceId);
     if (!r.ops.length) break;
     const features = useApp.getState().licence?.features ?? [];
+    const ack: number[] = [];
     for (const op of r.ops) {
       let payload: { kind?: string } & Record<string, unknown>;
       try {
         payload = openSync(key, base64urlDecode(op.data), opAad(businessId, op.deviceId, op.seq));
       } catch {
-        await db.insert(syncApplied).values({ key: `${op.deviceId}:${op.seq}`, appliedAt: Date.now(), error: 'unreadable' }).onConflictDoNothing();
+        // Never acked: kept on the server (and on the cashier phone) until it can be read.
+        await recordFailure(db, `${op.deviceId}:${op.seq}`, 'unreadable');
         continue;
       }
       const res = await applyOp(db, { deviceId: op.deviceId, deviceCode: op.deviceCode, seq: op.seq, kind: String(payload.kind ?? 'sale'), payload: payload.body ?? payload }, { timezone, features: features as never });
       if (res === 'applied') applied++;
+      // A sale that could not be posted is not acked: retried next time, never lost.
+      if (res !== 'failed') ack.push(op.id);
     }
-    await api.syncAckOps(token, businessId, deviceId, r.ops.map((o) => o.id));
-    if (!r.more) break;
+    if (ack.length) await api.syncAckOps(token, businessId, deviceId, ack);
+    if (!r.more || !ack.length) break;
   }
   if (applied) bumpData();
   // 2) Catalog for the cashier phones, when it changed.
@@ -150,12 +155,19 @@ async function cashierSync(businessId: string, deviceId: string) {
   // 2) What the main phone applied, and a newer catalog.
   const st = await api.syncStatus(token, deviceId);
   await markApplied(st.appliedSeq);
+  if (st.stopped) {
+    // Removed by the owner: deliver what was sold, sell no more.
+    await setMeta(db, K.stopped, '1');
+    setCashierStopped(true);
+    useSync.getState().set({ stopped: true, lastOkAt: Date.now() });
+    return;
+  }
   // Pushed long ago but still not applied (main phone offline, or a lost answer): send again later (idempotent by seq).
   await db.update(syncOutbox).set({ pushedAt: null }).where(and(isNull(syncOutbox.appliedAt), lte(syncOutbox.pushedAt, Date.now() - 30 * 60_000)));
   if (st.catalogVersion > Number((await getMeta(db, K.catVersion)) ?? 0)) {
     const { version, blob } = await api.syncGetCatalog(token, deviceId);
     const cat = openSync<Catalog>(key, blob, catalogAad(businessId));
-    await installCatalog(db, cat);
+    await installCatalog(db, cat, deviceId);
     await setMeta(db, K.catVersion, String(version));
     bumpData();
     const { reloadAppData } = await import('../../state/boot');

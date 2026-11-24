@@ -16,8 +16,16 @@ export function setPhoneRole(r: PhoneRole) {
   role = r;
 }
 
+let stopped = false;
+/** The owner removed this cashier phone: it may only deliver what it already sold. */
+export const isCashierStopped = () => role === 'cashier' && stopped;
+export function setCashierStopped(v: boolean) {
+  stopped = v;
+}
+
 export async function loadPhoneRole(db: Db): Promise<PhoneRole> {
   role = (await getMeta(db, 'sync.role')) === 'cashier' ? 'cashier' : 'main';
+  stopped = (await getMeta(db, 'sync.stopped')) === '1';
   return role;
 }
 export async function savePhoneRole(db: Db, r: PhoneRole) {

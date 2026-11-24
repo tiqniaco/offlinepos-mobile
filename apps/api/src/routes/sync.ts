@@ -60,14 +60,27 @@ async function mainDevice(env: Env, businessId: string, deviceId: string) {
   return d;
 }
 
-/** The cashier phone behind a device session. */
-async function cashierDevice(env: Env, s: { sid: string; businessId: string }, deviceId: string) {
+/** The cashier phone behind a device session. A stopped phone may still deliver its sales (`allowStopped`). */
+async function cashierDevice(env: Env, s: { sid: string; businessId: string }, deviceId: string, allowStopped = false) {
   const d = await env.DB.prepare(`SELECT id, business_id, deactivated_at, session_id FROM devices WHERE id = ?1 AND business_id = ?2 AND role = 'satellite'`)
     .bind(deviceId, s.businessId)
     .first<{ id: string; business_id: string; deactivated_at: number | null; session_id: string | null }>();
   if (!d || d.session_id !== s.sid) throw new ApiError(403, 'wrong_device_role');
-  if (d.deactivated_at) throw new ApiError(403, 'device_deactivated');
+  if (d.deactivated_at && !allowStopped) throw new ApiError(403, 'device_deactivated');
   return d;
+}
+
+/**
+ * How far this phone's sales are applied, with no gap: every seq ≤ the answer is applied. A sale the main phone could
+ * not post stays unapplied (it is retried), so the cashier phone never forgets it.
+ */
+async function appliedUpTo(env: Env, deviceId: string): Promise<number> {
+  const r = await env.DB.prepare(
+    `SELECT (SELECT MIN(seq) FROM sync_ops WHERE device_id = ?1 AND applied_at IS NULL) AS gap, (SELECT MAX(seq) FROM sync_ops WHERE device_id = ?1 AND applied_at IS NOT NULL) AS top`,
+  )
+    .bind(deviceId)
+    .first<{ gap: number | null; top: number | null }>();
+  return r?.gap != null ? r.gap - 1 : (r?.top ?? 0);
 }
 
 export function addSyncRoutes(app: Hono<AppEnv>, deps: Deps, checkIntegrity: CheckIntegrity) {
@@ -97,6 +110,13 @@ export function addSyncRoutes(app: Hono<AppEnv>, deps: Deps, checkIntegrity: Che
     const inv = await c.env.DB.prepare(`SELECT business_id, expires_at, used_at FROM device_invites WHERE code_hash = ?1`).bind(hash).first<{ business_id: string; expires_at: number; used_at: number | null }>();
     if (!inv || inv.used_at || inv.expires_at < now) throw new ApiError(404, 'code_invalid');
     await checkIntegrity(c.env, b.integrity, 'activate', now);
+    {
+      // The shop has no free phone slot: say so without using up the code.
+      const biz = (await c.env.DB.prepare(`SELECT * FROM businesses WHERE id = ?1`).bind(inv.business_id).first<BusinessRow>())!;
+      const lim = (await effectiveLimits(c.env, biz, now)).limits.devices ?? 1;
+      const used = await activeDevices(c.env, biz.id);
+      if (lim >= 0 && used >= lim) throw limitReached('devices', lim, used, `this plan allows ${lim} phone(s)`, 403);
+    }
     // One use only (atomic claim).
     const claim = await c.env.DB.prepare(`UPDATE device_invites SET used_at = ?2 WHERE code_hash = ?1 AND used_at IS NULL AND expires_at >= ?2`).bind(hash, now).run();
     if (claim.meta.changes !== 1) throw new ApiError(404, 'code_invalid');
@@ -176,21 +196,18 @@ export function addSyncRoutes(app: Hono<AppEnv>, deps: Deps, checkIntegrity: Che
   app.get('/sync/status', async (c) => {
     const now = deps.now();
     const s = await requireDeviceSession(c.env, c.req.header('Authorization'), now);
-    const d = await cashierDevice(c.env, s, c.req.query('deviceId') ?? '');
-    const [st, ap] = await Promise.all([
-      c.env.DB.prepare(`SELECT catalog_version AS v FROM sync_state WHERE business_id = ?1`).bind(s.businessId).first<{ v: number }>(),
-      c.env.DB.prepare(`SELECT MAX(seq) AS m FROM sync_ops WHERE device_id = ?1 AND applied_at IS NOT NULL`).bind(d.id).first<{ m: number | null }>(),
-    ]);
+    const d = await cashierDevice(c.env, s, c.req.query('deviceId') ?? '', true);
+    const st = await c.env.DB.prepare(`SELECT catalog_version AS v FROM sync_state WHERE business_id = ?1`).bind(s.businessId).first<{ v: number }>();
     // "Last seen" of the cashier phone: at most one write per 10 minutes.
     await c.env.DB.prepare(`UPDATE devices SET last_checkin_at = ?2 WHERE id = ?1 AND (last_checkin_at IS NULL OR last_checkin_at < ?2 - 600000)`).bind(d.id, now).run();
-    return c.json({ catalogVersion: st?.v ?? 0, appliedSeq: ap?.m ?? 0, serverTime: now });
+    return c.json({ catalogVersion: st?.v ?? 0, appliedSeq: await appliedUpTo(c.env, d.id), serverTime: now, stopped: !!d.deactivated_at });
   });
 
   app.post('/sync/ops', async (c) => {
     const now = deps.now();
     const s = await requireDeviceSession(c.env, c.req.header('Authorization'), now);
     const b = await body(c, syncOpsPushSchema);
-    const d = await cashierDevice(c.env, s, b.deviceId);
+    const d = await cashierDevice(c.env, s, b.deviceId, true);
     if ((await bumpCounter(c.env.DB, `ops:${d.id}`, 3_600_000, now)) > 240) throw new ApiError(429, 'rate_limited', undefined, 300_000);
     for (const op of b.ops) if (op.data.length > Math.ceil((SYNC_OP_MAX_BYTES * 4) / 3) + 4) throw new ApiError(413, 'invalid_request', 'op too large');
     const res = await c.env.DB.batch(
@@ -200,8 +217,7 @@ export function addSyncRoutes(app: Hono<AppEnv>, deps: Deps, checkIntegrity: Che
     );
     const stored = res.reduce((n, r) => n + (r.meta.changes ?? 0), 0);
     track(s.businessId, 'sync_events', stored, b.ops.reduce((n, o) => n + o.data.length, 0));
-    const ap = await c.env.DB.prepare(`SELECT MAX(seq) AS m FROM sync_ops WHERE device_id = ?1 AND applied_at IS NOT NULL`).bind(d.id).first<{ m: number | null }>();
-    return c.json({ stored, appliedSeq: ap?.m ?? 0 });
+    return c.json({ stored, appliedSeq: await appliedUpTo(c.env, d.id) });
   });
 
   app.get('/sync/ops', async (c) => {

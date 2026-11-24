@@ -21,7 +21,7 @@ import { ApiError, body, clientIp } from '../lib/http';
 import { wrapSecret } from '../lib/crypto';
 import { bumpCounter, requestOtp, verifyOtp } from '../otp/service';
 import { providerFor, type OtpProvider } from '../otp/providers';
-import { checkRefresh, commitRefresh, createSession, requireSession, revokeSession, rotateRefresh } from '../auth/tokens';
+import { checkRefresh, commitRefresh, createSession, requireAnySession, requireSession, revokeSession, rotateRefresh } from '../auth/tokens';
 import { buildLicence, getPlan, signAnchorReceipt, type BusinessRow, type DeviceRow } from '../licence/issue';
 import { addPasswordRoutes } from './password';
 import { addReleaseRoutes } from './releases';
@@ -173,7 +173,7 @@ export function v1Routes(deps: Deps = defaultDeps) {
   });
 
   app.post('/auth/logout', async (c) => {
-    const s = await requireSession(c.env, c.req.header('Authorization'), deps.now());
+    const s = await requireAnySession(c.env, c.req.header('Authorization'), deps.now());
     await revokeSession(c.env, s.sid, 'logout', deps.now());
     return c.json({ ok: true });
   });

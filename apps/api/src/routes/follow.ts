@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { SNAPSHOT_MAX_BYTES, SNAPSHOT_MIN_INTERVAL_MS, followShopSchema, putSnapshotSchema, uuidv7 } from '@daftarak/shared';
 import type { AppEnv, Env } from '../env';
 import { ApiError, body } from '../lib/http';
-import { requireSession, revokeSession } from '../auth/tokens';
+import { requireSession } from '../auth/tokens';
 import { effectiveLimits } from '../licence/issue';
 import { limitReached, track } from '../usage/meter';
 import { bumpCounter } from '../otp/service';
@@ -166,8 +166,8 @@ export function addFollowRoutes(app: Hono<AppEnv>, deps: Deps, checkIntegrity: C
       .first<{ id: string; role: string; session_id: string | null }>();
     if (!d) throw new ApiError(404, 'not_found');
     await c.env.DB.prepare(`UPDATE devices SET deactivated_at = ?2 WHERE id = ?1`).bind(d.id, now).run();
-    // A cashier phone's session exists only for this shop: end it too (its unsent sales stay on that phone).
-    if (d.role === 'satellite' && d.session_id) await revokeSession(c.env, d.session_id, 'device_stopped', now);
+    // A stopped cashier phone keeps its session for one thing only: delivering the sales it already made (it can
+    // no longer sell, read the catalog or check in as part of the shop).
     return c.json({ ok: true });
   });
 }
