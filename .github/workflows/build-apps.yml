@@ -71,6 +71,9 @@ jobs:
     timeout-minutes: 75
     env:
       HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      # Google Play build: Play Billing only, no manual payments, no APK self-update (REQUEST_INSTALL_PACKAGES).
+      # The sideloaded APK on our own server comes from publish-android.yml instead.
+      STORE_BUILD: '1'
       HAS_PLAY: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
     steps:
       - uses: actions/checkout@v4
