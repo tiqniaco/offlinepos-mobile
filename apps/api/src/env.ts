@@ -9,6 +9,11 @@ export interface Env {
   OTP_PROVIDER: 'console' | 'smsmisr';
   /** Local E2E runs only (console provider). Ignored when ENVIRONMENT = production. */
   OTP_FIXED_CODE?: string;
+  /**
+   * App Store / Google Play reviewer sign-in: "phone:code,phone:code" (secret). For THESE numbers only the code is
+   * fixed and no SMS is sent (store reviewers cannot receive SMS). Their accounts hold demo shops only.
+   */
+  REVIEW_LOGINS?: string;
   /** Global SMS cap per UTC day across all numbers (default 3000). */
   OTP_DAILY_CAP?: string;
   /** SMS cap per number range (first 6 digits) per hour (default 100). */

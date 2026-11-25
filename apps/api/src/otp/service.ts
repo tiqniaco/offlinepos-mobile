@@ -2,7 +2,7 @@
  * OTP rules (SPEC §6, PLAN.md §11.3): 6 digits, 5-min expiry, 5 attempts, 60 s resend cooldown,
  * per-phone hourly/daily caps, per-IP hourly cap, stored only as an HMAC, country allow-list (EG/SA).
  */
-import { OTP_POLICY, uuidv7 } from '@daftarak/shared';
+import { OTP_POLICY, normalizePhone, uuidv7 } from '@daftarak/shared';
 import type { Env } from '../env';
 import { ApiError } from '../lib/http';
 import { hmacHex, randomDigits, safeEqual } from '../lib/crypto';
@@ -68,6 +68,19 @@ const positive = (v: string | undefined, dflt: number) => {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : dflt;
 };
 
+/**
+ * The fixed code of a store-reviewer number (REVIEW_LOGINS secret, "phone:code,…"), or null for every other number.
+ * A code must be 6 digits; malformed entries are ignored.
+ */
+export function reviewCode(env: Pick<Env, 'REVIEW_LOGINS'>, phone: string): string | null {
+  for (const entry of (env.REVIEW_LOGINS ?? '').split(',')) {
+    const [rawPhone, code] = entry.trim().split(':').map((x) => x?.trim() ?? '');
+    if (!rawPhone || !code || !new RegExp(`^\\d{${OTP_POLICY.digits}}$`).test(code)) continue;
+    if (normalizePhone(rawPhone) === phone) return code;
+  }
+  return null;
+}
+
 export async function requestOtp(
   env: Env,
   provider: OtpProvider,
@@ -75,6 +88,18 @@ export async function requestOtp(
 ): Promise<{ resendAfterMs: number; expiresInMs: number }> {
   const { phone, purpose, ip, now } = args;
   const db = env.DB;
+
+  // Store reviewers: their fixed code, no SMS (so none of the SMS caps apply). Verification is unchanged:
+  // the code is still hashed, expires, and has the same attempt limits.
+  const review = reviewCode(env, phone);
+  if (review) {
+    await db.prepare(`UPDATE otp_codes SET consumed_at = ?3 WHERE phone = ?1 AND purpose = ?2 AND consumed_at IS NULL`).bind(phone, purpose, now).run();
+    await db
+      .prepare(`INSERT INTO otp_codes (id, phone, purpose, code_hash, attempts, created_at, expires_at, ip) VALUES (?1, ?2, ?3, ?4, 0, ?5, ?6, ?7)`)
+      .bind(uuidv7(now), phone, purpose, await codeHash(env, phone, purpose, review), now, now + OTP_POLICY.ttlMs, ip)
+      .run();
+    return { resendAfterMs: OTP_POLICY.resendCooldownMs, expiresInMs: OTP_POLICY.ttlMs };
+  }
 
   const last = await db
     .prepare(`SELECT created_at FROM otp_codes WHERE phone = ?1 ORDER BY created_at DESC LIMIT 1`)

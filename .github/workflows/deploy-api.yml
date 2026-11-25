@@ -140,6 +140,7 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           EXPO_ACCESS_TOKEN: ${{ secrets.EXPO_ACCESS_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          REVIEW_LOGINS: ${{ secrets.REVIEW_LOGINS }}
         run: |
           set -euo pipefail
           # Must succeed: on any error the job stops (never treat "could not list" as "no keys yet").
@@ -189,7 +190,7 @@ jobs:
           }
           if (!have.has('REVENUECAT_WEBHOOK_SECRET') && !process.env.REVENUECAT_WEBHOOK_SECRET) put.REVENUECAT_WEBHOOK_SECRET = randomBytes(24).toString('base64url');
           // Yours (from GitHub secrets): always the current value.
-          for (const k of ['SMSMISR_USERNAME', 'SMSMISR_PASSWORD', 'SMSMISR_SENDER', 'SMSMISR_TEMPLATE', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'REVENUECAT_WEBHOOK_SECRET', 'GOOGLE_SERVICE_ACCOUNT_JSON', 'EXPO_ACCESS_TOKEN', 'ANTHROPIC_API_KEY']) {
+          for (const k of ['SMSMISR_USERNAME', 'SMSMISR_PASSWORD', 'SMSMISR_SENDER', 'SMSMISR_TEMPLATE', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'REVENUECAT_WEBHOOK_SECRET', 'GOOGLE_SERVICE_ACCOUNT_JSON', 'EXPO_ACCESS_TOKEN', 'ANTHROPIC_API_KEY', 'REVIEW_LOGINS']) {
             if (process.env[k]) put[k] = process.env[k];
           }
           if (!process.env.SMSMISR_USERNAME && !have.has('SMSMISR_USERNAME')) {

@@ -157,3 +157,26 @@ describe('providers call the global fetch unbound (Workers "Illegal invocation")
     }
   });
 });
+
+describe('store reviewer sign-in (REVIEW_LOGINS)', () => {
+  const env = { REVIEW_LOGINS: '01099990001:482913, 01099990002:abc' };
+
+  it('uses the fixed code for a reviewer number, sends no SMS, and still verifies once', async () => {
+    const c = makeClient(undefined, {}, env);
+    const r = await c.call('POST', '/v1/auth/otp/request', { phone: '01099990001' });
+    expect(r.status).toBe(200);
+    expect(ConsoleProvider.lastCodeFor('201099990001')).toBeUndefined();
+    expect((await c.call('POST', '/v1/auth/otp/verify', { phone: '01099990001', code: '111111', device: device() })).status).toBe(400);
+    const ok = await c.call('POST', '/v1/auth/otp/verify', { phone: '01099990001', code: '482913', device: device() });
+    expect(ok.status).toBe(200);
+    expect((await c.call('POST', '/v1/auth/otp/verify', { phone: '01099990001', code: '482913', device: device() })).status).toBe(400);
+  });
+
+  it('ignores malformed entries and every other number', async () => {
+    const c = makeClient(undefined, {}, env);
+    expect((await c.call('POST', '/v1/auth/otp/request', { phone: '01099990002' })).status).toBe(200);
+    expect(ConsoleProvider.lastCodeFor('201099990002')).toMatch(/^\d{6}$/);
+    expect((await c.call('POST', '/v1/auth/otp/request', { phone: '01099990003' })).status).toBe(200);
+    expect(ConsoleProvider.lastCodeFor('201099990003')).toMatch(/^\d{6}$/);
+  });
+});
