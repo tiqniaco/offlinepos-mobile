@@ -34,6 +34,7 @@ import { addFollowRoutes, countFollowers } from './follow';
 import { addSyncRoutes, countCashierPhones } from './sync';
 import { blocks, verifyIntegrity, type IntegrityInput } from '../integrity/verify';
 import { meterBusiness, track } from '../usage/meter';
+import { deleteAccount } from '../account/delete';
 
 /** Verify (or just record) device integrity; throws only when policy says so. */
 export async function checkIntegrity(env: Env, input: IntegrityInput | undefined, action: 'signup' | 'activate' | 'checkin', now: number, deviceId?: string) {
@@ -176,6 +177,18 @@ export function v1Routes(deps: Deps = defaultDeps) {
     const s = await requireAnySession(c.env, c.req.header('Authorization'), deps.now());
     await revokeSession(c.env, s.sid, 'logout', deps.now());
     return c.json({ ok: true });
+  });
+
+  /**
+   * Delete the account and all its server data, from inside the app. Needs a fresh SMS step-up (the same as other
+   * sensitive actions) so a stolen unlocked phone or a leaked token alone cannot do it.
+   */
+  app.post('/account/delete', async (c) => {
+    const now = deps.now();
+    const s = await requireSession(c.env, c.req.header('Authorization'), now);
+    if (!s.stepUpUntil || s.stepUpUntil < now) throw new ApiError(403, 'step_up_required');
+    const r = await deleteAccount(c.env, s.aid);
+    return c.json({ ok: true, deletedBusinesses: r.businesses });
   });
 
   /** Step-up: a fresh OTP for sensitive actions (backup key release, restore — Phase 6). */

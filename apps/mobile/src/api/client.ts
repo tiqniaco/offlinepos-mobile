@@ -110,6 +110,8 @@ export const api = {
     request('/v1/checkin', checkinResponseSchema, { body: b }),
   refresh: (refreshToken: string) => request('/v1/auth/refresh', z.object({ accessToken: z.string(), refreshToken: z.string(), accessExpiresAt: z.number() }), { body: { refreshToken } }),
   stepUpRequest: (token: string) => request('/v1/auth/step-up/request', z.object({ phone: z.string().optional(), resendAfterMs: z.number(), expiresInMs: z.number() }), { body: {}, token }),
+  /** Deletes the account and all its server data (needs a fresh step-up on this session). */
+  deleteAccount: (token: string) => request('/v1/account/delete', z.object({ ok: z.literal(true), deletedBusinesses: z.number() }), { body: {}, token }),
   stepUpVerify: (token: string, code: string) => request('/v1/auth/step-up/verify', z.object({ stepUpUntil: z.number() }), { body: { code }, token }),
   backupUploadUrl: (token: string, b: { businessId: string; deviceId: string; meta: BackupMeta; kind: 'auto' | 'manual' }) => request('/v1/backups/upload-url', backupPutSchema, { body: b, token }),
   backupCommit: (token: string, id: string, businessId: string) => request(`/v1/backups/${id}/commit`, z.object({ ok: z.boolean() }), { body: { businessId }, token }),

@@ -144,13 +144,15 @@ const TERMS_EN = `<h1>Terms of Use</h1><p class="muted">Last updated: ${UPDATED}
 <p>Contact: <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>`;
 
 const DELETE_AR = `<h1>حذف الحساب والبيانات</h1>
-<p>تقدر تطلب حذف حسابك في كاشيرو وكل بياناته من سيرفرنا في أي وقت:</p>
+<p><b>من جوه التطبيق (الأسرع):</b> افتح «المزيد» ← «احذف حسابي»، وأكّد بالكود اللي هيوصلك. الحساب والمحل وكل بياناته بيتمسحوا من سيرفرنا فوراً، والموبايل بيرجع لشاشة البداية.</p>
+<p>أو اطلب الحذف بالإيميل:</p>
 <ol><li>ابعت رسالة على <a href="mailto:${SUPPORT_EMAIL}?subject=Kashiro%20account%20deletion">${SUPPORT_EMAIL}</a> بعنوان «حذف حساب كاشيرو» ومعاها رقم الموبايل المسجل واسم المحل.</li>
 <li>هنتأكد إن الطلب من صاحب الرقم (هنبعتلك كود أو نتصل بيك).</li>
 <li>هنحذف خلال 30 يوم: الحساب، المحلات، الأجهزة، النسخ الاحتياطية على السيرفر، طلبات الدفع وصور الإيصالات، والبيانات المشفّرة لموبايلات الكاشير.</li></ol>
 <p><b>اللي ممكن يفضل:</b> سجلات الدفع اللي القانون بيطلب الاحتفاظ بيها (لو فيه) لمدة القانون بس. البيانات اللي على موبايلك وملفات النسخ بتاعتك تحت إيدك أنت — امسح التطبيق أو الملفات بنفسك.</p>`;
 const DELETE_EN = `<h1>Delete your account and data</h1>
-<p>You can ask us to delete your Kashiro account and all its data from our server at any time:</p>
+<p><b>In the app (fastest):</b> open “More” → “Delete my account” and confirm with the code we text you. The account, the shop and all its data are deleted from our server right away, and the phone returns to the welcome screen.</p>
+<p>Or ask us by email:</p>
 <ol><li>Email <a href="mailto:${SUPPORT_EMAIL}?subject=Kashiro%20account%20deletion">${SUPPORT_EMAIL}</a> with the subject “Kashiro account deletion”, your registered phone number and shop name.</li>
 <li>We confirm the request comes from the number's owner (a code or a call).</li>
 <li>Within 30 days we delete: the account, shops, devices, server backups, payment requests and receipt photos, and the encrypted cashier-phone data.</li></ol>

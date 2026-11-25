@@ -62,6 +62,8 @@ export default function Subscription() {
   };
   const planName = nameOf(l?.plan);
   const storeBuild = isStoreBuild();
+  // A store build sells only through the store: until its billing is set up, no prices or plan buttons (store policy).
+  const canBuy = !storeBuild || storeAvailable();
   const lim = (n: number | undefined) => (n == null ? '—' : n === UNLIMITED ? t('subscription.unlimited') : String(n));
   const refresh = async () => {
     setBusy(true);
@@ -183,6 +185,8 @@ export default function Subscription() {
           ))}
         </View>
       </Card>
+      {canBuy ? (
+        <>
       <SectionTitle>{t('subscription.choose')}</SectionTitle>
       {ok ? <Banner tone="success" text={ok} /> : null}
       {err ? <Banner tone="danger" text={err} /> : null}
@@ -233,6 +237,10 @@ export default function Subscription() {
           </Card>
         );
       })}
+        </>
+      ) : (
+        <Banner tone="info" icon="card" text={t('subscription.storeSoon')} />
+      )}
       {requests.length ? (
         <>
           <SectionTitle>{t('upgrade.requests')}</SectionTitle>

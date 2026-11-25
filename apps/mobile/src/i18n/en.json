@@ -212,7 +212,8 @@
     "sessions": "Signed-in phones",
     "inbox": "Messages from Kashiro",
     "selling": "Selling & payment methods",
-    "devices": "Shop phones"
+    "devices": "Shop phones",
+    "deleteAccount": "Delete my account"
   },
   "users": {
     "title": "Users",
@@ -310,7 +311,8 @@
       "ocrUnlimited": "Unlimited supplier invoice scans"
     },
     "ocrLimit": "Invoice scans / month",
-    "renew": "Renew plan"
+    "renew": "Renew plan",
+    "storeSoon": "Subscribing to paid plans in the app is coming soon. Until then you can use every feature during the trial."
   },
   "errors": {
     "network": "No internet connection. Check it and try again.",
@@ -2372,5 +2374,23 @@
     "none": "No new types in the file",
     "run": "Add {{n}}",
     "done": "{{n}} types added"
+  },
+  "deleteAccount": {
+    "title": "Delete account",
+    "headline": "This permanently deletes your account and all your shop data. It cannot be undone.",
+    "what": {
+      "shop": "The shop and all its data: products, invoices, customers, suppliers and reports.",
+      "backups": "Server backups and payment receipts.",
+      "devices": "All phones linked to the shop; cashier phones stop working.",
+      "phone": "The data on this phone; the app returns to the welcome screen."
+    },
+    "exportFirst": "If you need your data, save a backup file or Excel first.",
+    "exportAction": "Save a copy",
+    "start": "Delete my account permanently",
+    "confirmTitle": "Are you sure?",
+    "confirmBody": "The account and the shop «{{name}}» with all its data will be deleted permanently. We will text you a code to confirm.",
+    "confirmGo": "Yes, delete",
+    "codeHint": "Enter the code we sent you to confirm you own the account.",
+    "working": "Deleting your account and data…"
   }
 }

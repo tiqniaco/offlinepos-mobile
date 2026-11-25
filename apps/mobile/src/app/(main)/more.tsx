@@ -1,3 +1,4 @@
+import { isCashierPhone } from '../../domain/sync/role';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { roleHas, DEFAULT_PLANS } from '@daftarak/shared';
@@ -39,6 +40,8 @@ export default function More() {
   if (can('users.manage')) account.push({ key: 'sessions', icon: 'phone', hue: 'sky', title: t('more.sessions'), onPress: () => router.push('/settings/sessions') });
   if (can('settings.manage')) account.push({ key: 'selling', icon: 'cart', hue: 'amber', title: t('more.selling'), onPress: () => router.push('/settings/selling') });
   if (can('settings.manage')) account.push({ key: 'integrity', icon: 'shield', hue: 'leaf', title: t('more.integrity'), onPress: () => router.push('/settings/integrity') });
+  // App Store / Google Play: the owner can delete the account from inside the app (not on a cashier phone).
+  if (user.roleKey === 'owner' && !isCashierPhone()) account.push({ key: 'deleteAccount', testID: 'more-delete-account', icon: 'trash', hue: 'rose', title: t('more.deleteAccount'), onPress: () => router.push('/settings/delete-account') });
   const app: MoreItem[] = [
     { key: 'inbox', testID: 'more-inbox', icon: 'bell', hue: 'primary', title: t('more.inbox'), onPress: () => router.push('/inbox') },
     { key: 'printers', icon: 'printer', hue: 'amber', title: t('more.printers'), onPress: () => router.push('/settings/printers') },
