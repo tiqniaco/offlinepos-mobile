@@ -236,3 +236,23 @@ appId: app.daftarak
 - tapOn: { id: pin-ok, optional: true }
 - waitForAnimationToEnd: { timeout: 8000 }
 - takeScreenshot: shots/k03-after-unlock
+# Language switch Arabic → English → Arabic (changes the layout direction: the app reloads itself).
+- openLink: "daftarak://settings/language"
+- waitForAnimationToEnd: { timeout: 4000 }
+- runFlow: unlock.yaml
+- tapOn: { text: "English" }
+- waitForAnimationToEnd: { timeout: 15000 }
+- launchApp: { stopApp: false }
+- runFlow: unlock.yaml
+- waitForAnimationToEnd: { timeout: 5000 }
+- takeScreenshot: shots/l01-after-english
+- openLink: "daftarak://settings/language"
+- waitForAnimationToEnd: { timeout: 4000 }
+- runFlow: unlock.yaml
+- takeScreenshot: shots/l02-language-en
+- tapOn: { text: "العربية" }
+- waitForAnimationToEnd: { timeout: 15000 }
+- launchApp: { stopApp: false }
+- runFlow: unlock.yaml
+- waitForAnimationToEnd: { timeout: 5000 }
+- takeScreenshot: shots/l03-after-arabic

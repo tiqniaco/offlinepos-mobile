@@ -27,16 +27,20 @@ export function initI18n(lang: Lang = 'ar') {
 }
 
 /** Make layout direction match the language. Returns true if a reload was triggered. */
-export async function ensureDirection(lang: Lang): Promise<boolean> {
+export async function ensureDirection(lang: Lang, hooks: { beforeReload?: () => void; reloadFailed?: () => Promise<void> } = {}): Promise<boolean> {
   const rtl = lang === 'ar';
   if (I18nManager.isRTL === rtl) return false;
   I18nManager.allowRTL(rtl);
   I18nManager.forceRTL(rtl);
   try {
+    // Native resources (the encrypted database) must be released before the JS runtime is torn down: reloading
+    // with them open can crash the app instead of reloading it.
+    hooks.beforeReload?.();
     await Updates.reloadAsync();
     return true;
   } catch {
     // In development (no expo-updates runtime) the change applies on next app start.
+    await hooks.reloadFailed?.();
     return false;
   }
 }

@@ -6,7 +6,7 @@ import { Appearance, Platform } from 'react-native';
 import { applyFont, applyTheme, setTextSize } from '../ui/themeStore';
 import { preloadSoundsSoon, setSoundsEnabled, setSoundVolume } from '../ui/sounds';
 import { setHapticsEnabled } from '../ui/haptics';
-import { getDb, openDatabase, DbNotEncryptedError } from '../db/client';
+import { getDb, openDatabase, DbNotEncryptedError, closeDatabase } from '../db/client';
 import { business } from '../db/schema';
 import { getCurrentDevice } from '../domain/device';
 import { ensureInventorySeed } from '../domain/inventory/seed';
@@ -110,7 +110,7 @@ async function bootInner(): Promise<void> {
   }
   // A cloud restore installed but never activated (app killed in between): set that data aside → onboarding.
   if (await abandonIncompleteRestore()) await openDatabase();
-  const db = getDb();
+  let db = getDb();
   await loadPhoneRole(db);
   if (!subscribed) {
     subscribeLicence((l) => useApp.getState().set({ licence: l }));
@@ -126,7 +126,7 @@ async function bootInner(): Promise<void> {
   applyTheme(settings.palette ?? 'tiqnia', settings.appearance ?? 'light', Appearance.getColorScheme() === 'dark');
   const lang = settings.language ?? 'ar';
   initI18n(lang);
-  if (await ensureDirection(lang)) return; // app is reloading
+  if (await ensureDirection(lang, { beforeReload: closeDatabase, reloadFailed: async () => void (db = await openDatabase()) })) return; // app is reloading
   const b = (await db.select().from(business).limit(1))[0];
   if (!b) {
     // «موبايل متابعة»: this phone only follows a shop (no local shop data).
