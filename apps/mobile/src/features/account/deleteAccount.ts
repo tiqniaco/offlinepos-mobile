@@ -13,6 +13,15 @@ export async function deleteAccountEverywhere(token: string): Promise<void> {
   await wipeThisPhone();
 }
 
+/**
+ * «تسجيل الخروج من الموبايل ده»: the account and the shop stay on the server; this phone ends its session (when
+ * online) and forgets the shop. Signing in again restores it from a backup.
+ */
+export async function signOutThisPhone(token: string | null): Promise<void> {
+  if (token) await api.logout(token).catch(() => undefined); // offline: the local sign-in is erased anyway
+  await wipeThisPhone();
+}
+
 /** Deleted for good (unlike "set aside" after a damaged file): the owner asked for the data to be erased. */
 export async function wipeThisPhone(): Promise<void> {
   closeDatabase();

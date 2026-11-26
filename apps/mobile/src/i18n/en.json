@@ -213,7 +213,8 @@
     "inbox": "Messages from Kashiro",
     "selling": "Selling & payment methods",
     "devices": "Shop phones",
-    "deleteAccount": "Delete my account"
+    "deleteAccount": "Delete my account",
+    "signOut": "Sign out of this phone"
   },
   "users": {
     "title": "Users",
@@ -2392,5 +2393,23 @@
     "confirmGo": "Yes, delete",
     "codeHint": "Enter the code we sent you to confirm you own the account.",
     "working": "Deleting your account and data…"
+  },
+  "signOut": {
+    "title": "Sign out",
+    "headline": "You will sign out of your account on this phone.",
+    "what": {
+      "erase": "The shop data is erased from this phone only.",
+      "keep": "Your account and shop stay; nothing is deleted from them.",
+      "back": "When you sign in again (here or on another phone) you restore your data from a backup."
+    },
+    "backupOk": "Last backup: {{at}} ✓",
+    "backupOld": "The last backup is from {{at}}. Make a new one first so you do not lose recent work.",
+    "backupNone": "There is no backup of the shop data. Make one first, or the data will be lost.",
+    "backupAction": "Back up now",
+    "go": "Sign out",
+    "confirmTitle": "Sign out?",
+    "confirmBody": "The shop data will be erased from this phone; you can restore it from the backup when you sign in again.",
+    "confirmNoBackup": "There is no recent backup! If you sign out now, work that is not in a backup is lost for good.",
+    "confirmGo": "Sign out"
   }
 }

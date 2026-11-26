@@ -40,6 +40,7 @@ export default function More() {
   if (can('users.manage')) account.push({ key: 'sessions', icon: 'phone', hue: 'sky', title: t('more.sessions'), onPress: () => router.push('/settings/sessions') });
   if (can('settings.manage')) account.push({ key: 'selling', icon: 'cart', hue: 'amber', title: t('more.selling'), onPress: () => router.push('/settings/selling') });
   if (can('settings.manage')) account.push({ key: 'integrity', icon: 'shield', hue: 'leaf', title: t('more.integrity'), onPress: () => router.push('/settings/integrity') });
+  if (user.roleKey === 'owner' && !isCashierPhone()) account.push({ key: 'signOut', testID: 'more-sign-out', icon: 'lock', hue: 'sky', title: t('more.signOut'), onPress: () => router.push('/settings/sign-out') });
   // App Store / Google Play: the owner can delete the account from inside the app (not on a cashier phone).
   if (user.roleKey === 'owner' && !isCashierPhone()) account.push({ key: 'deleteAccount', testID: 'more-delete-account', icon: 'trash', hue: 'rose', title: t('more.deleteAccount'), onPress: () => router.push('/settings/delete-account') });
   const app: MoreItem[] = [

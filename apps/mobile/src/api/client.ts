@@ -110,6 +110,8 @@ export const api = {
     request('/v1/checkin', checkinResponseSchema, { body: b }),
   refresh: (refreshToken: string) => request('/v1/auth/refresh', z.object({ accessToken: z.string(), refreshToken: z.string(), accessExpiresAt: z.number() }), { body: { refreshToken } }),
   stepUpRequest: (token: string) => request('/v1/auth/step-up/request', z.object({ phone: z.string().optional(), resendAfterMs: z.number(), expiresInMs: z.number() }), { body: {}, token }),
+  /** Ends this phone's server session (sign out). */
+  logout: (token: string) => request('/v1/auth/logout', z.object({ ok: z.literal(true) }), { body: {}, token }),
   /** Deletes the account and all its server data (needs a fresh step-up on this session). */
   deleteAccount: (token: string) => request('/v1/account/delete', z.object({ ok: z.literal(true), deletedBusinesses: z.number() }), { body: {}, token }),
   stepUpVerify: (token: string, code: string) => request('/v1/auth/step-up/verify', z.object({ stepUpUntil: z.number() }), { body: { code }, token }),
