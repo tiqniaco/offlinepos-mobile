@@ -5,7 +5,7 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { I18nManager } from 'react-native';
-import * as Updates from 'expo-updates';
+import { reloadAppAsync } from 'expo';
 import ar from './ar.json';
 import en from './en.json';
 
@@ -36,10 +36,12 @@ export async function ensureDirection(lang: Lang, hooks: { beforeReload?: () => 
     // Native resources (the encrypted database) must be released before the JS runtime is torn down: reloading
     // with them open can crash the app instead of reloading it.
     hooks.beforeReload?.();
-    await Updates.reloadAsync();
+    // Reload the running bundle (works in release builds; Updates.reloadAsync needs expo-updates enabled, which
+    // store builds without an update server are not).
+    await reloadAppAsync('layout direction');
     return true;
   } catch {
-    // In development (no expo-updates runtime) the change applies on next app start.
+    // Could not reload: the change applies on the next app start.
     await hooks.reloadFailed?.();
     return false;
   }
